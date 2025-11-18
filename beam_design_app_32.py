@@ -20,6 +20,9 @@ def get_conn():
       separate fields in st.secrets['postgres']
     """
 
+# Get postgres info from Streamlit secrets
+    pg = st.secrets.get("postgres", {})
+    
     # Option B: separate fields
     host = pg.get("amanote.proxy.rlwy.net")
     port = pg.get("15500")
@@ -918,5 +921,6 @@ with end_col1:
         st.success("Results saved to session state (end button).")
 with end_col2:
     st.info("Saved runs are kept in this browser session (temporary).")
+
 
 
