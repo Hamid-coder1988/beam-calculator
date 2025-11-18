@@ -24,11 +24,13 @@ def get_conn():
     pg = st.secrets.get("postgres", {})
     
     # Option B: separate fields
-    host = pg.get("amanote.proxy.rlwy.net")
-    port = pg.get("15500")
-    database = pg.get("railway")
-    user = pg.get("postgres")
-    password = pg.get("KcMoXOMMbbOQITUHrdJMOiwyNBDGyrFy")
+    [postgres]
+host = "amanote.proxy.rlwy.net"
+port = "15500"
+database = "railway"
+user = "postgres"
+password = "KcMoXOMMbbOQITUHrdJMOiwyNBDGyrFy"
+
     if not (host and database and user and password):
         raise RuntimeError("Postgres credentials missing in st.secrets['postgres']")
     conn = psycopg2.connect(host=host, port=port, database=database, user=user, password=password)
@@ -921,6 +923,7 @@ with end_col1:
         st.success("Results saved to session state (end button).")
 with end_col2:
     st.info("Saved runs are kept in this browser session (temporary).")
+
 
 
 
