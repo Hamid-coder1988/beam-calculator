@@ -74,26 +74,7 @@ This prototype performs simplified Eurocode-style screening checks. It is **not*
 Use for screening/prototyping only — always have final results verified by a licensed structural engineer.
 """)
 
-# -------------------------
-# Sample DB (placeholder)
-# -------------------------
-# Try to load DB; on failure fall back to small in-memory sample
-try:
-    df_sample_db = load_beam_db()
-    st.sidebar.success(f"Loaded {len(df_sample_db)} sections from DB")
-except Exception as e:
-    st.sidebar.warning("Could not load DB — using internal sample. DB error: " + str(e))
-    # fallback sample (keep minimal sample you used before)
-    sample_rows = [
-        {"family": "IPE", "name": "IPE 200",
-         "A_cm2": 31.2, "S_y_cm3": 88.0, "S_z_cm3": 16.0,
-         "I_y_cm4": 1760.0, "I_z_cm4": 64.0, "J_cm4": 14.0, "c_max_mm": 100.0,
-         "Wpl_y_cm3": 96.8, "Wpl_z_cm3": 18.0, "alpha_curve": 0.49,
-         "flange_class_db": "Class 1/2", "web_class_bending_db": "Class 2", "web_class_compression_db": "Class 3",
-         "Iw_cm6": 2500.0, "It_cm4": 14.0
-        }
-    ]
-    df_sample_db = pd.DataFrame(sample_rows)
+
 
 # -------------------------
 # METADATA BLOCK (top)
@@ -928,6 +909,7 @@ with end_col1:
         st.success("Results saved to session state (end button).")
 with end_col2:
     st.info("Saved runs are kept in this browser session (temporary).")
+
 
 
 
