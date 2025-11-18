@@ -12,39 +12,45 @@ import psycopg2
 from urllib.parse import urlparse
 
 @st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False)
 def get_conn():
     """
     Returns a psycopg2 connection built from st.secrets.
-    Works with either:
-      st.secrets['postgres']['url'] (full URL) OR
-      separate fields in st.secrets['postgres']
-    """
+    Assumes you have this in your .streamlit/secrets.toml:
 
-# Get postgres info from Streamlit secrets
-    pg = st.secrets.get("postgres", {})
-    
-    # Option B: separate fields
     [postgres]
-host = "amanote.proxy.rlwy.net"
-port = "15500"
-database = "railway"
-user = "postgres"
-password = "KcMoXOMMbbOQITUHrdJMOiwyNBDGyrFy"
+    host = "amanote.proxy.rlwy.net"
+    port = "15500"
+    database = "railway"
+    user = "postgres"
+    password = "KcMoXOMMbbOQITUHrdJMOiwyNBDGyrFy"
+    """
+    # Get postgres info from Streamlit secrets
+    pg = st.secrets["postgres"]
 
-    if not (host and database and user and password):
-        raise RuntimeError("Postgres credentials missing in st.secrets['postgres']")
-    conn = psycopg2.connect(host=host, port=port, database=database, user=user, password=password)
+    host = pg["host"]
+    port = pg["port"]
+    database = pg["database"]
+    user = pg["user"]
+    password = pg["password"]
+
+    conn = psycopg2.connect(
+        host=host,
+        port=port,
+        database=database,
+        user=user,
+        password=password
+    )
     return conn
 
 def load_beam_db():
     """
     Query DB and return pandas DataFrame for section DB.
     Assumes you have a table 'beam_sections' with columns:
-      family (text), name (text), A_cm2 (numeric), S_y_cm3, S_z_cm3,
+      family, name, A_cm2, S_y_cm3, S_z_cm3,
       I_y_cm4, I_z_cm4, J_cm4, c_max_mm, Wpl_y_cm3, Wpl_z_cm3,
       alpha_curve, flange_class_db, web_class_bending_db, web_class_compression_db,
       Iw_cm6, It_cm4
-    Adjust the SELECT list to match your actual schema.
     """
     conn = get_conn()
     sql = """
@@ -58,7 +64,6 @@ def load_beam_db():
     """
     df = pd.read_sql(sql, conn)
     return df
-
 
 st.set_page_config(page_title="EngiSnap Beam Design Eurocode Checker", layout="wide")
 st.title("EngiSnap — Design of steel memebers (Eurocode)")
@@ -923,6 +928,7 @@ with end_col1:
         st.success("Results saved to session state (end button).")
 with end_col2:
     st.info("Saved runs are kept in this browser session (temporary).")
+
 
 
 
