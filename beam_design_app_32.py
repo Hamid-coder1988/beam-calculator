@@ -75,7 +75,7 @@ def get_families_from_db():
         return sorted(df['family'].dropna().unique().tolist())
     try:
         conn = get_conn()
-        sql = "SELECT DISTINCT family FROM beam_sections ORDER BY family;"
+        sql = "SELECT DISTINCT family FROM IPE_11_25 ORDER BY family;"
         df = pd.read_sql(sql, conn)
         return sorted(df['family'].dropna().tolist())
     except Exception as e:
@@ -154,3 +154,4 @@ if family and family != "-- choose --":
             st.success(f"Loaded {selected_row.get('name')} from DB (family={family})")
         else:
             st.error("Could not find the selected section (check DB column names / values).")
+
