@@ -1,159 +1,109 @@
-# Paste this (replace your previous DB-selection block)
+# -------------------------
+# Beam DB loader (table: Beam, columns: Type, Size, ...)
+# -------------------------
+
 import streamlit as st
 import pandas as pd
-import math
-from datetime import datetime, date
-from io import BytesIO
 
-# try to import psycopg2; if missing app will warn and use in-memory sample
+# Try psycopg2
 try:
     import psycopg2
     HAS_PG = True
-except Exception:
-    psycopg2 = None
+except:
     HAS_PG = False
-    st.sidebar.warning("psycopg2 not installed — DB disabled. Install psycopg2-binary in your environment to enable Railway DB.")
 
-from urllib.parse import urlparse
-
-# ------------------------------------------------------------------
-# DB connection helper: expects credentials in .streamlit/secrets.toml
-# Example secrets.toml:
-# [postgres]
-# host = "amanote.proxy.rlwy.net"
-# port = "15500"
-# database = "railway"
-# user = "postgres"
-# password = "YOUR_PASSWORD"
-# ------------------------------------------------------------------
-@st.cache_resource(show_spinner=False)
+# ---- DB connection ----
 def get_conn():
-    if not HAS_PG:
-        raise RuntimeError("psycopg2 not available")
-    pg = st.secrets.get("postgres")
-    if not pg:
-        raise RuntimeError("No postgres credentials found in st.secrets['postgres']")
-    host = pg.get("host")
-    port = pg.get("port")
-    database = pg.get("database")
-    user = pg.get("user")
-    password = pg.get("password")
+    url = st.secrets["connections"]["postgres"]["url"]
+    return psycopg2.connect(url, sslmode="require")
 
-    # note: Railway often requires sslmode='require'
-    conn = psycopg2.connect(
-        host=host,
-        port=port,
-        database=database,
-        user=user,
-        password=password,
-        sslmode='require'
-    )
-    return conn
 
-# -------------------------
-# Fallback sample data (used if DB not available)
-# -------------------------
+# ---- SAMPLE fallback ----
 SAMPLE_ROWS = [
-    {"Type": "IPE", "name": "IPE 200",
-     "A_cm2": 31.2, "S_y_cm3": 88.0, "S_z_cm3": 16.0,
-     "I_y_cm4": 1760.0, "I_z_cm4": 64.0, "J_cm4": 14.0, "c_max_mm": 100.0,
-     "Wpl_y_cm3": 96.8, "Wpl_z_cm3": 18.0, "alpha_curve": 0.49,
-     "flange_class_db": "Class 1/2", "web_class_bending_db": "Class 2", "web_class_compression_db": "Class 3",
-     "Iw_cm6": 2500.0, "It_cm4": 14.0
-    },
-    # add more sample entries here if you want
+    {"Type": "IPE", "Size": "IPE 200", "A_cm2": 31.2},
+    {"Type": "IPE", "Size": "IPE 300", "A_cm2": 45.0},
 ]
 
-# -------------------------
-# DB query helpers (safe)
-# -------------------------
+
+# ---- FUNCTIONS ----
 @st.cache_data(show_spinner=False)
-def get_families_from_db():
-    # If DB unavailable, return families from sample
+def get_types():
+    """Return list of distinct Type values."""
     if not HAS_PG:
         df = pd.DataFrame(SAMPLE_ROWS)
-        return sorted(df['Type'].dropna().unique().tolist())
+        return sorted(df["Type"].unique().tolist())
+
     try:
         conn = get_conn()
-        sql = "SELECT DISTINCT Type FROM IPE_11_25 ORDER BY Type;"
+        sql = 'SELECT DISTINCT "Type" FROM "Beam" ORDER BY "Type";'
         df = pd.read_sql(sql, conn)
-        return sorted(df['Type'].dropna().tolist())
+        return df["Type"].astype(str).tolist()
     except Exception as e:
-        st.sidebar.warning(f"Could not load families from DB (using sample). Error: {e}")
+        st.sidebar.warning(f"DB Error (using sample): {e}")
         df = pd.DataFrame(SAMPLE_ROWS)
-        return sorted(df['Type'].dropna().unique().tolist())
+        return sorted(df["Type"].unique().tolist())
+
 
 @st.cache_data(show_spinner=False)
-def get_sizes_for_Type(Type):
+def get_sizes(type_value):
+    """Return sizes for a given Type."""
     if not HAS_PG:
         df = pd.DataFrame(SAMPLE_ROWS)
-        df_f = df[df['Type'] == Type]
-        return sorted(df_f['name'].asType(str).tolist())
+        return df[df["Type"] == type_value]["Size"].astype(str).tolist()
+
     try:
         conn = get_conn()
-        sql = """
-          SELECT name
-          FROM beam_sections
-          WHERE Type = %s
-          ORDER BY name;
-        """
-        df = pd.read_sql(sql, conn, params=(Type,))
-        return df['name'].asType(str).tolist()
+        sql = 'SELECT "Size" FROM "Beam" WHERE "Type" = %s ORDER BY "Size";'
+        df = pd.read_sql(sql, conn, params=(type_value,))
+        return df["Size"].astype(str).tolist()
     except Exception as e:
-        st.sidebar.warning(f"Could not load sizes from DB (using sample). Error: {e}")
+        st.sidebar.warning(f"DB Error (using sample): {e}")
         df = pd.DataFrame(SAMPLE_ROWS)
-        df_f = df[df['Type'] == Type]
-        return sorted(df_f['name'].asType(str).tolist())
+        return df[df["Type"] == type_value]["Size"].astype(str).tolist()
+
 
 @st.cache_data(show_spinner=False)
-def get_section_row(Type, name):
+def get_section(type_value, size_value):
+    """Return full row dictionary."""
     if not HAS_PG:
         df = pd.DataFrame(SAMPLE_ROWS)
-        df_f = df[(df['Type'] == Type) & (df['name'].asType(str) == str(name))]
-        if df_f.empty:
-            return None
-        return df_f.iloc[0].to_dict()
+        f = df[(df["Type"] == type_value) & (df["Size"] == size_value)]
+        return f.iloc[0].to_dict() if not f.empty else None
+
     try:
         conn = get_conn()
-        sql = """
-          SELECT *
-          FROM beam_sections
-          WHERE Type = %s AND name = %s
-          LIMIT 1;
-        """
-        df = pd.read_sql(sql, conn, params=(Type, name))
+        sql = 'SELECT * FROM "Beam" WHERE "Type" = %s AND "Size" = %s LIMIT 1;'
+        df = pd.read_sql(sql, conn, params=(type_value, size_value))
         if df.empty:
             return None
         return df.iloc[0].to_dict()
     except Exception as e:
-        st.sidebar.warning(f"Could not load section row from DB (using sample). Error: {e}")
+        st.sidebar.warning(f"DB Error (using sample): {e}")
         df = pd.DataFrame(SAMPLE_ROWS)
-        df_f = df[(df['Type'] == Type) & (df['name'].asType(str) == str(name))]
-        if df_f.empty:
-            return None
-        return df_f.iloc[0].to_dict()
+        f = df[(df["Type"] == type_value) & (df["Size"] == size_value)]
+        return f.iloc[0].to_dict() if not f.empty else None
+
 
 # -------------------------
-# UI: Type -> size -> load properties
+# UI
 # -------------------------
-st.header("Section selection (DB)")
-families = get_families_from_db()
-if not families:
-    st.info("No families found in DB or sample. Use 'Use custom section' to enter properties manually.")
-Type = st.selectbox("Section Type (DB)", options=["-- choose --"] + families)
+
+st.header("Section Selection From Database")
+
+types = get_types()
+type_sel = st.selectbox("Type", ["-- choose --"] + types)
 
 selected_row = None
-if Type and Type != "-- choose --":
-    sizes = get_sizes_for_Type(Type)
-    if not sizes:
-        st.info("No section sizes found for chosen Type.")
-    size = st.selectbox("Section size (DB)", options=["-- choose --"] + sizes)
-    if size and size != "-- choose --":
-        selected_row = get_section_row(Type, size)
+
+if type_sel != "-- choose --":
+    sizes = get_sizes(type_sel)
+    size_sel = st.selectbox("Size", ["-- choose --"] + sizes)
+
+    if size_sel != "-- choose --":
+        selected_row = get_section(type_sel, size_sel)
+
         if selected_row:
-            st.success(f"Loaded {selected_row.get('name')} from DB (Type={Type})")
+            st.success(f"Loaded section: {size_sel}")
+            st.json(selected_row)  # show properties
         else:
-            st.error("Could not find the selected section (check DB column names / values).")
-
-
-
+            st.error("Could not load this section from DB.")
