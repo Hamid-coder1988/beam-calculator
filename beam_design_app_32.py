@@ -5,63 +5,7 @@ import pandas as pd
 import math
 from io import BytesIO
 from datetime import datetime, date
-# --- DB helper: connect to Postgres on Railway using st.secrets ---
-import psycopg2
-from urllib.parse import urlparse
 
-# -------------------------
-# DB connection & loaders
-# -------------------------
-@st.cache_resource(show_spinner=False)
-def get_conn():
-    """
-    Returns a psycopg2 connection built from st.secrets.
-    Assumes you have this in your .streamlit/secrets.toml:
-    [postgres]
-    host = "amanote.proxy.rlwy.net"
-    port = "15500"
-    database = "railway"
-    user = "postgres"
-    password = "KcMoXOMMbbOQITUHrdJMOiwyNBDGyrFy"
-    """
-    pg = st.secrets["postgres"]
-    host = pg["host"]
-    port = pg["port"]
-    database = pg["database"]
-    user = pg["user"]
-    password = pg["password"]
-
-    conn = psycopg2.connect(
-        host=host,
-        port=port,
-        database=database,
-        user=user,
-        password=password
-    )
-    return conn
-
-@st.cache_data(show_spinner=False)
-def load_beam_db():
-    """
-    Query DB and return pandas DataFrame for section DB.
-    The query returns the columns your app expects (names used later).
-    """
-    conn = get_conn()
-    sql = """
-    SELECT
-      family, name, A_cm2, S_y_cm3, S_z_cm3,
-      I_y_cm4, I_z_cm4, J_cm4, c_max_mm, Wpl_y_cm3, Wpl_z_cm3,
-      alpha_curve, flange_class_db, web_class_bending_db, web_class_compression_db,
-      COALESCE(Iw_cm6,0) AS Iw_cm6, COALESCE(It_cm4,0) AS It_cm4
-    FROM beam_sections
-    ORDER BY family, name;
-    """
-    df = pd.read_sql(sql, conn)
-    return df
-
-# -------------------------
-# Page setup & load DB (fallback to sample)
-# -------------------------
 st.set_page_config(page_title="EngiSnap Beam Design Eurocode Checker", layout="wide")
 st.title("EngiSnap — Design of steel memebers (Eurocode)")
 
@@ -71,22 +15,26 @@ This prototype performs simplified Eurocode-style screening checks. It is **not*
 Use for screening/prototyping only — always have final results verified by a licensed structural engineer.
 """)
 
-# Try to load DB; on failure fall back to small in-memory sample
-try:
-    df_sample_db = load_beam_db()
-    st.sidebar.success(f"Loaded {len(df_sample_db)} sections from DB")
-except Exception as e:
-    st.sidebar.warning("Could not load DB — using internal sample. DB error: " + str(e))
-    sample_rows = [
-        {"family": "IPE", "name": "IPE 200",
-         "A_cm2": 31.2, "S_y_cm3": 88.0, "S_z_cm3": 16.0,
-         "I_y_cm4": 1760.0, "I_z_cm4": 64.0, "J_cm4": 14.0, "c_max_mm": 100.0,
-         "Wpl_y_cm3": 96.8, "Wpl_z_cm3": 18.0, "alpha_curve": 0.49,
-         "flange_class_db": "Class 1/2", "web_class_bending_db": "Class 2", "web_class_compression_db": "Class 3",
-         "Iw_cm6": 2500.0, "It_cm4": 14.0
-        }
-    ]
-    df_sample_db = pd.DataFrame(sample_rows)
+# -------------------------
+# Sample DB (placeholder)
+# -------------------------
+sample_rows = [
+    {"family": "IPE", "name": "IPE 200",
+     "A_cm2": 31.2, "S_y_cm3": 88.0, "S_z_cm3": 16.0,
+     "I_y_cm4": 1760.0, "I_z_cm4": 64.0, "J_cm4": 14.0, "c_max_mm": 100.0,
+     "Wpl_y_cm3": 96.8, "Wpl_z_cm3": 18.0, "alpha_curve": 0.49,
+     "flange_class_db": "Class 1/2", "web_class_bending_db": "Class 2", "web_class_compression_db": "Class 3",
+     "Iw_cm6": 2500.0, "It_cm4": 14.0
+    },
+    {"family": "CHS", "name": "CHS 150x5",
+     "A_cm2": 17.66, "S_y_cm3": 20.0, "S_z_cm3": 20.0,
+     "I_y_cm4": 100.0, "I_z_cm4": 100.0, "J_cm4": 5.0, "c_max_mm": 75.0,
+     "Wpl_y_cm3": 22.0, "Wpl_z_cm3": 22.0, "alpha_curve": 0.34,
+     "flange_class_db": "N/A (CHS)", "web_class_bending_db": "N/A (CHS)", "web_class_compression_db": "N/A (CHS)",
+     "Iw_cm6": 0.0, "It_cm4": 0.0
+    }
+]
+df_sample_db = pd.DataFrame(sample_rows)
 
 # -------------------------
 # METADATA BLOCK (top)
@@ -121,6 +69,7 @@ else:
     fy = st.sidebar.number_input("Enter yield stress fy (MPa)", value=355.0, min_value=1.0,
                                  help="Yield strength fy (MPa) used for resistance calculations")
 
+# NOTE: per request, design allowable (sigma_allow) removed as editable.
 sigma_allow_MPa = 0.6 * fy
 
 gamma_M0 = st.sidebar.number_input("γ_M0 (cross-section)", value=1.0,
@@ -128,6 +77,7 @@ gamma_M0 = st.sidebar.number_input("γ_M0 (cross-section)", value=1.0,
 gamma_M1 = st.sidebar.number_input("γ_M1 (stability/shear)", value=1.0,
                                    help="Partial factor γ_M1 (stability / shear) — set per project/NA")
 
+# Buckling K factors (user-supplied)
 st.sidebar.markdown("Buckling effective length factors (K):")
 K_z = st.sidebar.number_input("K_z — flexural buckling about minor axis z–z", value=1.0, min_value=0.1, step=0.05,
                               help="Effective length multiplier for flexural buckling about z-z (minor axis)")
@@ -141,7 +91,7 @@ K_T = st.sidebar.number_input("K_T — torsional buckling effective factor (rese
 alpha_default_val = 0.49
 
 # -------------------------
-# Section selection UI (family -> size -> load properties from DB)
+# Section selection UI
 # -------------------------
 st.header("Section selection")
 st.markdown('<span title="Select a standard section from DB (read-only) or use custom.">ⓘ Section selection help</span>',
@@ -149,7 +99,7 @@ st.markdown('<span title="Select a standard section from DB (read-only) or use c
 
 col_left, col_right = st.columns([1,1])
 with col_left:
-    families = sorted(df_sample_db['family'].dropna().unique().tolist())
+    families = sorted(df_sample_db['family'].unique().tolist())
     family = st.selectbox("Section family (DB)", options=["-- choose --"] + families,
                           help="Choose section family (database). If none selected, use Custom.")
 with col_right:
@@ -157,12 +107,10 @@ with col_right:
     selected_row = None
     if family and family != "-- choose --":
         df_f = df_sample_db[df_sample_db['family'] == family]
-        # names sorted and unique
-        names = sorted(df_f['name'].dropna().unique().tolist())
+        names = sorted(df_f['name'].tolist())
         selected_name = st.selectbox("Section size (DB)", options=["-- choose --"] + names,
                                      help="Choose section size (database). Selecting a size loads read-only properties.")
         if selected_name and selected_name != "-- choose --":
-            # pull the row (first match)
             selected_row = df_f[df_f['name'] == selected_name].iloc[0].to_dict()
 
 st.markdown("**Or select Custom**. Standard DB sections are read-only; custom sections are editable.")
@@ -172,7 +120,8 @@ if selected_row is None and not use_custom:
     st.info("Please select a section size from the DB above, or tick 'Use custom section' to enter properties manually.")
 
 # -------------------------
-# Cross-section image placeholder (centered)
+# NEW: Cross-section image placeholder (layout frame)
+# Moved BEFORE Section properties and CENTERED as requested
 # -------------------------
 st.markdown("---")
 st.markdown("### Cross-section schematic (placeholder)")
@@ -200,6 +149,12 @@ center_cols[1].markdown(
     unsafe_allow_html=True,
 )
 st.markdown("---")
+
+
+
+
+
+
 
 # -------------------------
 # Section properties display (DB read-only or Custom editable)
@@ -297,6 +252,13 @@ else:
     a2.empty()
     a3.empty()
 
+
+
+
+
+
+
+
 # -------------------------
 # Design properties of material (read-only) - BEFORE loads input
 # -------------------------
@@ -307,19 +269,184 @@ mp1.text_input("Modulus of elasticity E (MPa)", value=f"{210000}", disabled=True
 mp1.text_input("Yield strength fy (MPa)", value=f"{fy}", disabled=True)
 mp2.text_input("Shear modulus G (MPa)", value=f"{80769}", disabled=True)
 mp2.text_input("Partial factor γ_M0 (cross-sectional)", value=f"{gamma_M0}", disabled=True)
-mp3.text_input("Partial factor γ_M1 (buckling / shear)", value=f"{gamma_M1}", disabled=True)
+mp3.text_input("Partial factor γ_M1 (buckling / stability)", value=f"{gamma_M1}", disabled=True)
 st.markdown("---")
 
+
+
+
+
+
+
+
 # ------------------------- 
-# READY CASES SECTION (unchanged) - keep as in your original code
+# READY CASES SECTION (drop-in)
+# Put this after "Design properties of material (read-only)" and before the Loads INPUT block
 # -------------------------
-# ... (I kept your ready cases and ready catalog exactly; paste that section here unchanged)
-# For brevity in this snippet I assume you paste the same "READY CASES" block you already have.
-# In your actual file, keep the "READY CASES" code from your original app here.
+st.markdown("---")
+st.markdown("### Ready beam & frame cases (optional)")
+st.write("You can enter loads manually below **or** select a ready beam/frame case to auto-fill typical maxima. First choose whether this is a **Beam** or a **Frame**, then pick a category and case.")
+
+# Option to use ready-cases (single checkbox)
+use_ready = st.checkbox("Use ready case (select a template to prefill loads)", key="ready_use_case")
+
+# --- helper case functions (return N_kN, My_kNm, Mz_kNm, Vy_kN, Vz_kN) ---
+def ss_udl(span_m: float, w_kN_per_m: float):
+    """Simply supported uniform load w (kN/m) on span L: Mmax = w L^2 / 8, Vmax = w L / 2"""
+    Mmax = w_kN_per_m * span_m**2 / 8.0
+    Vmax = w_kN_per_m * span_m / 2.0
+    return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
+
+def ss_point_center(span_m: float, P_kN: float):
+    """Simply supported point load at midspan: Mmax = P L / 4, Vmax = P / 2"""
+    Mmax = P_kN * span_m / 4.0
+    Vmax = P_kN / 2.0
+    return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
+
+def ss_point_at_a(span_m: float, P_kN: float, a_m: float):
+    """Simply supported single point load at distance a from left support:
+       Mmax occurs either at point or between supports; for simplicity use M = P * a * (L - a) / L
+       Shear at left/right = P * (L - a)/L and P * a / L but for max shear use P
+    """
+    Mmax = P_kN * a_m * (span_m - a_m) / span_m
+    Vmax = P_kN
+    return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
+
+# Minimal catalog example: expand with all your cases later
+ready_catalog = {
+    "Beam": {
+        "Simply supported (examples)": {
+            "SS-UDL": {"label": "SS-01: UDL (w on L)", "inputs": {"L": 6.0, "w": 10.0}, "func": ss_udl},
+            "SS-Point-Centre": {"label": "SS-02: Point at midspan (P)", "inputs": {"L": 6.0, "P": 20.0}, "func": ss_point_center},
+            "SS-Point-a": {"label": "SS-03: Point at distance a (P at a)", "inputs": {"L": 6.0, "P": 20.0, "a": 2.0}, "func": ss_point_at_a},
+        },
+        # You can add more categories (Cantilever, Fixed ended, Overhang, etc.)
+        "Cantilever (examples)": {
+            "C-Point": {"label": "C-01: Point at free end", "inputs": {"L": 3.0, "P": 5.0, "a": 3.0}, "func": lambda L,P,a: (0.0, float(P*a), 0.0, float(P), 0.0)},
+            "C-UDL": {"label": "C-02: UDL on cantilever", "inputs": {"L": 3.0, "w": 5.0}, "func": lambda L,w: (0.0, float(w*L**2/2.0), 0.0, float(w*L), 0.0)},
+            "C-Point-a": {"label": "C-03: Point at a from support", "inputs": {"L": 3.0, "P": 5.0, "a": 1.5}, "func": lambda L,P,a: (0.0, float(P*a), 0.0, float(P), 0.0)},
+        }
+    },
+    "Frame": {
+        "Simple frame examples": {
+            "F-01": {"label": "FR-01: Simple 2-member frame (placeholder)", "inputs": {"L":4.0, "P":5.0}, "func": lambda L,P: (0.0, float(P*L/4.0), 0.0, float(P/2.0), 0.0)},
+            "F-02": {"label": "FR-02: Simple 3-member frame (placeholder)", "inputs": {"L":4.0, "P":8.0}, "func": lambda L,P: (0.0, float(P*L/3.0), 0.0, float(P/2.0), 0.0)},
+            "F-03": {"label": "FR-03: Simple frame (placeholder)", "inputs": {"L":5.0, "P":6.0}, "func": lambda L,P: (0.0, float(P*L/4.0), 0.0, float(P/2.0), 0.0)},
+        }
+    }
+}
+
+# UI: choose type and category
+if use_ready:
+    st.markdown("**Step 1 — choose object type (Beam or Frame)**")
+    chosen_type = st.selectbox("Type", options=["-- choose --", "Beam", "Frame"], key="ready_type")
+    if chosen_type and chosen_type != "-- choose --":
+        categories = sorted(ready_catalog.get(chosen_type, {}).keys())
+        if not categories:
+            st.warning(f"No ready cases defined yet for {chosen_type}.")
+        else:
+            chosen_cat = st.selectbox("Category", options=["-- choose --"] + categories, key="ready_category")
+            if chosen_cat and chosen_cat != "-- choose --":
+                cases_dict = ready_catalog[chosen_type][chosen_cat]
+                st.markdown("**Choose a case (click the Select button below the case box)**")
+                # display boxes 3 per row
+                case_keys = list(cases_dict.keys())
+                n_cols = 3
+                cols = st.columns(n_cols)
+                selected_case_key = None
+                for i, ck in enumerate(case_keys):
+                    col = cols[i % n_cols]
+                    lbl = cases_dict[ck]["label"]
+                    # placeholder box (later replace with images)
+                    col.markdown(
+                        f"""
+                        <div style='
+                            border:2px solid #bbb;
+                            border-radius:10px;
+                            padding:18px;
+                            text-align:center;
+                            background:#fbfbfb;
+                            margin-bottom:8px;
+                            min-height:84px;
+                            display:flex;
+                            align-items:center;
+                            justify-content:center;
+                            font-weight:600;
+                        '>
+                            {lbl}
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    if col.button(f"Select {ck}", key=f"ready_select_{chosen_type}_{chosen_cat}_{i}"):
+                        selected_case_key = ck
+
+                # store selection in session and rerun so selection panel appears
+                if selected_case_key:
+                    st.session_state["ready_selected_type"] = chosen_type
+                    st.session_state["ready_selected_category"] = chosen_cat
+                    st.session_state["ready_selected_case"] = selected_case_key
+                    st.rerun()
+
+                # If a case is already selected in session, show its details & inputs
+                sel_case = st.session_state.get("ready_selected_case")
+                sel_type = st.session_state.get("ready_selected_type")
+                sel_cat = st.session_state.get("ready_selected_category")
+                if sel_case and sel_type == chosen_type and sel_cat == chosen_cat:
+                    scase_info = ready_catalog[sel_type][sel_cat].get(sel_case)
+                    if scase_info:
+                        st.markdown(f"**Selected case:** {scase_info['label']}")
+                        # show inputs for this case (editable)
+                        inputs = scase_info.get("inputs", {})
+                        input_vals = {}
+                        # create inputs with namespaced keys to avoid collisions
+                        for k, v in inputs.items():
+                            input_vals[k] = st.number_input(f"{k}", value=float(v), key=f"ready_input_{sel_case}_{k}")
+                        # Apply & Clear buttons
+                        col_apply, col_clear = st.columns([1,1])
+                        with col_apply:
+                            if st.button("Apply case to load inputs", key=f"ready_apply_{sel_case}"):
+                                # call function with args read from same inputs order
+                                func = scase_info.get("func")
+                                try:
+                                    args = [input_vals[k] for k in inputs.keys()]
+                                    N_case, My_case, Mz_case, Vy_case, Vz_case = func(*args)
+                                except Exception:
+                                    # fallback to zeros if signature mismatch
+                                    N_case, My_case, Mz_case, Vy_case, Vz_case = 0.0, 0.0, 0.0, 0.0, 0.0
+                                # Save prefill values to session_state for your Load INPUT widgets to use
+                                st.session_state["prefill_from_case"] = True
+                                st.session_state["prefill_N_kN"] = float(N_case)
+                                st.session_state["prefill_My_kNm"] = float(My_case)
+                                st.session_state["prefill_Mz_kNm"] = float(Mz_case)
+                                st.session_state["prefill_Vy_kN"] = float(Vy_case)
+                                st.session_state["prefill_Vz_kN"] = float(Vz_case)
+                                # store L if present
+                                if "L" in input_vals:
+                                    st.session_state["case_L"] = float(input_vals["L"])
+                                st.success("Case applied — scroll to Design forces and moments (inputs updated).")
+                        with col_clear:
+                            if st.button("Clear selected case", key=f"ready_clear_{sel_case}"):
+                                for k in ("ready_selected_type", "ready_selected_category", "ready_selected_case",
+                                          "prefill_from_case","prefill_N_kN","prefill_My_kNm","prefill_Mz_kNm","prefill_Vy_kN","prefill_Vz_kN","case_L"):
+                                    if k in st.session_state:
+                                        del st.session_state[k]
+                                st.success("Selected case cleared.")
+                                st.rerun()
+    else:
+        st.info("Select 'Beam' or 'Frame' to view categorized ready cases.")
+else:
+    # if not using ready cases: ensure no leftover selected case remains visible unexpectedly
+    # (do not automatically delete persisted selection; user can re-enable ready use to restore)
+    pass
+
+# ------------------------- 
+# End of READY CASES SECTION
 # -------------------------
 
+
 # -------------------------
-# Loads & inputs
+# Loads & inputs (3 items per line)
 # -------------------------
 st.header("Design forces and moments (ultimate state) - INPUT")
 st.markdown('<span title="Enter ultimate (ULS) design forces and moments. Positive N = compression.">ⓘ Load input help</span>', unsafe_allow_html=True)
@@ -358,41 +485,35 @@ with r3c2:
 with r3c3:
     st.write("")  # keep spacing consistent
 
+# Define axis_check (since the old selectbox was removed)
+axis_check = "both (y & z)"
+
+
+
+# axis_check removed from sidebar per request; default to check both axes
 axis_check = "both (y & z)"
 
 st.sidebar.header("Output mode")
 output_mode = st.sidebar.radio("Results output mode", ("Concise (no formulas)", "Full (with formulas & steps)"))
 want_pdf = st.sidebar.checkbox("Enable PDF download (requires reportlab)")
 
+
+
+
+
+
+
+
 # -------------------------
 # Choose properties to use (DB vs custom)
 # -------------------------
 if selected_row is not None and not use_custom:
-    # Use the DB row but normalize keys expected by rest of app
-    use_props = {
-        "family": selected_row.get("family"),
-        "name": selected_row.get("name"),
-        "A_cm2": selected_row.get("A_cm2", 0.0),
-        "S_y_cm3": selected_row.get("S_y_cm3", 0.0),
-        "S_z_cm3": selected_row.get("S_z_cm3", 0.0),
-        "I_y_cm4": selected_row.get("I_y_cm4", 0.0),
-        "I_z_cm4": selected_row.get("I_z_cm4", 0.0),
-        "J_cm4": selected_row.get("J_cm4", 0.0),
-        "c_max_mm": selected_row.get("c_max_mm", 0.0),
-        "Wpl_y_cm3": selected_row.get("Wpl_y_cm3", 0.0),
-        "Wpl_z_cm3": selected_row.get("Wpl_z_cm3", 0.0),
-        "alpha_curve": selected_row.get("alpha_curve", alpha_default_val),
-        "flange_class_db": selected_row.get("flange_class_db", "n/a"),
-        "web_class_bending_db": selected_row.get("web_class_bending_db", "n/a"),
-        "web_class_compression_db": selected_row.get("web_class_compression_db", "n/a"),
-        "Iw_cm6": selected_row.get("Iw_cm6", 0.0),
-        "It_cm4": selected_row.get("It_cm4", 0.0)
-    }
+    use_props = dict(selected_row)
+    for k in ("Iw_cm6","It_cm4","bf_mm","tf_mm","hw_mm","tw_mm","flange_class_db","web_class_bending_db","web_class_compression_db"):
+        use_props.setdefault(k, 0.0 if k.endswith("_cm6") or k.endswith("_cm4") or k.endswith("_mm") else use_props.get(k, "n/a"))
 else:
-    # custom (editable) properties: refer to the variables defined earlier in custom UI
-    # note: ensure these names match the custom inputs above
     use_props = {
-        "family": "CUSTOM", "name": "CUSTOM",
+        "type": "CUSTOM", "name": "CUSTOM",
         "A_cm2": locals().get("A_cm2", 50.0),
         "S_y_cm3": locals().get("S_y_cm3", 200.0),
         "S_z_cm3": locals().get("S_z_cm3", 50.0),
@@ -407,8 +528,7 @@ else:
         "flange_class_db": locals().get("flange_class_choice", "Auto (calc)"),
         "web_class_bending_db": locals().get("web_class_bending_choice", "Auto (calc)"),
         "web_class_compression_db": locals().get("web_class_compression_choice", "Auto (calc)"),
-        "Iw_cm6": locals().get("Iw_cm6", 0.0),
-        "It_cm4": locals().get("It_cm4", 0.0)
+        "Iw_cm6": 0.0, "It_cm4": 0.0
     }
 
 # -------------------------
@@ -489,8 +609,8 @@ for axis_label, I_axis, K_axis in I_check_list:
         buck_results.append((axis_label, None, None, None, None, "No I"))
         continue
     Leff_axis = K_axis * L
-    Ncr = (math.pi**2 * E * I_axis) / (Leff_axis**2) if Leff_axis > 0 else None
-    lambda_bar = math.sqrt((A_m2 * fy * 1e6) / Ncr) if (Ncr and Ncr > 0) else float('inf')
+    Ncr = (math.pi**2 * E * I_axis) / (Leff_axis**2)
+    lambda_bar = math.sqrt((A_m2 * fy * 1e6) / Ncr) if Ncr > 0 else float('inf')
     alpha_use = alpha_curve_db if alpha_curve_db is not None else alpha_default_val
     phi = 0.5 * (1.0 + alpha_use * (lambda_bar**2))
     sqrt_term = max(phi**2 - lambda_bar**2, 0.0)
@@ -504,27 +624,248 @@ N_b_Rd_min_N = min(N_b_Rd_candidates) if N_b_Rd_candidates else None
 compression_resistance_N = N_b_Rd_min_N if N_b_Rd_min_N is not None else N_Rd_N
 
 # -------------------------
-# Build checks rows (unchanged) and display (unchanged)
+# Build checks rows
 # -------------------------
-rows = []
 def status_and_util(applied, resistance):
     if resistance is None or resistance == 0:
         return ("n/a", None)
     util = abs(applied) / resistance
     return ("OK" if util <= 1.0 else "EXCEEDS", util)
 
+rows = []
 # Compression
 applied_N = N_N if N_N >= 0 else 0.0
 res_comp_N = compression_resistance_N
 status_comp, util_comp = status_and_util(applied_N, res_comp_N)
 rows.append({"Check":"Compression (N≥0)","Applied":f"{applied_N/1e3:.3f} kN","Resistance":(f"{res_comp_N/1e3:.3f} kN" if res_comp_N else "n/a"),"Utilization":(f"{util_comp:.3f}" if util_comp else "n/a"),"Status":status_comp})
-# ... (keep the rest of your checks exactly as before)
-# For brevity, in this snippet assume you paste the remainder of your original 'rows' construction and presentation code unchanged.
+# Tension
+applied_tension_N = -N_N if N_N < 0 else 0.0
+res_tension_N = T_Rd_N
+status_ten, util_ten = status_and_util(applied_tension_N, res_tension_N)
+rows.append({"Check":"Tension (N<0)","Applied":f"{applied_tension_N/1e3:.3f} kN","Resistance":f"{res_tension_N/1e3:.3f} kN","Utilization":(f"{util_ten:.3f}" if util_ten else "n/a"),"Status":status_ten})
+# Shear
+applied_shear_N = math.sqrt(Vy_N**2 + Vz_N**2)
+res_shear_N = V_Rd_N
+status_shear, util_shear_val = status_and_util(applied_shear_N, res_shear_N)
+rows.append({"Check":"Shear (resultant Vy & Vz)","Applied":f"{applied_shear_N/1e3:.3f} kN","Resistance":f"{res_shear_N/1e3:.3f} kN","Utilization":(f"{util_shear_val:.3f}" if util_shear_val else "n/a"),"Status":status_shear})
+# Torsion
+applied_tau_Pa = tau_torsion_Pa
+res_tau_allow_Pa = tau_allow_Pa
+util_torsion = applied_tau_Pa / res_tau_allow_Pa if res_tau_allow_Pa>0 else None
+status_tors = "OK" if util_torsion is not None and util_torsion <= 1.0 else ("EXCEEDS" if util_torsion is not None else "n/a")
+rows.append({"Check":"Torsion (τ = T·c/J)","Applied":(f"{applied_tau_Pa/1e6:.6f} MPa" if isinstance(applied_tau_Pa, (int,float)) else "n/a"),"Resistance":f"{res_tau_allow_Pa/1e6:.6f} MPa (approx)","Utilization":(f"{util_torsion:.3f}" if util_torsion else "n/a"),"Status":status_tors})
 
-# Display results exactly as you had (the final table, summary, save buttons, expanders, notes, etc.)
-# Ensure the rest of your original code (presentation, full-mode expanders, summaries, saves) remains below unchanged.
+# Bending & combined checks (same as before)...
+rows.append({"Check":"Bending y-y (σ_by)","Applied":f"{sigma_by_Pa/1e6:.3f} MPa","Resistance":f"{sigma_allow_MPa:.3f} MPa","Utilization":(f"{(abs(sigma_by_Pa/1e6)/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a"),"Status":"OK" if abs(sigma_by_Pa/1e6)/sigma_allow_MPa<=1.0 else "EXCEEDS"})
+rows.append({"Check":"Bending z-z (σ_bz)","Applied":f"{sigma_bz_Pa/1e6:.3f} MPa","Resistance":f"{sigma_allow_MPa:.3f} MPa","Utilization":(f"{(abs(sigma_bz_Pa/1e6)/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a"),"Status":"OK" if abs(sigma_bz_Pa/1e6)/sigma_allow_MPa<=1.0 else "EXCEEDS"})
+rows.append({"Check":"Bending y-y & shear (indicative)","Applied":f"σ_by={sigma_by_Pa/1e6:.3f} MPa, τ_eq={tau_total_MPa:.3f} MPa","Resistance":f"{sigma_allow_MPa:.3f} MPa","Utilization":(f"{(sigma_eq_MPa/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a"),"Status":"OK" if sigma_eq_MPa/sigma_allow_MPa<=1.0 else "EXCEEDS"})
+rows.append({"Check":"Bending z-z & shear (indicative)","Applied":f"σ_bz={sigma_bz_Pa/1e6:.3f} MPa, τ_eq={tau_total_MPa:.3f} MPa","Resistance":f"{sigma_allow_MPa:.3f} MPa","Utilization":(f"{(sigma_eq_MPa/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a"),"Status":"OK" if sigma_eq_MPa/sigma_allow_MPa<=1.0 else "EXCEEDS"})
+rows.append({"Check":"Bending y-y & axial (σ_by+σ_axial)","Applied":f"{(sigma_by_Pa + sigma_axial_Pa)/1e6:.3f} MPa","Resistance":f"{sigma_allow_MPa:.3f} MPa","Utilization":(f"{(abs(sigma_by_Pa + sigma_axial_Pa)/1e6/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a"),"Status":"OK" if abs(sigma_by_Pa + sigma_axial_Pa)/1e6/sigma_allow_MPa<=1.0 else "EXCEEDS"})
+rows.append({"Check":"Bending z-z & axial (σ_bz+σ_axial)","Applied":f"{(sigma_bz_Pa + sigma_axial_Pa)/1e6:.3f} MPa","Resistance":f"{sigma_allow_MPa:.3f} MPa","Utilization":(f"{(abs(sigma_bz_Pa + sigma_axial_Pa)/1e6/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a"),"Status":"OK" if abs(sigma_bz_Pa + sigma_axial_Pa)/1e6/sigma_allow_MPa<=1.0 else "EXCEEDS"})
+rows.append({"Check":"Biaxial bending & axial (indicative)","Applied":f"{(abs(sigma_by_Pa/1e6)+abs(sigma_bz_Pa/1e6)+abs(sigma_axial_Pa/1e6)):.3f} MPa","Resistance":f"{sigma_allow_MPa:.3f} MPa","Utilization":(f"{((abs(sigma_by_Pa/1e6)+abs(sigma_bz_Pa/1e6)+abs(sigma_axial_Pa/1e6))/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a"),"Status":"OK" if ((abs(sigma_by_Pa/1e6)+abs(sigma_bz_Pa/1e6)+abs(sigma_axial_Pa/1e6))/sigma_allow_MPa)<=1.0 else "EXCEEDS"})
+rows.append({"Check":"Bending y-y & axial & shear (indicative)","Applied":f"σ_by={sigma_by_Pa/1e6:.3f} MPa, τ={tau_total_MPa:.3f} MPa","Resistance":f"{sigma_allow_MPa:.3f} MPa","Utilization":(f"{(sigma_eq_MPa/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a"),"Status":"OK" if sigma_eq_MPa/sigma_allow_MPa<=1.0 else "EXCEEDS"})
+rows.append({"Check":"Bending z-z & axial & shear (indicative)","Applied":f"σ_bz={sigma_bz_Pa/1e6:.3f} MPa, τ={tau_total_MPa:.3f} MPa","Resistance":f"{sigma_allow_MPa:.3f} MPa","Utilization":(f"{(sigma_eq_MPa/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a"),"Status":"OK" if sigma_eq_MPa/sigma_allow_MPa<=1.0 else "EXCEEDS"})
+rows.append({"Check":"Biaxial bending & axial & shear (indicative)","Applied":f"{(abs(sigma_by_Pa/1e6)+abs(sigma_bz_Pa/1e6)):.3f} MPa, τ={tau_total_MPa:.3f} MPa","Resistance":f"{sigma_allow_MPa:.3f} MPa","Utilization":(f"{(sigma_eq_MPa/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a"),"Status":"OK" if sigma_eq_MPa/sigma_allow_MPa<=1.0 else "EXCEEDS"})
 
-# NOTE:
-# - The critical changes are: caching the DB DataFrame (load_beam_db), mapping selected DB row into `use_props`
-#   and keeping custom inputs separate.
-# - If you want to show an image from DB, add an 'image_url' column to beam_sections and show it in the cross-section box.
+# Buckling & interaction rows
+for axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status in buck_results:
+    if N_b_Rd_N:
+        util_buck = abs(N_N) / N_b_Rd_N
+        rows.append({"Check":f"Flexural buckling {axis_label}","Applied":f"{abs(N_N)/1e3:.3f} kN","Resistance":f"{N_b_Rd_N/1e3:.3f} kN","Utilization":f"{util_buck:.3f}","Status":"OK" if util_buck<=1.0 else "EXCEEDS"})
+    else:
+        rows.append({"Check":f"Flexural buckling {axis_label}","Applied":"n/a","Resistance":"n/a","Utilization":"n/a","Status":"n/a"})
+
+rows.append({"Check":"Torsional & torsional-flexural (approx)","Applied":(f"{util_torsion:.3f}" if util_torsion else "n/a"),"Resistance":"n/a","Utilization":(f"{util_torsion:.3f}" if util_torsion else "n/a"),"Status":"OK" if util_torsion and util_torsion<=1.0 else ("EXCEEDS" if util_torsion else "n/a")})
+
+Iw_cm6 = use_props.get("Iw_cm6", 0.0)
+It_cm4 = use_props.get("It_cm4", 0.0)
+Iw_m6 = Iw_cm6 * 1e-12 if Iw_cm6 else 0.0
+It_m4 = It_cm4 * 1e-8 if It_cm4 else 0.0
+Mcr = None; chi_LT = None; M_Rd_LT = None
+if Iw_m6 and Iw_m6>0:
+    try:
+        Leff_LT = K_LT * L
+        term = (81e9 * It_m4 * (Leff_LT**2)) / (math.pi**2 * 210e9 * Iw_m6) if (Iw_m6>0) else 0.0
+        Mcr = (math.pi**2 * 210e9 * Iw_m6) / (Leff_LT**2) * math.sqrt(1.0 + term)
+        Mpl = Wpl_y_m3 * fy * 1e6
+        lambda_LT = math.sqrt(Mpl / Mcr) if Mcr>0 else float('inf')
+        alpha_LT = 0.49
+        phi_LT = 0.5*(1.0 + alpha_LT * lambda_LT**2)
+        sqrt_term_LT = max(phi_LT**2 - lambda_LT**2, 0.0)
+        chi_LT = 1.0 / (phi_LT + math.sqrt(sqrt_term_LT)) if (phi_LT + math.sqrt(sqrt_term_LT))>0 else 0.0
+        M_Rd_LT = chi_LT * Mpl / gamma_M0
+    except Exception:
+        Mcr = None
+
+if M_Rd_LT and M_Rd_LT>0:
+    util_LT = abs(My_Nm) / M_Rd_LT
+    rows.append({"Check":"Lateral-torsional buckling (LT)","Applied":f"{abs(My_Nm)/1e3:.3f} kN·m","Resistance":f"{M_Rd_LT/1e3:.3f} kN·m","Utilization":f"{util_LT:.3f}","Status":"OK" if util_LT<=1.0 else "EXCEEDS"})
+else:
+    rows.append({"Check":"Lateral-torsional buckling (LT)","Applied":"n/a","Resistance":"n/a","Utilization":"n/a","Status":"n/a"})
+
+interaction_ratio_simple = (abs(N_N)/N_Rd_N) + (abs(My_Nm)/M_Rd_y_Nm) if N_Rd_N>0 and M_Rd_y_Nm>0 else None
+interaction_method2 = math.sqrt((abs(N_N)/N_Rd_N)**2 + (abs(My_Nm)/M_Rd_y_Nm)**2) if N_Rd_N>0 and M_Rd_y_Nm>0 else None
+if interaction_ratio_simple is not None:
+    rows.append({"Check":"Combined bending & compression - Eq6.61 method1 (approx)","Applied":f"{interaction_ratio_simple:.3f}","Resistance":"1.00","Utilization":f"{interaction_ratio_simple:.3f}","Status":"OK" if interaction_ratio_simple<=1.0 else "EXCEEDS"})
+    rows.append({"Check":"Combined bending & compression - Eq6.62 method1 (approx)","Applied":f"{interaction_ratio_simple:.3f}","Resistance":"1.00","Utilization":f"{interaction_ratio_simple:.3f}","Status":"OK" if interaction_ratio_simple<=1.0 else "EXCEEDS"})
+if interaction_method2 is not None:
+    rows.append({"Check":"Combined bending & compression - Eq6.61 method2 (approx)","Applied":f"{interaction_method2:.3f}","Resistance":"1.00","Utilization":f"{interaction_method2:.3f}","Status":"OK" if interaction_method2<=1.0 else "EXCEEDS"})
+    rows.append({"Check":"Combined bending & compression - Eq6.62 method2 (approx)","Applied":f"{interaction_method2:.3f}","Resistance":"1.00","Utilization":f"{interaction_method2:.3f}","Status":"OK" if interaction_method2<=1.0 else "EXCEEDS"})
+else:
+    rows.append({"Check":"Combined bending & compression (interaction)","Applied":"n/a","Resistance":"n/a","Utilization":"n/a","Status":"n/a"})
+
+# -------------------------
+# Display: Result summary and colored table
+# -------------------------
+st.markdown("---")
+df_rows = pd.DataFrame(rows).set_index("Check")
+overall_ok = not any(df_rows["Status"] == "EXCEEDS")
+if overall_ok:
+    st.success("Result summary: DESIGN OK — no checks exceed capacity (preliminary).")
+else:
+    st.error("Result summary: DESIGN NOT OK — one or more checks exceed capacity (preliminary).")
+
+def highlight_row(row):
+    s = row["Status"]
+    if s == "OK":
+        color = "background-color: #e6f7e6"
+    elif s == "EXCEEDS":
+        color = "background-color: #fde6e6"
+    else:
+        color = "background-color: #f0f0f0"
+    return [color] * len(row)
+
+styled = df_rows.style.apply(highlight_row, axis=1)
+
+st.subheader("Cross-section & member checks (detailed)")
+st.write("Legend: OK — within capacity; EXCEEDS — capacity exceeded; n/a — not applicable/missing data.")
+st.write(styled)
+
+# -------------------------
+# Save results (session) - first save near table
+# -------------------------
+if "saved_results" not in st.session_state:
+    st.session_state["saved_results"] = []
+
+def build_result_record():
+    rec = {
+        "timestamp": datetime.now().isoformat(sep=" ", timespec="seconds"),
+        "doc_title": doc_name,
+        "project_name": project_name,
+        "position": position,
+        "requested_by": requested_by,
+        "revision": revision,
+        "date": run_date.isoformat(),
+        "section_type": use_props.get("family", use_props.get("type", "CUSTOM")),
+        "section_name": use_props.get("name"),
+        "A_cm2": use_props.get("A_cm2"),
+        "S_y_cm3": use_props.get("S_y_cm3"),
+        "L_m": L,
+        "N_kN": N_kN,
+        "My_kNm": My_kNm,
+        "Vz_kN": Vz_kN,
+        "N_Rd_kN": N_Rd_N/1e3,
+        "M_Rd_y_kNm": M_Rd_y_Nm/1e3,
+        "V_Rd_kN": V_Rd_N/1e3,
+        "overall_ok": overall_ok
+    }
+    return rec
+
+svc1, svc2 = st.columns([1,1])
+with svc1:
+    if st.button("Save results", help="Save this run to session (temporarily)."):
+        st.session_state["saved_results"].append(build_result_record())
+        st.success("Results saved to session state.")
+with svc2:
+    st.info("Saved runs are kept in this browser session. Use admin page to export DB later.")
+
+# -------------------------
+# Full mode: expanders with formulas & intermediate values
+# -------------------------
+if output_mode.startswith("Full"):
+    st.markdown("---")
+    st.subheader("Full formulas & intermediate steps (click expanders to view)")
+    with st.expander("Tension — formula & details (EN1993-1-1 §6.2.3)"):
+        st.latex(r"N_{Rd} = \dfrac{A \cdot f_y}{\gamma_{M0}}")
+        st.write(f"A = {A_m2:.6e} m², fy = {fy:.1f} MPa, γ_M0 = {gamma_M0:.2f}")
+        st.write(f"N_Rd = {N_Rd_N/1e3:.3f} kN")
+    with st.expander("Compression & buckling — formula & details (EN1993-1-1 §6.2.4 & 6.3)"):
+        st.latex(r"N_{cr} = \dfrac{\pi^2 E I}{(K L)^2}")
+        for axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status in buck_results:
+            Ncr_str = f"{Ncr/1e3:.2f} kN" if (Ncr is not None and isinstance(Ncr, (int,float)) and math.isfinite(Ncr)) else "n/a"
+            lambda_str = f"{lambda_bar:.3f}" if (lambda_bar is not None and isinstance(lambda_bar, (int,float)) and math.isfinite(lambda_bar)) else "n/a"
+            chi_str = f"{chi:.3f}" if (chi is not None and isinstance(chi, (int,float)) and math.isfinite(chi)) else "n/a"
+            Nbrd_str = f"{N_b_Rd_N/1e3:.2f} kN" if (N_b_Rd_N is not None and isinstance(N_b_Rd_N, (int,float)) and math.isfinite(N_b_Rd_N)) else "n/a"
+            st.write(f"Axis {axis_label}: N_cr = {Ncr_str}, λ̄ = {lambda_str}, χ = {chi_str}, N_b,Rd = {Nbrd_str}, status={status}")
+    with st.expander("Bending — formula & details (EN1993-1-1 §6.2.5)"):
+        st.latex(r"\sigma = \dfrac{M}{W}")
+        st.write(f"M_y = {My_Nm/1e3:.3f} kN·m, W_pl,y = {Wpl_y_m3*1e6 if Wpl_y_m3 else 'n/a'} mm³")
+        st.write(f"σ_by = {sigma_by_Pa/1e6:.3f} MPa; utilization = {abs(sigma_by_Pa/1e6)/sigma_allow_MPa if sigma_allow_MPa>0 else 'n/a'}")
+    with st.expander("Shear — formula & details (EN1993-1-1 §6.2.6)"):
+        st.latex(r"\tau = \dfrac{V}{A_v},\quad V_{Rd} = \dfrac{A_v f_y}{\sqrt{3}\gamma_{M0}}")
+        st.write(f"A_v (used) = {Av_m2:.6e} m² (Av factor = 0.6)")
+        st.write(f"V_resultant = {applied_shear_N/1e3:.3f} kN; V_Rd = {V_Rd_N/1e3:.3f} kN")
+    with st.expander("Torsion — formula & details (approx)"):
+        st.latex(r"\tau_t = \dfrac{T \cdot c}{J} \quad\text{(approx for closed shapes)}")
+        st.write(f"T = {T_Nm:.3f} N·m, c = {c_max_m:.3f} m, J = {J_m4:.6e} m⁴")
+        st.write(f"τ_t (max) = {tau_torsion_Pa/1e6:.6f} MPa, allowable (approx) = {tau_allow_Pa/1e6:.3f} MPa")
+    with st.expander("Lateral–torsional buckling (LT) — formula & details (EN1993-1-1 §6.3.2)"):
+        st.latex(r"M_{cr} \,\text{(approx with warping)}")
+        Mcr_str = f"{Mcr:.3f}" if (Mcr is not None and isinstance(Mcr, (int,float)) and math.isfinite(Mcr)) else "n/a"
+        chi_LT_str = f"{chi_LT:.3f}" if (chi_LT is not None and isinstance(chi_LT, (int,float)) and math.isfinite(chi_LT)) else "n/a"
+        M_Rd_LT_str = f"{M_Rd_LT/1e3:.3f} kN·m" if (M_Rd_LT is not None and isinstance(M_Rd_LT, (int,float)) and math.isfinite(M_Rd_LT)) else "n/a"
+        st.write(f"K_LT used = {K_LT:.3f}; M_cr = {Mcr_str}, χ_LT = {chi_LT_str}, M_Rd_LT = {M_Rd_LT_str}")
+    with st.expander("Axial–bending interaction (EN1993-1-1 §6.3.3 & Annex A/B)"):
+        st.latex(r"\eta = \dfrac{N}{N_{Rd}} + \dfrac{M}{M_{Rd}} \quad\text{(method 1)}")
+        st.latex(r"\eta_{2} = \sqrt{\left(\dfrac{N}{N_{Rd}}\right)^2 + \left(\dfrac{M}{M_{Rd}}\right)^2} \quad\text{(method 2)}")
+        st.write(f"Interaction (method1 approx) = {interaction_ratio_simple if interaction_ratio_simple else 'n/a'}")
+        if interaction_method2 is not None:
+            st.write(f"Interaction (method2 approx) = {interaction_method2:.3f}")
+
+# -------------------------
+# Summaries & Notes (end)
+# -------------------------
+st.markdown("---")
+st.subheader("Summary & recommended next steps by EngiSnap")
+eng_notes = []
+if any(df_rows["Status"] == "EXCEEDS"):
+    eng_notes.append("One or more checks exceed capacity — consider increasing the section (A / W_pl), reducing applied loads, shortening unbraced length, or adding restraints. Consult a licensed structural engineer for final design.")
+else:
+    eng_notes.append("Preliminary screening checks OK. Proceed to full EN1993 member checks (local buckling, LTB, full interaction) before final design.")
+st.write("\n\n".join(eng_notes))
+
+st.markdown("---")
+st.subheader("Summary & recommended next steps by AI")
+ai_notes = []
+if util_axial is not None and util_axial > 0.85:
+    ai_notes.append("Axial utilization high (>85%): review buckling length, increase stiffness or reduce compressive load.")
+if util_My is not None and util_My > 0.9:
+    ai_notes.append("Bending utilization near limit (>90%): consider larger W_pl or improve lateral restraint.")
+if util_shear_resultant is not None and util_shear_resultant > 0.75:
+    ai_notes.append("Shear utilization moderately high — check web thickness and connection capacity.")
+if util_torsion is not None and util_torsion > 0.3:
+    ai_notes.append("Torsion significant relative to allowable — evaluate torsional effects in connections.")
+if not ai_notes:
+    ai_notes.append("No immediate hotspots detected by these automated rules.")
+st.write("\n\n".join(ai_notes))
+
+st.markdown("---")
+st.subheader("Notes, limitations & references")
+st.write("""
+- This tool gives **preliminary** screening checks only. It is not a complete EN1993 implementation.
+- For standard (DB) sections, classification and buckling curve α are taken from your DB and cannot be changed in the UI. For custom sections, the user may enter α and classes.
+- Buckling effective length factors (K_y, K_z, K_LT, K_T) are provided in the sidebar and used to compute effective length (K·L) for buckling checks.
+- Missing/approximate functionality: exact EN1993 interaction formula variants, detailed local buckling classification tables, full lateral–torsional buckling (M_cr with warping/torsion coupling) in all cases, and national annex values. Replace the approximations with the full EN1993 clauses when integrating final formulas.
+- Reference: EN1993-1-1 (Design of steel structures).
+""")
+
+# second Save results button (end)
+end_col1, end_col2 = st.columns([1,1])
+with end_col1:
+    if st.button("Save results (end)", help="Also save this run to session state"):
+        if "saved_results" not in st.session_state:
+            st.session_state["saved_results"] = []
+        st.session_state["saved_results"].append(build_result_record())
+        st.success("Results saved to session state (end button).")
+with end_col2:
+    st.info("Saved runs are kept in this browser session (temporary).")
