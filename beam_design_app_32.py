@@ -114,88 +114,84 @@ def detect_table_and_columns():
     # if not found, return first table as a fallback (so user can inspect)
     return priorities[0] if priorities else None, None, "no-type-size-found"
 
-# ---- fetch Types and Sizes using detected table (robust with quoted/unquoted) ----
+# -------------------------
+# Replacement: fetch types & sizes preserving table order and hide diagnostics
+# -------------------------
+
 @st.cache_data(show_spinner=False)
 def fetch_types_and_sizes():
-    # If no DB, return sample
+    """
+    Read rows from the detected table in physical insertion order (ORDER BY ctid),
+    then build:
+      - types: ordered list of Type values in the order they first appear
+      - sizes_map: dict Type -> ordered list of Size values in the order they first appear
+    Falls back to SAMPLE_ROWS if DB is not available.
+    """
+    # sample fallback
     if not HAS_PG:
         df = pd.DataFrame(SAMPLE_ROWS)
-        types = sorted(df['Type'].unique().tolist())
-        sizes_map = {t: df[df['Type']==t]['Size'].astype(str).tolist() for t in types}
+        types = []
+        sizes_map = {}
+        for _, r in df.iterrows():
+            t = str(r["Type"])
+            s = str(r["Size"])
+            if t not in types:
+                types.append(t)
+                sizes_map[t] = []
+            if s not in sizes_map[t]:
+                sizes_map[t].append(s)
         return types, sizes_map, "sample"
 
+    # detect candidate table
     tbl, cols, detect_err = detect_table_and_columns()
-    if tbl is None:
+    if not tbl:
         return [], {}, f"detect-error: {detect_err}"
 
-    # try several SQL variants to read Type and Size
-    queries = [
-        (f'SELECT DISTINCT "Type" AS type FROM "{tbl}" ORDER BY "Type";', None),
-        (f'SELECT DISTINCT type FROM {tbl} ORDER BY type;', None),
-        (f'SELECT DISTINCT "TYPE" AS type FROM "{tbl}" ORDER BY "TYPE";', None)
-    ]
-    types = None
-    for q, p in queries:
-        df, err = run_sql(q, params=p)
-        if err:
-            continue
-        if not df.empty:
-            types = df['type'].astype(str).tolist()
-            break
+    # read Type and Size preserving table order using ctid
+    # (ctid is a physical row identifier — gives row insertion order until VACUUM/updates move tuples,
+    #  but in practice it preserves order for simple imports)
+    sql = f'SELECT "Type", "Size" FROM "{tbl}" ORDER BY ctid;'
+    rows_df, err = run_sql(sql)
+    if err:
+        # try unquoted fallback
+        sql2 = f"SELECT type, size FROM {tbl} ORDER BY ctid;"
+        rows_df, err2 = run_sql(sql2)
+        if err2:
+            return [], {}, f"could-not-read-rows: {err}\n{err2}"
+    if rows_df is None or rows_df.empty:
+        return [], {}, f"no-rows-read-from-{tbl}"
 
-    if types is None:
-        return [], {}, f"no-types-read for table {tbl}"
-
-    # read sizes per type
+    types = []
     sizes_map = {}
-    for t in types:
-        t = str(t)
-        q_variants = [
-            (f'SELECT DISTINCT "Size" AS size FROM "{tbl}" WHERE "Type" = %s ORDER BY "Size";', (t,)),
-            (f"SELECT DISTINCT size FROM {tbl} WHERE type = %s ORDER BY size;", (t,)),
-            (f'SELECT DISTINCT "SIZE" AS size FROM "{tbl}" WHERE "TYPE" = %s ORDER BY "SIZE";', (t,))
-        ]
-        sizes = None
-        for q, p in q_variants:
-            df_s, err = run_sql(q, params=p)
-            if err:
-                continue
-            if not df_s.empty:
-                sizes = df_s['size'].astype(str).tolist()
-                break
-        if sizes is None:
-            sizes = []
-        sizes_map[t] = sizes
+    for _, row in rows_df.iterrows():
+        t = str(row.iloc[0]) if pd.notna(row.iloc[0]) else ""
+        s = str(row.iloc[1]) if pd.notna(row.iloc[1]) else ""
+        if t == "":
+            continue
+        if t not in types:
+            types.append(t)
+            sizes_map[t] = []
+        if s and s not in sizes_map[t]:
+            sizes_map[t].append(s)
 
     return types, sizes_map, tbl
 
-# ---- UI ----
-st.set_page_config(page_title="Beam Type→Size selector", layout="wide")
-st.title("Beam: select Type → Size (DB connected)")
 
+# -------------------------
+# UI: simplified (no diagnostic messages)
+# -------------------------
+# (replace previous UI block that showed detection messages)
 use_custom = st.checkbox("Use custom section (enter properties manually)", value=False)
 
 selected_row = None
 
-# show diagnostics / connection status
-if not HAS_PG:
-    st.warning("psycopg2 not installed or DB not reachable. Using sample data.")
-else:
-    st.info("psycopg2 driver available — attempting to detect table & columns in DB...")
-
-types, sizes_map, status = fetch_types_and_sizes()
-
-if status == "sample":
-    st.info("Using sample data (DB not accessible).")
-elif status and status not in ("sample",):
-    st.success(f"Detected table: {status}")
+types, sizes_map, _detected_table = fetch_types_and_sizes()
 
 # Only show DB selectors when not using custom
 if not use_custom:
     if not types:
-        st.info("No Types found. If your DB has a table, check column names. Showing sample fallback.")
-        df_sample = pd.DataFrame(SAMPLE_ROWS)
-        st.dataframe(df_sample)
+        # silent fallback: show sample table only when nothing found
+        st.info("No Types found in DB. Use custom section or check DB column names.")
     else:
         type_sel = st.selectbox("Type (family)", options=["-- choose --"] + types)
         if type_sel and type_sel != "-- choose --":
@@ -212,14 +208,12 @@ if not use_custom:
                         sel = df[(df['Type']==type_sel) & (df['Size']==size_sel)]
                         selected_row = sel.iloc[0].to_dict() if not sel.empty else None
                     else:
-                        # attempt multiple query styles
-                        tbl_detected = status if status and status not in ("sample",) else None
+                        tbl_detected = _detected_table if _detected_table and _detected_table != "sample" else None
                         row = None
                         if tbl_detected:
                             q_variants = [
                                 (f'SELECT * FROM "{tbl_detected}" WHERE "Type" = %s AND "Size" = %s LIMIT 1;', (type_sel, size_sel)),
                                 (f"SELECT * FROM {tbl_detected} WHERE type = %s AND size = %s LIMIT 1;", (type_sel, size_sel)),
-                                (f'SELECT * FROM "{tbl_detected}" WHERE type = %s AND size = %s LIMIT 1;', (type_sel, size_sel)),
                             ]
                             for q,p in q_variants:
                                 df_row, err = run_sql(q, params=p)
@@ -231,10 +225,11 @@ if not use_custom:
                         selected_row = row
 
                     if selected_row:
-                        st.success(f"Loaded: {type_sel} / {size_sel}")
-                        st.write("Selected row (DB):")
+                        # show only the section JSON (no diagnostic banners)
+                        st.write(f"Loaded: {type_sel} / {size_sel}")
                         st.json(selected_row)
                     else:
-                        st.error("Could not fetch the selected full row from DB (check column names).")
+                        st.warning("Could not fetch the selected full row from DB (check column names).")
 else:
     st.info("Custom section mode ON — you will enter properties manually.")
+
