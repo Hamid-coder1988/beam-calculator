@@ -180,3 +180,73 @@ else:
                         st.error("Error fetching row: " + str(e))
         except Exception as e:
             st.error("Failed to query sizes: " + str(e))
+# -------------------------
+# Map selected DB row -> use_props (drop this block in after selected_row is set)
+# -------------------------
+
+def pick(d, *keys, default=None):
+    """Return first existing key from d (case-insensitive), or default."""
+    if d is None:
+        return default
+    # try exact keys first, then lowercase-match
+    for k in keys:
+        if k in d and d[k] is not None:
+            return d[k]
+    # try case-insensitive lookup
+    kl = {str(k).lower(): k for k in d.keys()}
+    for k in keys:
+        lk = str(k).lower()
+        if lk in kl and d.get(kl[lk]) is not None:
+            return d.get(kl[lk])
+    return default
+
+# If a DB section was selected, normalise it into use_props
+if selected_row is not None and not use_custom:
+    sr = selected_row  # dict from pd.read_sql().to_dict() or from sample fallback
+    # map likely DB column names (try several common variants)
+    use_props = {
+        "family": pick(sr, "Type", "family", "FAMILY", "type", default="DB"),
+        "name": pick(sr, "Size", "name", "designation", "profile", default=str(pick(sr, "Size", "name", default="DB"))),
+        "A_cm2": float(pick(sr, "A_cm2", "area_cm2", "area", "A", "Area", default=0.0) or 0.0),
+        "S_y_cm3": float(pick(sr, "S_y_cm3", "Sy_cm3", "S_y", "S_y_mm3", "S_y_mm^3", "S_y_mm3", "S_y", default=0.0) or 0.0),
+        "S_z_cm3": float(pick(sr, "S_z_cm3", "Sz_cm3", "S_z", "S_z_mm3", default=0.0) or 0.0),
+        "I_y_cm4": float(pick(sr, "I_y_cm4", "Iy_cm4", "I_y", "Iy", "I_y_mm4", default=0.0) or 0.0),
+        "I_z_cm4": float(pick(sr, "I_z_cm4", "Iz_cm4", "I_z", "Iz", default=0.0) or 0.0),
+        "J_cm4": float(pick(sr, "J_cm4", "J", "J_mm4", default=0.0) or 0.0),
+        "c_max_mm": float(pick(sr, "c_max_mm", "c_mm", "c", "c_max", default=0.0) or 0.0),
+        "Wpl_y_cm3": float(pick(sr, "Wpl_y_cm3", "Wpl_y", "Wpl_y_mm3", "W_pl_y", default=0.0) or 0.0),
+        "Wpl_z_cm3": float(pick(sr, "Wpl_z_cm3", "Wpl_z", "Wpl_z_mm3", default=0.0) or 0.0),
+        "alpha_curve": float(pick(sr, "alpha_curve", "alpha", default=alpha_default_val) or alpha_default_val),
+        "flange_class_db": pick(sr, "flange_class_db", "flange_class", "flangeClass", default="n/a"),
+        "web_class_bending_db": pick(sr, "web_class_bending_db", "web_class_bending", "web_class", "webClass", default="n/a"),
+        "web_class_compression_db": pick(sr, "web_class_compression_db", "web_class_compression", default="n/a"),
+        "Iw_cm6": float(pick(sr, "Iw_cm6", "Iw", default=0.0) or 0.0),
+        "It_cm4": float(pick(sr, "It_cm4", "It", default=0.0) or 0.0),
+    }
+
+    # show a small summary so user sees what has been loaded (optional)
+    st.markdown("**Loaded section properties from DB:**")
+    st.write(f"Family: `{use_props['family']}` — Name: `{use_props['name']}`")
+    st.write(pd.DataFrame([use_props]).T.rename(columns={0:"value"}))
+else:
+    # keep your existing custom property path (unchanged)
+    use_props = {
+        "family": "CUSTOM", "name": "CUSTOM",
+        "A_cm2": locals().get("A_cm2", 50.0),
+        "S_y_cm3": locals().get("S_y_cm3", 200.0),
+        "S_z_cm3": locals().get("S_z_cm3", 50.0),
+        "I_y_cm4": locals().get("I_y_cm4", 1500.0),
+        "I_z_cm4": locals().get("I_z_cm4", 150.0),
+        "J_cm4": locals().get("J_cm4", 10.0),
+        "c_max_mm": locals().get("c_max_mm", 100.0),
+        "Wpl_y_cm3": locals().get("Wpl_y_cm3", 0.0),
+        "Wpl_z_cm3": locals().get("Wpl_z_cm3", 0.0),
+        "alpha_curve": locals().get("alpha_custom", alpha_default_val),
+        "bf_mm": 0.0, "tf_mm": 0.0, "hw_mm": 0.0, "tw_mm": 0.0,
+        "flange_class_db": locals().get("flange_class_choice", "Auto (calc)"),
+        "web_class_bending_db": locals().get("web_class_bending_choice", "Auto (calc)"),
+        "web_class_compression_db": locals().get("web_class_compression_choice", "Auto (calc)"),
+        "Iw_cm6": locals().get("Iw_cm6", 0.0),
+        "It_cm4": locals().get("It_cm4", 0.0)
+    }
+
