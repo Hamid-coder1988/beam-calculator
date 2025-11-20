@@ -325,49 +325,138 @@ center_cols[1].markdown(
 st.markdown("---")
 
 # -------------------------
-# Map selected_row -> use_props (robust)
-# -------------------------
+# --- Robust pick + safe_float + mapping block (REPLACE your old pick & mapping) ---
+import re
+import numbers
+import numpy as np
+
+def safe_float(val, default=0.0):
+    """
+    Try to convert val to float robustly.
+    Handles:
+     - numeric types (int/float, numpy types)
+     - strings with commas as decimals or thousands separators
+     - strings with units like '31.2 mm' or '31,2mm'
+     - returns `default` if conversion fails
+    """
+    if val is None:
+        return default
+    # already numeric
+    if isinstance(val, numbers.Number):
+        try:
+            return float(val)
+        except Exception:
+            return default
+    # pandas scalars (e.g. numpy types)
+    if hasattr(val, "item"):
+        try:
+            v = val.item()
+            if isinstance(v, numbers.Number):
+                return float(v)
+            val = str(v)
+        except Exception:
+            val = str(val)
+    s = str(val).strip()
+    if s == "":
+        return default
+    # Replace comma decimal (European) when no dot present, otherwise remove thousands commas
+    if s.count(',') > 0 and s.count('.') == 0:
+        s = s.replace(',', '.')
+    else:
+        s = s.replace(',', '')
+    # remove spaces
+    s = s.replace(' ', '')
+    # find first numeric token (allow scientific notation)
+    m = re.search(r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?', s)
+    if not m:
+        return default
+    token = m.group(0)
+    try:
+        return float(token)
+    except Exception:
+        return default
+
 def pick(d, *keys, default=None):
-    """Return first existing key from d (case-insensitive), or default."""
+    """
+    Return first existing key from mapping d (case-insensitive), or default.
+    If the result is a pandas Series or array, take its first value.
+    """
     if d is None:
         return default
+    # exact keys
     for k in keys:
         if k in d and d[k] is not None:
-            return d[k]
+            v = d[k]
+            # if pandas Series/array, pick first element
+            try:
+                if hasattr(v, "iloc"):
+                    return v.iloc[0]
+                if isinstance(v, (list, tuple, np.ndarray)) and len(v) > 0:
+                    return v[0]
+            except Exception:
+                pass
+            return v
+    # case-insensitive lookup
     kl = {str(k).lower(): k for k in d.keys()}
     for k in keys:
         lk = str(k).lower()
         if lk in kl and d.get(kl[lk]) is not None:
-            return d.get(kl[lk])
+            v = d.get(kl[lk])
+            try:
+                if hasattr(v, "iloc"):
+                    return v.iloc[0]
+                if isinstance(v, (list, tuple, np.ndarray)) and len(v) > 0:
+                    return v[0]
+            except Exception:
+                pass
+            return v
     return default
+
+# Map DB row -> use_props with safe_float and warnings for unparseable values
+bad_fields = []  # collect fields that needed fallback
 
 if selected_row is not None and not use_custom:
     sr = selected_row
+    def get_num(*keys, default=0.0, fieldname=None):
+        raw = pick(sr, *keys, default=None)
+        val = safe_float(raw, default=default)
+        if (raw is not None) and (val == default) and (raw != default):
+            # flag only if raw existed but couldn't be parsed into a non-default number
+            bad_fields.append((fieldname or keys[0], raw))
+        return val
+
     use_props = {
         "family": pick(sr, "Type", "family", "type", default="DB"),
         "name": pick(sr, "Size", "name", "designation", default=str(pick(sr, "Size", "name", default="DB"))),
-        "A_cm2": float(pick(sr, "A_cm2", "area_cm2", "area", "A", "Area", default=0.0) or 0.0),
-        "S_y_cm3": float(pick(sr, "S_y_cm3", "Sy_cm3", "S_y", "S_y_mm3", default=0.0) or 0.0),
-        "S_z_cm3": float(pick(sr, "S_z_cm3", "Sz_cm3", "S_z", default=0.0) or 0.0),
-        "I_y_cm4": float(pick(sr, "I_y_cm4", "Iy_cm4", "I_y", "Iy", default=0.0) or 0.0),
-        "I_z_cm4": float(pick(sr, "I_z_cm4", "Iz_cm4", "I_z", "Iz", default=0.0) or 0.0),
-        "J_cm4": float(pick(sr, "J_cm4", "J", default=0.0) or 0.0),
-        "c_max_mm": float(pick(sr, "c_max_mm", "c_mm", "c", default=0.0) or 0.0),
-        "Wpl_y_cm3": float(pick(sr, "Wpl_y_cm3", "Wpl_y", default=0.0) or 0.0),
-        "Wpl_z_cm3": float(pick(sr, "Wpl_z_cm3", "Wpl_z", default=0.0) or 0.0),
-        "alpha_curve": float(pick(sr, "alpha_curve", "alpha", default=alpha_default_val) or alpha_default_val),
-        "flange_class_db": pick(sr, "flange_class_db", "flange_class", default="n/a"),
+        "A_cm2": get_num("A_cm2", "area_cm2", "area", "A", "Area", default=0.0, fieldname="A_cm2"),
+        "S_y_cm3": get_num("S_y_cm3", "Sy_cm3", "S_y", "S_y_mm3", default=0.0, fieldname="S_y_cm3"),
+        "S_z_cm3": get_num("S_z_cm3", "Sz_cm3", "S_z", default=0.0, fieldname="S_z_cm3"),
+        "I_y_cm4": get_num("I_y_cm4", "Iy_cm4", "I_y", "Iy", default=0.0, fieldname="I_y_cm4"),
+        "I_z_cm4": get_num("I_z_cm4", "Iz_cm4", "I_z", "Iz", default=0.0, fieldname="I_z_cm4"),
+        "J_cm4": get_num("J_cm4", "J", default=0.0, fieldname="J_cm4"),
+        "c_max_mm": get_num("c_max_mm", "c_mm", "c", "c_max", default=0.0, fieldname="c_max_mm"),
+        "Wpl_y_cm3": get_num("Wpl_y_cm3", "Wpl_y", "W_pl_y", default=0.0, fieldname="Wpl_y_cm3"),
+        "Wpl_z_cm3": get_num("Wpl_z_cm3", "Wpl_z", default=0.0, fieldname="Wpl_z_cm3"),
+        "alpha_curve": get_num("alpha_curve", "alpha", default=alpha_default_val, fieldname="alpha_curve"),
+        "flange_class_db": pick(sr, "flange_class_db", "flange_class", "flangeClass", default="n/a"),
         "web_class_bending_db": pick(sr, "web_class_bending_db", "web_class_bending", "web_class", default="n/a"),
         "web_class_compression_db": pick(sr, "web_class_compression_db", "web_class_compression", default="n/a"),
-        "Iw_cm6": float(pick(sr, "Iw_cm6", "Iw", default=0.0) or 0.0),
-        "It_cm4": float(pick(sr, "It_cm4", "It", default=0.0) or 0.0),
+        "Iw_cm6": get_num("Iw_cm6", "Iw", default=0.0, fieldname="Iw_cm6"),
+        "It_cm4": get_num("It_cm4", "It", default=0.0, fieldname="It_cm4"),
     }
-    # show small summary of loaded props
+
+    # Show loaded props and any warnings about bad fields
     st.markdown("**Loaded section properties from DB:**")
     st.write(f"Family: `{use_props['family']}` — Name: `{use_props['name']}`")
     st.write(pd.DataFrame([use_props]).T.rename(columns={0:"value"}))
+
+    if bad_fields:
+        # Show a compact warning so you can fix DB values if needed
+        warning_lines = [f"{fld}: {raw!s}" for fld, raw in bad_fields]
+        st.warning("Some numeric DB fields could not be parsed and used default values:\n" + "\n".join(warning_lines))
+
 else:
-    # use the custom inputs if no DB row selected
+    # fallback to custom as before
     use_props = {
         "type": "CUSTOM", "name": "CUSTOM",
         "A_cm2": locals().get("A_cm2", 50.0),
@@ -386,6 +475,7 @@ else:
         "web_class_compression_db": locals().get("web_class_compression_choice", "Auto (calc)"),
         "Iw_cm6": 0.0, "It_cm4": 0.0
     }
+# --- End of replacement block ---
 
 # -------------------------
 # Section properties display (DB read-only or Custom editable)
@@ -592,3 +682,4 @@ util_torsion = (tau_torsion_Pa / tau_allow_Pa) if tau_allow_Pa > 0 else None
 
 st.markdown("---")
 st.write("Calculation complete. (Results table and remaining UI preserved from original app.)")
+
