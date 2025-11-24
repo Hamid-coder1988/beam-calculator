@@ -1,5 +1,5 @@
 # beam_design_app.py
-# EngiSnap — Standard steel beam checks (DB-backed, compact UI)  ✅ Beam code 2
+# EngiSnap — Standard steel beam checks (DB-backed, compact UI)  ✅ Beam code 3 + Gallery Ready Cases
 
 import streamlit as st
 import pandas as pd
@@ -291,121 +291,125 @@ def supports_torsion_and_warping(family: str) -> bool:
         return False
     return any(x in f for x in ["IPE", "IPN", "HEA", "HEB", "HEM", "UB", "UC", "UNP", "UPN", "I ", "H "])
 
-# -------------------------
-# Ready cases (RESTORED)
-# -------------------------
-def ss_udl(span_m: float, w_kN_per_m: float):
-    Mmax = w_kN_per_m * span_m**2 / 8.0
-    Vmax = w_kN_per_m * span_m / 2.0
-    return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
+# =========================
+# READY CASES GALLERY SYSTEM (77 cases)
+# =========================
 
-def ss_point_center(span_m: float, P_kN: float):
-    Mmax = P_kN * span_m / 4.0
-    Vmax = P_kN / 2.0
-    return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
+def dummy_case_func(*args, **kwargs):
+    # Placeholder — you will replace later with real formulas from DB
+    return (0.0, 0.0, 0.0, 0.0, 0.0)
 
-def ss_point_at_a(span_m: float, P_kN: float, a_m: float):
-    Mmax = P_kN * a_m * (span_m - a_m) / span_m
-    Vmax = P_kN
-    return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
+def make_cases(prefix, n, default_inputs):
+    cases = []
+    for i in range(1, n+1):
+        cases.append({
+            "key": f"{prefix}-{i:02d}",
+            "label": f"Case {i}",
+            "img_path": None,  # placeholder tile for now
+            "inputs": default_inputs.copy(),
+            "func": dummy_case_func
+        })
+    return cases
 
 READY_CATALOG = {
     "Beam": {
-        "Simply supported (examples)": {
-            "SS-UDL": {"label": "SS-01: UDL (w on L)", "inputs": {"L": 6.0, "w": 10.0}, "func": ss_udl},
-            "SS-Point-Centre": {"label": "SS-02: Point at midspan (P)", "inputs": {"L": 6.0, "P": 20.0}, "func": ss_point_center},
-            "SS-Point-a": {"label": "SS-03: Point at distance a (P at a)", "inputs": {"L": 6.0, "P": 20.0, "a": 2.0}, "func": ss_point_at_a},
-        }
+        "Simply Supported Beams (13 cases)": make_cases("SS", 13, {"L": 6.0, "w": 10.0}),
+        "Beams Fixed at one end (3 cases)": make_cases("FE", 3, {"L": 6.0, "w": 10.0}),
+        "Beams Fixed at both ends (3 cases)": make_cases("FB", 3, {"L": 6.0, "w": 10.0}),
+        "Cantilever Beams (6 cases)": make_cases("C", 6, {"L": 3.0, "w": 10.0}),
+        "Beams with Overhang (6 cases)": make_cases("OH", 6, {"L": 6.0, "a": 1.5, "w": 10.0}),
+        "Continuous Beams — Two Spans / Three Supports (7 cases)": make_cases("CS2", 7, {"L1": 4.0, "L2": 4.0, "w": 10.0}),
+        "Continuous Beams — Three Spans / Four Supports (3 cases)": make_cases("CS3", 3, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "w": 10.0}),
+        "Continuous Beams — Four Spans / Five Supports (3 cases)": make_cases("CS4", 3, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "L4": 4.0, "w": 10.0}),
     },
     "Frame": {
-        "Simple frame examples": {
-            "F-01": {"label": "FR-01: Simple 2-member frame (placeholder)",
-                     "inputs": {"L": 4.0, "P": 5.0},
-                     "func": lambda L, P: (0.0, float(P*L/4.0), 0.0, float(P/2.0), 0.0)},
-        }
+        "Three Member Frames (Pin / Roller) (8 cases)": make_cases("FR3PR", 8, {"L": 4.0, "H": 3.0, "P": 10.0}),
+        "Three Member Frames (Pin / Pin) (5 cases)": make_cases("FR3PP", 5, {"L": 4.0, "H": 3.0, "P": 10.0}),
+        "Three Member Frames (Fixed / Fixed) (3 cases)": make_cases("FR3FF", 3, {"L": 4.0, "H": 3.0, "P": 10.0}),
+        "Three Member Frames (Fixed / Free) (5 cases)": make_cases("FR3FFr", 5, {"L": 4.0, "H": 3.0, "P": 10.0}),
+        "Two Member Frames (Pin / Pin) (2 cases)": make_cases("FR2PP", 2, {"L": 4.0, "H": 3.0, "P": 10.0}),
+        "Two Member Frames (Fixed / Fixed) (2 cases)": make_cases("FR2FF", 2, {"L": 4.0, "H": 3.0, "P": 10.0}),
+        "Two Member Frames (Fixed / Pin) (4 cases)": make_cases("FR2FP", 4, {"L": 4.0, "H": 3.0, "P": 10.0}),
+        "Two Member Frames (Fixed / Free) (4 cases)": make_cases("FR2FFr", 4, {"L": 4.0, "H": 3.0, "P": 10.0}),
     }
 }
 
+def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
+    cases = READY_CATALOG[chosen_type][chosen_cat]
+    cols = st.columns(n_per_row)
+    clicked = None
+
+    for i, case in enumerate(cases):
+        col = cols[i % n_per_row]
+        with col:
+            # Placeholder image tile
+            if case.get("img_path"):
+                col.image(case["img_path"], use_container_width=True)
+            else:
+                col.markdown(
+                    "<div style='height:90px;border:1px dashed #bbb;"
+                    "border-radius:8px;display:flex;align-items:center;"
+                    "justify-content:center;color:#888;font-size:12px;'>"
+                    "image placeholder</div>",
+                    unsafe_allow_html=True
+                )
+            col.caption(case["label"])
+
+            if col.button("Select", key=f"case_select_{chosen_type}_{chosen_cat}_{case['key']}"):
+                clicked = case["key"]
+
+    return clicked
+
 def render_ready_cases_panel():
-    with st.expander("Ready beam & frame cases (optional)", expanded=False):
-        st.write("Pick a ready case to auto-fill typical max forces/moments.")
-        use_ready = st.checkbox("Use ready case", key="ready_use_case")
+    with st.expander("Ready design cases (Beam & Frame) — Gallery", expanded=False):
+        st.write("Pick a case visually, then enter its parameters. Apply fills Loads automatically.")
 
-        if not use_ready:
+        chosen_type = st.radio("Step 1 — Structural type", ["Beam", "Frame"], horizontal=True, key="ready_type_gallery")
+        categories = list(READY_CATALOG[chosen_type].keys())
+        chosen_cat = st.selectbox("Step 2 — Category", categories, key="ready_cat_gallery")
+
+        st.markdown("Step 3 — Choose a case:")
+        clicked_key = render_case_gallery(chosen_type, chosen_cat, n_per_row=5)
+
+        if clicked_key:
+            st.session_state["ready_case_key"] = clicked_key
+
+        case_key = st.session_state.get("ready_case_key")
+        if not case_key:
+            st.info("Select a case above to enter its parameters.")
             return
 
-        chosen_type = st.selectbox("Type", options=["-- choose --", "Beam", "Frame"], key="ready_type")
-        if chosen_type == "-- choose --":
-            st.info("Select Beam or Frame to show categories.")
-            return
+        selected_case = next(c for c in READY_CATALOG[chosen_type][chosen_cat] if c["key"] == case_key)
 
-        categories = sorted(READY_CATALOG.get(chosen_type, {}).keys())
-        chosen_cat = st.selectbox("Category", options=["-- choose --"] + categories, key="ready_category")
-        if chosen_cat == "-- choose --":
-            return
+        st.markdown(f"**Selected:** {selected_case['key']} — {selected_case['label']}")
 
-        cases_dict = READY_CATALOG[chosen_type][chosen_cat]
-        case_keys = list(cases_dict.keys())
+        input_vals = {}
+        for k, v in selected_case.get("inputs", {}).items():
+            input_vals[k] = st.number_input(k, value=float(v), key=f"ready_param_{case_key}_{k}")
 
-        cols = st.columns(3)
-        selected_case_key = None
-        for i, ck in enumerate(case_keys):
-            col = cols[i % 3]
-            lbl = cases_dict[ck]["label"]
-            col.markdown(
-                f"<div style='border:2px solid #bbb;border-radius:10px;padding:12px;text-align:center;background:#fbfbfb;margin-bottom:6px;min-height:68px;display:flex;align-items:center;justify-content:center;font-weight:600;'>{lbl}</div>",
-                unsafe_allow_html=True
-            )
-            if col.button(f"Select {ck}", key=f"ready_select_{chosen_type}_{chosen_cat}_{i}"):
-                selected_case_key = ck
+        if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
+            func = selected_case.get("func", dummy_case_func)
 
-        if selected_case_key:
-            st.session_state["ready_selected_type"] = chosen_type
-            st.session_state["ready_selected_category"] = chosen_cat
-            st.session_state["ready_selected_case"] = selected_case_key
-            st.rerun()
+            try:
+                args = [input_vals[k] for k in selected_case["inputs"].keys()]
+                N_case, My_case, Mz_case, Vy_case, Vz_case = func(*args)
+            except Exception:
+                N_case, My_case, Mz_case, Vy_case, Vz_case = 0.0, 0.0, 0.0, 0.0, 0.0
 
-        sel_case = st.session_state.get("ready_selected_case")
-        sel_type = st.session_state.get("ready_selected_type")
-        sel_cat = st.session_state.get("ready_selected_category")
+            st.session_state["prefill_from_case"] = True
+            st.session_state["prefill_N_kN"]  = float(N_case)
+            st.session_state["prefill_My_kNm"] = float(My_case)
+            st.session_state["prefill_Mz_kNm"] = float(Mz_case)
+            st.session_state["prefill_Vy_kN"]  = float(Vy_case)
+            st.session_state["prefill_Vz_kN"]  = float(Vz_case)
 
-        if sel_case and sel_type == chosen_type and sel_cat == chosen_cat:
-            scase_info = READY_CATALOG[sel_type][sel_cat].get(sel_case)
-            st.markdown(f"**Selected case:** {scase_info['label']}")
-            inputs = scase_info.get("inputs", {})
-            input_vals = {}
-            for k, v in inputs.items():
-                input_vals[k] = st.number_input(f"{k}", value=float(v), key=f"ready_input_{sel_case}_{k}")
+            # Try to infer a single span length if present
+            if "L" in input_vals:
+                st.session_state["case_L"] = float(input_vals["L"])
+            elif "L1" in input_vals:
+                st.session_state["case_L"] = float(input_vals["L1"])
 
-            col_apply, col_clear = st.columns([1, 1])
-            with col_apply:
-                if st.button("Apply case to load inputs", key=f"ready_apply_{sel_case}"):
-                    func = scase_info.get("func")
-                    try:
-                        args = [input_vals[k] for k in inputs.keys()]
-                        N_case, My_case, Mz_case, Vy_case, Vz_case = func(*args)
-                    except Exception:
-                        N_case = My_case = Mz_case = Vy_case = Vz_case = 0.0
-
-                    st.session_state["prefill_from_case"] = True
-                    st.session_state["prefill_N_kN"] = float(N_case)
-                    st.session_state["prefill_My_kNm"] = float(My_case)
-                    st.session_state["prefill_Mz_kNm"] = float(Mz_case)
-                    st.session_state["prefill_Vy_kN"] = float(Vy_case)
-                    st.session_state["prefill_Vz_kN"] = float(Vz_case)
-                    if "L" in input_vals:
-                        st.session_state["case_L"] = float(input_vals["L"])
-
-                    st.success("Case applied — open Loads form below and click Run check.")
-
-            with col_clear:
-                if st.button("Clear selected case", key=f"ready_clear_{sel_case}"):
-                    for k in ("ready_selected_type","ready_selected_category","ready_selected_case",
-                              "prefill_from_case","prefill_N_kN","prefill_My_kNm",
-                              "prefill_Mz_kNm","prefill_Vy_kN","prefill_Vz_kN","case_L"):
-                        st.session_state.pop(k, None)
-                    st.success("Selected case cleared.")
-                    st.rerun()
+            st.success("Case applied. Now scroll down to Loads form and click Run check.")
 
 # -------------------------
 # UI renderers
@@ -414,7 +418,7 @@ def render_sidebar_guidelines():
     st.sidebar.title("Guidelines")
     st.sidebar.markdown("""
 1. Member & Section  
-2. Loads  
+2. Loads (or Ready Case)  
 3. Run check  
 4. Results  
 5. Report  
@@ -536,7 +540,6 @@ def render_section_summary_like_props(material, sr_display, key_prefix="sum"):
     s14.text_input("Web class (bending, DB)", value=str(sr_display.get("web_class_bending_db","n/a")), disabled=True, key=f"{key_prefix}_wb")
     s15.text_input("Web class (compression, DB)", value=str(sr_display.get("web_class_compression_db","n/a")), disabled=True, key=f"{key_prefix}_wc")
 
-# ✅ FIXED: all keys prefixed
 def render_section_properties_readonly(sr_display, key_prefix="db"):
     c1, c2, c3 = st.columns(3)
     c1.number_input("A (cm²)", value=float(sr_display.get('A_cm2', 0.0)),
@@ -814,7 +817,6 @@ def render_results(df_rows, overall_ok, governing):
 
     st.write(df_rows.style.apply(highlight_row, axis=1))
 
-# ✅ Professional report layout
 def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, governing, extras):
     st.markdown("## Engineering report")
 
@@ -863,7 +865,6 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
     render_section_summary_like_props(material, use_props, key_prefix="sum_report")
 
     with st.expander("Full section properties", expanded=False):
-        # ✅ prefix to avoid key duplication with tab1
         render_section_properties_readonly(use_props, key_prefix="report_db")
 
     st.markdown("---")
@@ -987,7 +988,6 @@ with tab1:
         render_section_summary_like_props(material, sr_display, key_prefix="sum_tab1")
 
         with st.expander("Section properties (from DB — read only)", expanded=False):
-            # ✅ prefix to avoid duplication with report tab
             render_section_properties_readonly(sr_display, key_prefix="tab1_db")
 
         if bad_fields:
