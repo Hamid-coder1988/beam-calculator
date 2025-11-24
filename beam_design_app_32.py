@@ -536,6 +536,7 @@ def render_section_summary_like_props(material, sr_display, key_prefix="sum"):
     s14.text_input("Web class (bending, DB)", value=str(sr_display.get("web_class_bending_db","n/a")), disabled=True, key=f"{key_prefix}_wb")
     s15.text_input("Web class (compression, DB)", value=str(sr_display.get("web_class_compression_db","n/a")), disabled=True, key=f"{key_prefix}_wc")
 
+# ✅ FIXED: all keys prefixed
 def render_section_properties_readonly(sr_display, key_prefix="db"):
     c1, c2, c3 = st.columns(3)
     c1.number_input("A (cm²)", value=float(sr_display.get('A_cm2', 0.0)),
@@ -584,7 +585,6 @@ def render_section_properties_readonly(sr_display, key_prefix="db"):
     a1.text_input("Buckling α (DB)", value=str(alpha_label_db),
                   disabled=True, key=f"{key_prefix}_alpha")
     a2.empty(); a3.empty()
-
 
 def render_loads_form(family_for_torsion: str):
     prefill = st.session_state.get("prefill_from_case", False)
@@ -814,7 +814,7 @@ def render_results(df_rows, overall_ok, governing):
 
     st.write(df_rows.style.apply(highlight_row, axis=1))
 
-# ✅ NEW professional report layout (your requested order)
+# ✅ Professional report layout
 def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, governing, extras):
     st.markdown("## Engineering report")
 
@@ -825,8 +825,8 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
         key="report_mode"
     )
 
-    # --- 1) Project data ---
     doc_name, project_name, position, requested_by, revision, run_date = meta
+
     st.markdown("### 1. Project data")
     info_df = pd.DataFrame({
         "Item": [
@@ -848,7 +848,6 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
     })
     st.table(info_df)
 
-    # --- 2) Material properties ---
     st.markdown("---")
     st.markdown("### 2. Material properties")
     fy = material_to_fy(material)
@@ -857,18 +856,16 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
         "Value": [material, f"{fy:.0f}", "210000", "80769"]
     })
     st.table(mat_df)
-    st.caption("Partial safety factors are assumed included in DB capacities (γ = 1.0 in checks).")
+    st.caption("Partial safety factors are assumed included in DB capacities (γ = 1.0).")
 
-    # --- 3) Section properties ---
     st.markdown("---")
     st.markdown("### 3. Section properties (from DB)")
     render_section_summary_like_props(material, use_props, key_prefix="sum_report")
 
-with st.expander("Full section properties", expanded=False):
-    render_section_properties_readonly(use_props, key_prefix="report_db")
+    with st.expander("Full section properties", expanded=False):
+        # ✅ prefix to avoid key duplication with tab1
+        render_section_properties_readonly(use_props, key_prefix="report_db")
 
-
-    # --- 4) Load inputs ---
     st.markdown("---")
     st.markdown("### 4. Load inputs & buckling data (ULS)")
     loads_df = pd.DataFrame({
@@ -899,7 +896,6 @@ with st.expander("Full section properties", expanded=False):
     })
     st.table(loads_df)
 
-    # --- 5) Results ---
     st.markdown("---")
     st.markdown("### 5. Results summary")
     gov_check, gov_util = governing
@@ -927,7 +923,6 @@ with st.expander("Full section properties", expanded=False):
         return [color]*len(row)
     st.write(df_rows.style.apply(highlight_row, axis=1))
 
-    # --- 6) Full mode formulas ---
     if report_mode.startswith("Full"):
         st.markdown("---")
         st.markdown("## 6. Full formulas & intermediate steps")
@@ -992,8 +987,8 @@ with tab1:
         render_section_summary_like_props(material, sr_display, key_prefix="sum_tab1")
 
         with st.expander("Section properties (from DB — read only)", expanded=False):
-    render_section_properties_readonly(sr_display, key_prefix="tab1_db")
-
+            # ✅ prefix to avoid duplication with report tab
+            render_section_properties_readonly(sr_display, key_prefix="tab1_db")
 
         if bad_fields:
             st.warning("Some DB numeric fields were not parsed cleanly. See debug in Results tab.")
@@ -1051,5 +1046,3 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
-
-
