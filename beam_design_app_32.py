@@ -343,30 +343,33 @@ def ss_udl_diagram(L, w, n=200):
     M = w * x * (L - x) / 2.0
     return x, V, M
 
-def ss_udl_case(L, w):
+def ss_central_point_case(L, P):
     """
-    Simply supported beam with full-span UDL.
+    Simply supported beam with a point load at midspan.
     Inputs:
-      L (m), w (kN/m)
+      L (m), P (kN)
     Returns (N, My, Mz, Vy, Vz) maxima for prefill.
-    Convention matches your old ready cases:
-      My = sagging major-axis moment
-      Vy = vertical shear resultant used in checks
     """
-    Mmax = w * L**2 / 8.0      # kN·m
-    Vmax = w * L / 2.0        # kN
+    Mmax = P * L / 4.0    # kN·m
+    Vmax = P / 2.0        # kN
     return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
 
 
-def ss_udl_diagram(L, w, n=200):
+def ss_central_point_diagram(L, P, n=200):
     """
     Returns arrays for diagrams: x (m), V (kN), M (kN·m)
-    V(x) = w(L/2 - x)
-    M(x) = w x (L - x)/2
+
+    Reactions: R = P/2
+    Shear:
+      V(x) = +P/2  for 0<=x<L/2
+      V(x) = -P/2  for L/2<=x<=L
+    Moment:
+      M(x) = P*x/2          for x<L/2
+      M(x) = P*(L-x)/2      for x>=L/2
     """
     x = np.linspace(0.0, L, n)
-    V = w * (L/2.0 - x)
-    M = w * x * (L - x) / 2.0
+    V = np.where(x < L/2.0, P/2.0, -P/2.0)
+    M = np.where(x < L/2.0, P*x/2.0, P*(L-x)/2.0)
     return x, V, M
 
 def dummy_case_func(*args, **kwargs):
@@ -1405,6 +1408,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
