@@ -1,9 +1,10 @@
 # beam_design_app.py
-# EngiSnap — Standard steel beam checks (DB-backed, compact UI)  ✅ Beam code 3 + Gallery Ready Cases
+# EngiSnap — Beam Code 4 (DB-backed, wizard UI, gallery ready cases, pro report + PDF)
 
 import streamlit as st
 import pandas as pd
 import math
+from io import BytesIO
 from datetime import datetime, date
 import traceback
 import re
@@ -11,8 +12,7 @@ import numbers
 import numpy as np
 
 # -------------------------
-# Optional: install psycopg2-binary:
-# pip install psycopg2-binary
+# Optional Postgres driver
 # -------------------------
 try:
     import psycopg2
@@ -21,7 +21,9 @@ except Exception:
     psycopg2 = None
     HAS_PG = False
 
-# --- Optional PDF engine ---
+# -------------------------
+# Optional PDF engine (reportlab)
+# -------------------------
 try:
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
@@ -30,9 +32,10 @@ try:
 except Exception:
     HAS_RL = False
 
-# -------------------------
-# get_conn() using st.secrets (UNCHANGED)
-# -------------------------
+
+# =========================================================
+# DB CONNECTION (same as Beam Code 3, uses st.secrets)
+# =========================================================
 def get_conn():
     if not HAS_PG:
         raise RuntimeError("psycopg2 not installed. Install with: pip install psycopg2-binary")
@@ -70,9 +73,6 @@ def get_conn():
             ) from e
 
 
-# -------------------------
-# SQL runner
-# -------------------------
 def run_sql(sql, params=None):
     try:
         conn = get_conn()
@@ -90,8 +90,9 @@ def run_sql(sql, params=None):
             pass
         return None, f"{e}\n\n{tb}"
 
+
 # -------------------------
-# Fallback sample rows
+# Fallback sample rows (if DB not available)
 # -------------------------
 SAMPLE_ROWS = [
     {"Type": "IPE", "Size": "IPE 200", "A_cm2": 31.2, "S_y_cm3": 88.0, "S_z_cm3": 16.0,
@@ -108,9 +109,10 @@ SAMPLE_ROWS = [
     }
 ]
 
-# -------------------------
-# DB helpers (unchanged)
-# -------------------------
+
+# =========================================================
+# DB INSPECTION HELPERS
+# =========================================================
 def list_user_tables():
     sql = """
       SELECT schemaname, tablename
@@ -120,6 +122,7 @@ def list_user_tables():
     """
     return run_sql(sql)
 
+
 def table_columns(table_name):
     sql = """
       SELECT column_name, data_type, ordinal_position
@@ -128,6 +131,7 @@ def table_columns(table_name):
       ORDER BY ordinal_position;
     """
     return run_sql(sql, params=(table_name,))
+
 
 def detect_table_and_columns():
     if not HAS_PG:
@@ -155,7 +159,9 @@ def detect_table_and_columns():
         cols_lower = [c.lower() for c in cols]
         if 'type' in cols_lower and 'size' in cols_lower:
             return tbl, cols, None
+
     return priorities[0] if priorities else None, None, "no-type-size-found"
+
 
 @st.cache_data(show_spinner=False)
 def fetch_types_and_sizes():
@@ -200,6 +206,7 @@ def fetch_types_and_sizes():
 
     return types, sizes_map, tbl
 
+
 @st.cache_data(show_spinner=False)
 def get_section_row_db(type_value, size_value, table_name):
     if not HAS_PG:
@@ -229,9 +236,10 @@ def get_section_row_db(type_value, size_value, table_name):
             break
     return row
 
-# -------------------------
-# Robust numeric parser & pick helper
-# -------------------------
+
+# =========================================================
+# ROBUST NUMERIC PARSER & PICK
+# =========================================================
 def safe_float(val, default=0.0):
     if val is None:
         return default
@@ -265,6 +273,7 @@ def safe_float(val, default=0.0):
     except Exception:
         return default
 
+
 def pick(d, *keys, default=None):
     if d is None:
         return default
@@ -285,11 +294,13 @@ def pick(d, *keys, default=None):
                     return v
     return default
 
-# -------------------------
-# Helpers
-# -------------------------
+
+# =========================================================
+# GENERAL HELPERS
+# =========================================================
 def material_to_fy(mat: str) -> float:
     return {"S235": 235.0, "S275": 275.0, "S355": 355.0}.get(mat, 355.0)
+
 
 def supports_torsion_and_warping(family: str) -> bool:
     if not family:
@@ -300,25 +311,26 @@ def supports_torsion_and_warping(family: str) -> bool:
         return False
     return any(x in f for x in ["IPE", "IPN", "HEA", "HEB", "HEM", "UB", "UC", "UNP", "UPN", "I ", "H "])
 
-# =========================
-# READY CASES GALLERY SYSTEM (77 cases)
-# =========================
 
+# =========================================================
+# READY CASES GALLERY SYSTEM (77 placeholders)
+# =========================================================
 def dummy_case_func(*args, **kwargs):
-    # Placeholder — you will replace later with real formulas from DB
     return (0.0, 0.0, 0.0, 0.0, 0.0)
+
 
 def make_cases(prefix, n, default_inputs):
     cases = []
-    for i in range(1, n+1):
+    for i in range(1, n + 1):
         cases.append({
             "key": f"{prefix}-{i:02d}",
             "label": f"Case {i}",
-            "img_path": None,  # placeholder tile for now
+            "img_path": None,   # placeholder
             "inputs": default_inputs.copy(),
             "func": dummy_case_func
         })
     return cases
+
 
 READY_CATALOG = {
     "Beam": {
@@ -343,6 +355,7 @@ READY_CATALOG = {
     }
 }
 
+
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
     cases = READY_CATALOG[chosen_type][chosen_cat]
     cols = st.columns(n_per_row)
@@ -351,7 +364,6 @@ def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
     for i, case in enumerate(cases):
         col = cols[i % n_per_row]
         with col:
-            # Placeholder image tile
             if case.get("img_path"):
                 col.image(case["img_path"], use_container_width=True)
             else:
@@ -368,6 +380,7 @@ def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
                 clicked = case["key"]
 
     return clicked
+
 
 def render_ready_cases_panel():
     with st.expander("Ready design cases (Beam & Frame) — Gallery", expanded=False):
@@ -387,12 +400,11 @@ def render_ready_cases_panel():
             key="ready_cat_gallery"
         )
 
-        # ---- Reset selection if type/category changes ----
+        # Reset selection if type/category changes
         last_type = st.session_state.get("_ready_last_type")
-        last_cat  = st.session_state.get("_ready_last_cat")
-
+        last_cat = st.session_state.get("_ready_last_cat")
         if (last_type != chosen_type) or (last_cat != chosen_cat):
-            st.session_state["ready_case_key"] = None  # clear old selection
+            st.session_state["ready_case_key"] = None
             st.session_state["_ready_last_type"] = chosen_type
             st.session_state["_ready_last_cat"] = chosen_cat
 
@@ -404,12 +416,10 @@ def render_ready_cases_panel():
 
         case_key = st.session_state.get("ready_case_key")
 
-        # Guard: nothing selected yet
         if not case_key:
             st.info("Select a case above to enter its parameters.")
             return
 
-        # Guard: case_key from previous tab/type doesn't exist here
         current_cases = READY_CATALOG[chosen_type][chosen_cat]
         current_keys = {c["key"] for c in current_cases}
         if case_key not in current_keys:
@@ -431,7 +441,6 @@ def render_ready_cases_panel():
 
         if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
             func = selected_case.get("func", dummy_case_func)
-
             try:
                 args = [input_vals[k] for k in selected_case["inputs"].keys()]
                 N_case, My_case, Mz_case, Vy_case, Vz_case = func(*args)
@@ -439,11 +448,11 @@ def render_ready_cases_panel():
                 N_case, My_case, Mz_case, Vy_case, Vz_case = 0.0, 0.0, 0.0, 0.0, 0.0
 
             st.session_state["prefill_from_case"] = True
-            st.session_state["prefill_N_kN"]   = float(N_case)
+            st.session_state["prefill_N_kN"] = float(N_case)
             st.session_state["prefill_My_kNm"] = float(My_case)
             st.session_state["prefill_Mz_kNm"] = float(Mz_case)
-            st.session_state["prefill_Vy_kN"]  = float(Vy_case)
-            st.session_state["prefill_Vz_kN"]  = float(Vz_case)
+            st.session_state["prefill_Vy_kN"] = float(Vy_case)
+            st.session_state["prefill_Vz_kN"] = float(Vz_case)
 
             if "L" in input_vals:
                 st.session_state["case_L"] = float(input_vals["L"])
@@ -452,24 +461,26 @@ def render_ready_cases_panel():
 
             st.success("Case applied. Now scroll down to Loads form and click Run check.")
 
-# -------------------------
-# UI renderers
-# -------------------------
+
+# =========================================================
+# UI RENDERERS
+# =========================================================
 def render_sidebar_guidelines():
     st.sidebar.title("Guidelines")
     st.sidebar.markdown("""
-1. Member & Section  
-2. Loads (or Ready Case)  
-3. Run check  
-4. Results  
-5. Report  
+1) Member & Section  
+2) Loads (or Ready Case)  
+3) Run check  
+4) Results  
+5) Report  
 
-DB sections read-only.
+DB sections are read-only.
 """)
+
 
 def render_project_data():
     with st.expander("Project data", expanded=False):
-        meta_col1, meta_col2, meta_col3 = st.columns([1,1,1])
+        meta_col1, meta_col2, meta_col3 = st.columns([1, 1, 1])
         with meta_col1:
             doc_name = st.text_input("Document title", value="Beam check", key="doc_title_in")
             project_name = st.text_input("Project name", value="", key="project_name_in")
@@ -482,25 +493,38 @@ def render_project_data():
     st.markdown("---")
     return doc_name, project_name, position, requested_by, revision, run_date
 
+
 def render_section_selection():
     st.subheader("Section selection")
     types, sizes_map, detected_table = fetch_types_and_sizes()
 
-    c1, c2, c3 = st.columns([1,1,1])
+    c1, c2, c3 = st.columns([1, 1, 1])
     with c1:
-        material = st.selectbox("Material", ["S235","S275","S355"], index=2, key="mat_sel")
+        material = st.selectbox("Material", ["S235", "S275", "S355"], index=2, key="mat_sel")
     with c2:
-        family = st.selectbox("Section family / Type (DB)", ["-- choose --"] + types if types else ["-- choose --"], key="fam_sel")
+        family = st.selectbox(
+            "Section family / Type (DB)",
+            ["-- choose --"] + types if types else ["-- choose --"],
+            key="fam_sel"
+        )
     with c3:
         selected_name = None
         selected_row = None
         if family and family != "-- choose --":
             names = sizes_map.get(family, [])
-            selected_name = st.selectbox("Section size (DB)", ["-- choose --"] + names if names else ["-- choose --"], key="size_sel")
+            selected_name = st.selectbox(
+                "Section size (DB)",
+                ["-- choose --"] + names if names else ["-- choose --"],
+                key="size_sel"
+            )
             if selected_name and selected_name != "-- choose --":
-                selected_row = get_section_row_db(family, selected_name, detected_table if detected_table != "sample" else None)
+                selected_row = get_section_row_db(
+                    family, selected_name,
+                    detected_table if detected_table != "sample" else None
+                )
 
     return material, family, selected_name, selected_row, detected_table
+
 
 def build_section_display(selected_row):
     alpha_default_val = 0.49
@@ -552,6 +576,7 @@ def build_section_display(selected_row):
     }
     return sr_display, bad_fields
 
+
 def render_section_summary_like_props(material, sr_display, key_prefix="sum"):
     fy = material_to_fy(material)
     st.markdown("### Selected section summary")
@@ -559,76 +584,48 @@ def render_section_summary_like_props(material, sr_display, key_prefix="sum"):
     s1, s2, s3 = st.columns(3)
     s1.text_input("Material", value=material, disabled=True, key=f"{key_prefix}_mat")
     s2.text_input("fy (MPa)", value=f"{fy:.0f}", disabled=True, key=f"{key_prefix}_fy")
-    s3.text_input("Family / Type", value=str(sr_display.get("family","")), disabled=True, key=f"{key_prefix}_fam")
+    s3.text_input("Family / Type", value=str(sr_display.get("family", "")), disabled=True, key=f"{key_prefix}_fam")
 
     s4, s5, s6 = st.columns(3)
-    s4.text_input("Size", value=str(sr_display.get("name","")), disabled=True, key=f"{key_prefix}_size")
-    s5.number_input("A (cm²)", value=float(sr_display.get("A_cm2",0.0)), disabled=True, key=f"{key_prefix}_A")
-    s6.number_input("c_max (mm)", value=float(sr_display.get("c_max_mm",0.0)), disabled=True, key=f"{key_prefix}_c")
+    s4.text_input("Size", value=str(sr_display.get("name", "")), disabled=True, key=f"{key_prefix}_size")
+    s5.number_input("A (cm²)", value=float(sr_display.get("A_cm2", 0.0)), disabled=True, key=f"{key_prefix}_A")
+    s6.number_input("c_max (mm)", value=float(sr_display.get("c_max_mm", 0.0)), disabled=True, key=f"{key_prefix}_c")
 
-    s7, s8, s9 = st.columns(3)
-    s7.number_input("Iy (cm⁴)", value=float(sr_display.get("I_y_cm4",0.0)), disabled=True, key=f"{key_prefix}_Iy")
-    s8.number_input("Iz (cm⁴)", value=float(sr_display.get("I_z_cm4",0.0)), disabled=True, key=f"{key_prefix}_Iz")
-    s9.number_input("J (cm⁴)", value=float(sr_display.get("J_cm4",0.0)), disabled=True, key=f"{key_prefix}_J")
-
-    s10, s11, s12 = st.columns(3)
-    s10.number_input("Wpl_y (cm³)", value=float(sr_display.get("Wpl_y_cm3",0.0)), disabled=True, key=f"{key_prefix}_Wply")
-    s11.number_input("Wpl_z (cm³)", value=float(sr_display.get("Wpl_z_cm3",0.0)), disabled=True, key=f"{key_prefix}_Wplz")
-    s12.text_input("Buckling α", value=str(sr_display.get("alpha_curve","n/a")), disabled=True, key=f"{key_prefix}_alpha")
-
-    s13, s14, s15 = st.columns(3)
-    s13.text_input("Flange class (DB)", value=str(sr_display.get("flange_class_db","n/a")), disabled=True, key=f"{key_prefix}_fc")
-    s14.text_input("Web class (bending, DB)", value=str(sr_display.get("web_class_bending_db","n/a")), disabled=True, key=f"{key_prefix}_wb")
-    s15.text_input("Web class (compression, DB)", value=str(sr_display.get("web_class_compression_db","n/a")), disabled=True, key=f"{key_prefix}_wc")
 
 def render_section_properties_readonly(sr_display, key_prefix="db"):
     c1, c2, c3 = st.columns(3)
-    c1.number_input("A (cm²)", value=float(sr_display.get('A_cm2', 0.0)),
-                    disabled=True, key=f"{key_prefix}_A")
-    c2.number_input("S_y (cm³) about y", value=float(sr_display.get('S_y_cm3', 0.0)),
-                    disabled=True, key=f"{key_prefix}_Sy")
-    c3.number_input("S_z (cm³) about z", value=float(sr_display.get('S_z_cm3', 0.0)),
-                    disabled=True, key=f"{key_prefix}_Sz")
+    c1.number_input("A (cm²)", value=float(sr_display.get('A_cm2', 0.0)), disabled=True, key=f"{key_prefix}_A")
+    c2.number_input("S_y (cm³) about y", value=float(sr_display.get('S_y_cm3', 0.0)), disabled=True, key=f"{key_prefix}_Sy")
+    c3.number_input("S_z (cm³) about z", value=float(sr_display.get('S_z_cm3', 0.0)), disabled=True, key=f"{key_prefix}_Sz")
 
     c4, c5, c6 = st.columns(3)
-    c4.number_input("I_y (cm⁴) about y", value=float(sr_display.get('I_y_cm4', 0.0)),
-                    disabled=True, key=f"{key_prefix}_Iy")
-    c5.number_input("I_z (cm⁴) about z", value=float(sr_display.get('I_z_cm4', 0.0)),
-                    disabled=True, key=f"{key_prefix}_Iz")
-    c6.number_input("J (cm⁴) (torsion const)", value=float(sr_display.get('J_cm4', 0.0)),
-                    disabled=True, key=f"{key_prefix}_J")
+    c4.number_input("I_y (cm⁴) about y", value=float(sr_display.get('I_y_cm4', 0.0)), disabled=True, key=f"{key_prefix}_Iy")
+    c5.number_input("I_z (cm⁴) about z", value=float(sr_display.get('I_z_cm4', 0.0)), disabled=True, key=f"{key_prefix}_Iz")
+    c6.number_input("J (cm⁴) (torsion const)", value=float(sr_display.get('J_cm4', 0.0)), disabled=True, key=f"{key_prefix}_J")
 
     c7, c8, c9 = st.columns(3)
-    c7.number_input("c_max (mm)", value=float(sr_display.get('c_max_mm', 0.0)),
-                    disabled=True, key=f"{key_prefix}_c")
-    c8.number_input("Wpl_y (cm³)", value=float(sr_display.get('Wpl_y_cm3', 0.0)),
-                    disabled=True, key=f"{key_prefix}_Wply")
-    c9.number_input("Wpl_z (cm³)", value=float(sr_display.get('Wpl_z_cm3', 0.0)),
-                    disabled=True, key=f"{key_prefix}_Wplz")
+    c7.number_input("c_max (mm)", value=float(sr_display.get('c_max_mm', 0.0)), disabled=True, key=f"{key_prefix}_c")
+    c8.number_input("Wpl_y (cm³)", value=float(sr_display.get('Wpl_y_cm3', 0.0)), disabled=True, key=f"{key_prefix}_Wply")
+    c9.number_input("Wpl_z (cm³)", value=float(sr_display.get('Wpl_z_cm3', 0.0)), disabled=True, key=f"{key_prefix}_Wplz")
 
     c10, c11, c12 = st.columns(3)
-    c10.number_input("Iw (cm⁶) (warping)", value=float(sr_display.get("Iw_cm6", 0.0)),
-                     disabled=True, key=f"{key_prefix}_Iw")
-    c11.number_input("It (cm⁴) (torsion inertia)", value=float(sr_display.get("It_cm4", 0.0)),
-                     disabled=True, key=f"{key_prefix}_It")
+    c10.number_input("Iw (cm⁶) (warping)", value=float(sr_display.get("Iw_cm6", 0.0)), disabled=True, key=f"{key_prefix}_Iw")
+    c11.number_input("It (cm⁴) (torsion inertia)", value=float(sr_display.get("It_cm4", 0.0)), disabled=True, key=f"{key_prefix}_It")
     c12.empty()
 
     cls1, cls2, cls3 = st.columns(3)
-    cls1.text_input("Flange class (DB)", value=str(sr_display.get('flange_class_db', "n/a")),
-                    disabled=True, key=f"{key_prefix}_fc")
-    cls2.text_input("Web class (bending, DB)", value=str(sr_display.get('web_class_bending_db', "n/a")),
-                    disabled=True, key=f"{key_prefix}_wc_b")
-    cls3.text_input("Web class (compression, DB)", value=str(sr_display.get('web_class_compression_db', "n/a")),
-                    disabled=True, key=f"{key_prefix}_wc_c")
+    cls1.text_input("Flange class (DB)", value=str(sr_display.get('flange_class_db', "n/a")), disabled=True, key=f"{key_prefix}_fc")
+    cls2.text_input("Web class (bending, DB)", value=str(sr_display.get('web_class_bending_db', "n/a")), disabled=True, key=f"{key_prefix}_wc_b")
+    cls3.text_input("Web class (compression, DB)", value=str(sr_display.get('web_class_compression_db', "n/a")), disabled=True, key=f"{key_prefix}_wc_c")
 
     a1, a2, a3 = st.columns(3)
     alpha_db_val = sr_display.get('alpha_curve', 0.49)
     alpha_label_db = next((lbl for lbl, val in [
-        ("0.13 (a)",0.13),("0.21 (b)",0.21),("0.34 (c)",0.34),("0.49 (d)",0.49),("0.76 (e)",0.76)
+        ("0.13 (a)", 0.13), ("0.21 (b)", 0.21), ("0.34 (c)", 0.34), ("0.49 (d)", 0.49), ("0.76 (e)", 0.76)
     ] if abs(val - float(alpha_db_val)) < 1e-8), f"{alpha_db_val}")
-    a1.text_input("Buckling α (DB)", value=str(alpha_label_db),
-                  disabled=True, key=f"{key_prefix}_alpha")
+    a1.text_input("Buckling α (DB)", value=str(alpha_label_db), disabled=True, key=f"{key_prefix}_alpha")
     a2.empty(); a3.empty()
+
 
 def render_loads_form(family_for_torsion: str):
     prefill = st.session_state.get("prefill_from_case", False)
@@ -679,8 +676,13 @@ def render_loads_form(family_for_torsion: str):
                 My_kNm=My_kNm, Mz_kNm=Mz_kNm, Tx_kNm=Tx_kNm,
                 K_y=K_y, K_z=K_z, K_LT=K_LT, K_T=K_T
             )
+
     return torsion_supported
 
+
+# =========================================================
+# COMPUTATION CORE
+# =========================================================
 def compute_checks(use_props, fy, inputs, torsion_supported):
     gamma_M0 = 1.0
     gamma_M1 = 1.0
@@ -740,6 +742,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     sigma_total_MPa = (sigma_axial_Pa + sigma_by_Pa + sigma_bz_Pa) / 1e6
     sigma_eq_MPa = math.sqrt((abs(sigma_total_MPa))**2 + 3.0 * (tau_total_MPa**2))
 
+    # Buckling simplified
     E = 210e9
     buck_results = []
     for axis_label, I_axis, K_axis in [("y", I_y_m4, K_y), ("z", I_z_m4, K_z)]:
@@ -833,6 +836,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     )
     return df_rows, overall_ok, governing, extras
 
+
 def render_results(df_rows, overall_ok, governing):
     st.markdown("### Result summary")
     gov_check, gov_util = governing
@@ -854,9 +858,137 @@ def render_results(df_rows, overall_ok, governing):
             color = "background-color: #fde6e6"
         else:
             color = "background-color: #f0f0f0"
-        return [color]*len(row)
+        return [color] * len(row)
 
     st.write(df_rows.style.apply(highlight_row, axis=1))
+
+
+# =========================================================
+# REPORT TAB UPGRADES + PDF
+# =========================================================
+def render_project_data_readonly(meta, key_prefix="rpt_proj"):
+    doc_name, project_name, position, requested_by, revision, run_date = meta
+    st.markdown("### 1. Project data")
+
+    c1, c2, c3 = st.columns(3)
+    c1.text_input("Document title", value=doc_name, disabled=True, key=f"{key_prefix}_doc")
+    c2.text_input("Project name", value=project_name, disabled=True, key=f"{key_prefix}_proj")
+    c3.text_input("Position / Beam ID", value=position, disabled=True, key=f"{key_prefix}_pos")
+
+    c4, c5, c6 = st.columns(3)
+    c4.text_input("Requested by", value=requested_by, disabled=True, key=f"{key_prefix}_req")
+    c5.text_input("Revision", value=revision, disabled=True, key=f"{key_prefix}_rev")
+    c6.text_input("Date", value=run_date.isoformat(), disabled=True, key=f"{key_prefix}_date")
+
+
+def render_material_properties_readonly(material, key_prefix="rpt_mat"):
+    fy = material_to_fy(material)
+    st.markdown("### 2. Material properties")
+
+    m1, m2, m3 = st.columns(3)
+    m1.text_input("Steel grade", value=material, disabled=True, key=f"{key_prefix}_mat")
+    m2.text_input("Yield strength fy (MPa)", value=f"{fy:.0f}", disabled=True, key=f"{key_prefix}_fy")
+    m3.text_input("Elastic modulus E (MPa)", value="210000", disabled=True, key=f"{key_prefix}_E")
+
+    m4, m5, m6 = st.columns(3)
+    m4.text_input("Shear modulus G (MPa)", value="80769", disabled=True, key=f"{key_prefix}_G")
+    m5.text_input("Safety factors", value="Included in DB (γ=1.0)", disabled=True, key=f"{key_prefix}_gamma")
+    m6.empty()
+
+
+def render_loads_readonly(inputs, torsion_supported, key_prefix="rpt_load"):
+    st.markdown("### 4. Load inputs & buckling data (ULS)")
+
+    r1, r2, r3 = st.columns(3)
+    r1.number_input("Element length L (m)", value=float(inputs["L"]), disabled=True, key=f"{key_prefix}_L")
+    r2.number_input("Axial force N (kN)", value=float(inputs["N_kN"]), disabled=True, key=f"{key_prefix}_N")
+    r3.number_input("Shear Vy (kN)", value=float(inputs["Vy_kN"]), disabled=True, key=f"{key_prefix}_Vy")
+
+    r4, r5, r6 = st.columns(3)
+    r4.number_input("Shear Vz (kN)", value=float(inputs["Vz_kN"]), disabled=True, key=f"{key_prefix}_Vz")
+    r5.number_input("Moment My (kN·m)", value=float(inputs["My_kNm"]), disabled=True, key=f"{key_prefix}_My")
+    r6.number_input("Moment Mz (kN·m)", value=float(inputs["Mz_kNm"]), disabled=True, key=f"{key_prefix}_Mz")
+
+    st.markdown("#### Buckling effective length factors (K)")
+    k1, k2, k3 = st.columns(3)
+    k1.number_input("K_y", value=float(inputs["K_y"]), disabled=True, key=f"{key_prefix}_Ky")
+    k2.number_input("K_z", value=float(inputs["K_z"]), disabled=True, key=f"{key_prefix}_Kz")
+    k3.number_input("K_LT", value=float(inputs["K_LT"]), disabled=True, key=f"{key_prefix}_KLT")
+
+    if torsion_supported:
+        t1, t2, t3 = st.columns(3)
+        t1.number_input("Torsion Tx (kN·m)", value=float(inputs.get("Tx_kNm", 0.0)), disabled=True, key=f"{key_prefix}_Tx")
+        t2.empty(); t3.empty()
+
+
+def build_report_pdf(meta, material, use_props, inputs, df_rows, overall_ok, governing, full=False):
+    if not HAS_RL:
+        return None
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+    x0, y = 20 * mm, height - 20 * mm
+    lh = 6 * mm
+
+    def line(txt, bold=False):
+        nonlocal y
+        if y < 20 * mm:
+            c.showPage()
+            y = height - 20 * mm
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", 10)
+        c.drawString(x0, y, str(txt))
+        y -= lh
+
+    doc_name, project_name, position, requested_by, revision, run_date = meta
+    fy = material_to_fy(material)
+
+    line(doc_name, bold=True)
+    line(f"Project: {project_name}")
+    line(f"Position / ID: {position}")
+    line(f"Requested by: {requested_by}")
+    line(f"Revision: {revision}   Date: {run_date.isoformat()}")
+    line("")
+
+    line("Material properties", bold=True)
+    line(f"Steel grade: {material}")
+    line(f"fy: {fy:.0f} MPa, E: 210000 MPa, G: 80769 MPa")
+    line("")
+
+    line("Section properties (DB)", bold=True)
+    for k in ["family","name","A_cm2","S_y_cm3","S_z_cm3","I_y_cm4","I_z_cm4","J_cm4",
+              "c_max_mm","Wpl_y_cm3","Wpl_z_cm3","Iw_cm6","It_cm4","alpha_curve",
+              "flange_class_db","web_class_bending_db","web_class_compression_db"]:
+        if k in use_props:
+            line(f"{k}: {use_props[k]}")
+    line("")
+
+    line("Loads & buckling (ULS)", bold=True)
+    for k in ["L","N_kN","Vy_kN","Vz_kN","My_kNm","Mz_kNm","Tx_kNm","K_y","K_z","K_LT","K_T"]:
+        if k in inputs:
+            line(f"{k}: {inputs[k]}")
+    line("")
+
+    line("Results summary", bold=True)
+    gov_check, gov_util = governing
+    line(f"Overall status: {'OK' if overall_ok else 'NOT OK'}")
+    if gov_check:
+        line(f"Governing check: {gov_check}  (util={gov_util:.3f})")
+    line("")
+
+    line("Detailed checks", bold=True)
+    for chk, r in df_rows.iterrows():
+        line(f"{chk}: util={r.get('Utilization','n/a')}  status={r.get('Status','n/a')}")
+
+    if full:
+        line("")
+        line("Full formulas included in app (Full report mode).", bold=True)
+
+    c.save()
+    pdf = buf.getvalue()
+    buf.close()
+    return pdf
+
 
 def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, governing, extras):
     st.markdown("## Engineering report")
@@ -867,91 +999,57 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
         horizontal=True,
         key="report_mode"
     )
+    full_mode = report_mode.startswith("Full")
 
-    doc_name, project_name, position, requested_by, revision, run_date = meta
-
-    st.markdown("### 1. Project data")
-    info_df = pd.DataFrame({
-        "Item": [
-            "Document title",
-            "Project name",
-            "Position / Beam ID",
-            "Requested by",
-            "Revision",
-            "Date"
-        ],
-        "Value": [
-            doc_name,
-            project_name,
-            position,
-            requested_by,
-            revision,
-            run_date.isoformat()
-        ]
-    })
-    st.table(info_df)
+    # PDF button
+    if HAS_RL:
+        pdf_bytes = build_report_pdf(
+            meta, material, use_props, inputs, df_rows, overall_ok, governing, full=full_mode
+        )
+        st.download_button(
+            "Download PDF report",
+            data=pdf_bytes,
+            file_name=f"{meta[0].replace(' ', '_')}_{meta[4]}.pdf",
+            mime="application/pdf",
+            key="dl_pdf_report"
+        )
+    else:
+        st.warning("PDF export requires reportlab. Add to requirements.txt: reportlab")
 
     st.markdown("---")
-    st.markdown("### 2. Material properties")
-    fy = material_to_fy(material)
-    mat_df = pd.DataFrame({
-        "Property": ["Steel grade", "Yield strength fy (MPa)", "Elastic modulus E (MPa)", "Shear modulus G (MPa)"],
-        "Value": [material, f"{fy:.0f}", "210000", "80769"]
-    })
-    st.table(mat_df)
-    st.caption("Partial safety factors are assumed included in DB capacities (γ = 1.0).")
+
+    # 1) Project data
+    render_project_data_readonly(meta, key_prefix="rpt_proj_v2")
 
     st.markdown("---")
+
+    # 2) Material properties
+    render_material_properties_readonly(material, key_prefix="rpt_mat_v2")
+
+    st.markdown("---")
+
+    # 3) Full section properties only
     st.markdown("### 3. Section properties (from DB)")
-    render_section_summary_like_props(material, use_props, key_prefix="sum_report")
-
-    with st.expander("Full section properties", expanded=False):
-        render_section_properties_readonly(use_props, key_prefix="report_db")
+    render_section_properties_readonly(use_props, key_prefix="rpt_sec_v2")
 
     st.markdown("---")
-    st.markdown("### 4. Load inputs & buckling data (ULS)")
-    loads_df = pd.DataFrame({
-        "Parameter": [
-            "Element length L (m)",
-            "Buckling K_y",
-            "Buckling K_z",
-            "LT buckling K_LT",
-            "Axial force N (kN)",
-            "Shear Vy (kN)",
-            "Shear Vz (kN)",
-            "Moment My (kN·m)",
-            "Moment Mz (kN·m)",
-            "Torsion Tx (kN·m)"
-        ],
-        "Value": [
-            inputs["L"],
-            inputs["K_y"],
-            inputs["K_z"],
-            inputs["K_LT"],
-            inputs["N_kN"],
-            inputs["Vy_kN"],
-            inputs["Vz_kN"],
-            inputs["My_kNm"],
-            inputs["Mz_kNm"],
-            inputs.get("Tx_kNm", 0.0)
-        ]
-    })
-    st.table(loads_df)
+
+    # 4) Loads & buckling as boxes
+    torsion_supported = supports_torsion_and_warping(use_props.get("family", ""))
+    render_loads_readonly(inputs, torsion_supported, key_prefix="rpt_load_v2")
 
     st.markdown("---")
+
+    # 5) Results summary + detailed
     st.markdown("### 5. Results summary")
     gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
 
-    res_sum_df = pd.DataFrame({
-        "Summary item": ["Overall status", "Governing check", "Maximum utilization"],
-        "Value": [
-            status_txt,
-            gov_check or "n/a",
-            f"{gov_util:.3f}" if gov_util is not None else "n/a"
-        ]
-    })
-    st.table(res_sum_df)
+    s1, s2, s3 = st.columns(3)
+    s1.text_input("Overall status", value=status_txt, disabled=True, key="rpt_res_status")
+    s2.text_input("Governing check", value=gov_check or "n/a", disabled=True, key="rpt_res_gov")
+    s3.text_input("Max utilization", value=f"{gov_util:.3f}" if gov_util is not None else "n/a",
+                  disabled=True, key="rpt_res_util")
 
     st.markdown("### 5.1 Detailed checks")
     def highlight_row(row):
@@ -962,10 +1060,11 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
             color = "background-color: #fde6e6"
         else:
             color = "background-color: #f0f0f0"
-        return [color]*len(row)
+        return [color] * len(row)
+
     st.write(df_rows.style.apply(highlight_row, axis=1))
 
-    if report_mode.startswith("Full"):
+    if full_mode:
         st.markdown("---")
         st.markdown("## 6. Full formulas & intermediate steps")
 
@@ -994,9 +1093,10 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
 
     st.caption("Preliminary report only — verify final design per EN1993.")
 
-# -------------------------
-# App entry + compact CSS
-# -------------------------
+
+# =========================================================
+# APP ENTRY
+# =========================================================
 st.set_page_config(page_title="EngiSnap Beam Design Eurocode Checker", layout="wide")
 
 st.markdown("""
@@ -1005,7 +1105,6 @@ h1 {font-size: 1.6rem !important;}
 h2 {font-size: 1.25rem !important;}
 h3 {font-size: 1.05rem !important;}
 div.block-container {padding-top: 1.2rem;}
-.stMetric {font-size: 0.9rem;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1087,5 +1186,3 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
-
-
