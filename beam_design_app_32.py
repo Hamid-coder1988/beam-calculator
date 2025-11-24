@@ -1111,6 +1111,37 @@ div.block-container {padding-top: 1.2rem;}
 st.title("EngiSnap — Standard steel beam checks (Eurocode prototype)")
 st.caption("Simplified screening checks — not a full EN1993 implementation.")
 
+def render_section_preview_placeholder(title="Cross-section preview", key_prefix="prev"):
+    st.markdown("### Cross-section preview")
+
+    center_cols = st.columns([1, 2, 1])
+    center_cols[1].markdown(
+        f"""
+<div style="
+    border: 2px dashed #bbb;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 460px;
+    height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fafafa;
+    color: #777;
+    font-weight: 600;
+    margin: 6px auto 8px auto;
+    text-align:center;
+">
+    {title}<br/>
+    <span style="font-size:12px;font-weight:400;color:#999;">
+        (image placeholder — will be loaded from DB later)
+    </span>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 render_sidebar_guidelines()
 
 tab1, tab2, tab3, tab4 = st.tabs(["1) Member & Section", "2) Loads", "3) Results", "4) Report"])
@@ -1192,6 +1223,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
