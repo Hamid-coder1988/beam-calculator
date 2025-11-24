@@ -1128,14 +1128,22 @@ def render_beam_diagrams_panel():
             st.warning("Deflection diagram not available: missing Iy or case deflection formula.")
             return
 
-        st.markdown("#### Deflection diagram δ(x)")
-        fig3, ax3 = plt.subplots()
-        ax3.plot(x, delta * 1000.0)  # mm
-        ax3.axhline(0, linewidth=1)
-        ax3.set_xlabel("x (m)")
-        ax3.set_ylabel("δ (mm)")
-        ax3.grid(True)
-        st.pyplot(fig3)
+        # same layout as V/M: left column plot, right column empty
+        colD, colEmpty = st.columns(2)
+
+        with colD:
+            st.markdown("#### Deflection diagram δ(x)")
+            fig3, ax3 = plt.subplots(figsize=(6, 3.5))  # SAME SIZE as V/M
+            ax3.plot(x, delta * 1000.0)  # mm
+            ax3.axhline(0, linewidth=1)
+            ax3.set_xlabel("x (m)")
+            ax3.set_ylabel("δ (mm)")
+            ax3.grid(True)
+            st.pyplot(fig3)
+
+        with colEmpty:
+            st.empty()
+
 
 # =========================================================
 # REPORT TAB UPGRADES + PDF
@@ -1489,6 +1497,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
