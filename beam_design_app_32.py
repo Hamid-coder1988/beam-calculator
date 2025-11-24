@@ -1,5 +1,5 @@
 # beam_design_app.py
-# EngiSnap — Standard steel beam checks (DB-backed, compact UI)
+# EngiSnap — Standard steel beam checks (DB-backed, compact UI)  ✅ Beam code 2
 
 import streamlit as st
 import pandas as pd
@@ -507,7 +507,6 @@ def build_section_display(selected_row):
     }
     return sr_display, bad_fields
 
-# ✅ FIX: add key_prefix so same UI can be rendered in multiple tabs safely
 def render_section_summary_like_props(material, sr_display, key_prefix="sum"):
     fy = material_to_fy(material)
     st.markdown("### Selected section summary")
@@ -777,8 +776,8 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 def render_results(df_rows, overall_ok, governing):
     st.markdown("### Result summary")
     gov_check, gov_util = governing
-
     status_txt = "OK" if overall_ok else "NOT OK"
+
     st.caption(
         f"Overall status: **{status_txt}**  |  Governing check: **{gov_check or 'n/a'}**  |  Max util: **{gov_util:.3f}**"
         if gov_util else f"Overall status: **{status_txt}**"
@@ -799,8 +798,238 @@ def render_results(df_rows, overall_ok, governing):
 
     st.write(df_rows.style.apply(highlight_row, axis=1))
 
+# ✅ NEW professional report layout (your requested order)
+def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, governing, extras):
+    st.markdown("## Engineering report")
 
+    report_mode = st.radio(
+        "Report mode",
+        ["Light report (professional summary)", "Full report (with formulas & details)"],
+        horizontal=True,
+        key="report_mode"
+    )
 
+    # --- 1) Project data ---
+    doc_name, project_name, position, requested_by, revision, run_date = meta
+    st.markdown("### 1. Project data")
+    info_df = pd.DataFrame({
+        "Item": [
+            "Document title",
+            "Project name",
+            "Position / Beam ID",
+            "Requested by",
+            "Revision",
+            "Date"
+        ],
+        "Value": [
+            doc_name,
+            project_name,
+            position,
+            requested_by,
+            revision,
+            run_date.isoformat()
+        ]
+    })
+    st.table(info_df)
 
+    # --- 2) Material properties ---
+    st.markdown("---")
+    st.markdown("### 2. Material properties")
+    fy = material_to_fy(material)
+    mat_df = pd.DataFrame({
+        "Property": ["Steel grade", "Yield strength fy (MPa)", "Elastic modulus E (MPa)", "Shear modulus G (MPa)"],
+        "Value": [material, f"{fy:.0f}", "210000", "80769"]
+    })
+    st.table(mat_df)
+    st.caption("Partial safety factors are assumed included in DB capacities (γ = 1.0 in checks).")
 
+    # --- 3) Section properties ---
+    st.markdown("---")
+    st.markdown("### 3. Section properties (from DB)")
+    render_section_summary_like_props(material, use_props, key_prefix="sum_report")
 
+    with st.expander("Full section properties", expanded=False):
+        render_section_properties_readonly(use_props)
+
+    # --- 4) Load inputs ---
+    st.markdown("---")
+    st.markdown("### 4. Load inputs & buckling data (ULS)")
+    loads_df = pd.DataFrame({
+        "Parameter": [
+            "Element length L (m)",
+            "Buckling K_y",
+            "Buckling K_z",
+            "LT buckling K_LT",
+            "Axial force N (kN)",
+            "Shear Vy (kN)",
+            "Shear Vz (kN)",
+            "Moment My (kN·m)",
+            "Moment Mz (kN·m)",
+            "Torsion Tx (kN·m)"
+        ],
+        "Value": [
+            inputs["L"],
+            inputs["K_y"],
+            inputs["K_z"],
+            inputs["K_LT"],
+            inputs["N_kN"],
+            inputs["Vy_kN"],
+            inputs["Vz_kN"],
+            inputs["My_kNm"],
+            inputs["Mz_kNm"],
+            inputs.get("Tx_kNm", 0.0)
+        ]
+    })
+    st.table(loads_df)
+
+    # --- 5) Results ---
+    st.markdown("---")
+    st.markdown("### 5. Results summary")
+    gov_check, gov_util = governing
+    status_txt = "OK" if overall_ok else "NOT OK"
+
+    res_sum_df = pd.DataFrame({
+        "Summary item": ["Overall status", "Governing check", "Maximum utilization"],
+        "Value": [
+            status_txt,
+            gov_check or "n/a",
+            f"{gov_util:.3f}" if gov_util is not None else "n/a"
+        ]
+    })
+    st.table(res_sum_df)
+
+    st.markdown("### 5.1 Detailed checks")
+    def highlight_row(row):
+        s = row["Status"]
+        if s == "OK":
+            color = "background-color: #e6f7e6"
+        elif s == "EXCEEDS":
+            color = "background-color: #fde6e6"
+        else:
+            color = "background-color: #f0f0f0"
+        return [color]*len(row)
+    st.write(df_rows.style.apply(highlight_row, axis=1))
+
+    # --- 6) Full mode formulas ---
+    if report_mode.startswith("Full"):
+        st.markdown("---")
+        st.markdown("## 6. Full formulas & intermediate steps")
+
+        with st.expander("6.1 Axial resistance (EN1993-1-1 §6.2.3)", expanded=False):
+            st.latex(r"N_{Rd} = A \cdot f_y")
+            st.write(f"N_Rd = {extras['N_Rd_N']/1e3:.3f} kN")
+
+        with st.expander("6.2 Bending resistance (EN1993-1-1 §6.2.5)", expanded=False):
+            st.latex(r"M_{Rd,y} = W_{pl,y} \cdot f_y")
+            st.write(f"M_Rd,y = {extras['M_Rd_y_Nm']/1e3:.3f} kN·m")
+
+        with st.expander("6.3 Shear resistance (EN1993-1-1 §6.2.6)", expanded=False):
+            st.latex(r"V_{Rd} = \dfrac{A_v f_y}{\sqrt{3}}")
+            st.write(f"V_Rd = {extras['V_Rd_N']/1e3:.3f} kN")
+
+        with st.expander("6.4 Flexural buckling (EN1993-1-1 §6.3.1)", expanded=False):
+            st.latex(r"N_{cr} = \dfrac{\pi^2 E I}{(K L)^2}")
+            for axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status in extras["buck_results"]:
+                if N_b_Rd_N:
+                    st.write(
+                        f"Axis {axis_label}: "
+                        f"Ncr={Ncr/1e3:.2f} kN, "
+                        f"λ̄={lambda_bar:.3f}, χ={chi:.3f}, "
+                        f"Nb,Rd={N_b_Rd_N/1e3:.2f} kN → {status}"
+                    )
+
+    st.caption("Preliminary report only — verify final design per EN1993.")
+
+# -------------------------
+# App entry + compact CSS
+# -------------------------
+st.set_page_config(page_title="EngiSnap Beam Design Eurocode Checker", layout="wide")
+
+st.markdown("""
+<style>
+h1 {font-size: 1.6rem !important;}
+h2 {font-size: 1.25rem !important;}
+h3 {font-size: 1.05rem !important;}
+div.block-container {padding-top: 1.2rem;}
+.stMetric {font-size: 0.9rem;}
+</style>
+""", unsafe_allow_html=True)
+
+st.title("EngiSnap — Standard steel beam checks (Eurocode prototype)")
+st.caption("Simplified screening checks — not a full EN1993 implementation.")
+
+render_sidebar_guidelines()
+
+tab1, tab2, tab3, tab4 = st.tabs(["1) Member & Section", "2) Loads", "3) Results", "4) Report"])
+
+with tab1:
+    meta = render_project_data()
+    material, family, selected_name, selected_row, detected_table = render_section_selection()
+    st.session_state["material"] = material
+    st.session_state["meta"] = meta
+
+    if selected_row is not None:
+        sr_display, bad_fields = build_section_display(selected_row)
+        st.session_state["sr_display"] = sr_display
+
+        render_section_summary_like_props(material, sr_display, key_prefix="sum_tab1")
+
+        with st.expander("Section properties (from DB — read only)", expanded=False):
+            render_section_properties_readonly(sr_display)
+
+        if bad_fields:
+            st.warning("Some DB numeric fields were not parsed cleanly. See debug in Results tab.")
+    else:
+        st.info("Select a DB section to continue.")
+
+with tab2:
+    sr_display = st.session_state.get("sr_display", None)
+    if sr_display is None:
+        st.warning("Go to Member & Section tab first and select a section.")
+    else:
+        render_ready_cases_panel()
+        render_loads_form(sr_display.get("family", ""))
+
+with tab3:
+    sr_display = st.session_state.get("sr_display", None)
+    material = st.session_state.get("material", "S355")
+    fy = material_to_fy(material)
+
+    if not st.session_state.get("run_clicked", False):
+        st.info("Run the Loads form first, then come back here.")
+    elif sr_display is None:
+        st.warning("No section data found. Select a section first.")
+    else:
+        inputs = st.session_state.get("inputs", {})
+        torsion_supported = supports_torsion_and_warping(sr_display.get("family", ""))
+
+        try:
+            df_rows, overall_ok, governing, extras = compute_checks(sr_display, fy, inputs, torsion_supported)
+            st.session_state["df_rows"] = df_rows
+            st.session_state["overall_ok"] = overall_ok
+            st.session_state["governing"] = governing
+            st.session_state["extras"] = extras
+
+            render_results(df_rows, overall_ok, governing)
+
+            with st.expander("Engineer debug (raw DB row & intermediate values)", expanded=False):
+                st.json(sr_display)
+                st.write(extras)
+
+        except Exception as e:
+            st.error(f"Computation error: {e}")
+
+with tab4:
+    sr_display = st.session_state.get("sr_display", None)
+    inputs = st.session_state.get("inputs", {})
+    overall_ok = st.session_state.get("overall_ok", None)
+    df_rows = st.session_state.get("df_rows", None)
+    governing = st.session_state.get("governing", (None, None))
+    extras = st.session_state.get("extras", {})
+    material = st.session_state.get("material", "S355")
+    meta = st.session_state.get("meta", None)
+
+    if sr_display is None or not inputs or overall_ok is None or df_rows is None or meta is None:
+        st.info("Select section and run checks first.")
+    else:
+        render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
