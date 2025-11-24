@@ -1,5 +1,6 @@
 # beam_design_app.py
-# EngiSnap — Beam Code 4 (DB-backed, wizard UI, gallery ready cases, pro report + PDF)
+# EngiSnap — Beam Code 6 (DB-backed, wizard UI, gallery ready cases, pro report + PDF)
+# + V(x) & M(x) diagrams integrated (Beam-only for now)
 
 import streamlit as st
 import pandas as pd
@@ -10,6 +11,7 @@ import traceback
 import re
 import numbers
 import numpy as np
+import matplotlib.pyplot as plt  # NEW
 
 # -------------------------
 # Optional Postgres driver
@@ -439,6 +441,10 @@ def render_ready_cases_panel():
                 key=f"ready_param_{case_key}_{k}"
             )
 
+        # NEW: store selection + current inputs for diagrams
+        st.session_state["ready_selected_case"] = selected_case
+        st.session_state["ready_input_vals"] = input_vals
+
         if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
             func = selected_case.get("func", dummy_case_func)
             try:
@@ -864,6 +870,117 @@ def render_results(df_rows, overall_ok, governing):
 
 
 # =========================================================
+# DIAGRAM GENERATION (Beam only for now)
+# =========================================================
+def diagrams_simply_supported_udl(L, w):
+    x = np.linspace(0, L, 401)
+    V = w * (L/2 - x)            # kN
+    M = w * x * (L - x) / 2      # kN·m
+    return x, V, M
+
+def diagrams_simply_supported_point(L, P, a=None):
+    if a is None:
+        a = L/2
+    b = L - a
+    R1 = P * b / L
+    x = np.linspace(0, L, 801)
+    V = np.where(x < a, R1, R1 - P)     # kN
+    M = np.where(x < a, R1*x, R1*x - P*(x-a))  # kN·m
+    return x, V, M
+
+def diagrams_cantilever_udl(L, w):
+    x = np.linspace(0, L, 401)
+    V = -w * (L - x)                 # kN
+    M = -w * (L - x)**2 / 2          # kN·m
+    return x, V, M
+
+def diagrams_cantilever_point(L, P, a=None):
+    if a is None:
+        a = L
+    x = np.linspace(0, L, 801)
+    V = np.where(x < a, -P, 0.0)           # kN
+    M = np.where(x < a, -P*(a - x), 0.0)   # kN·m
+    return x, V, M
+
+def get_beam_diagrams_for_case(case_key: str, input_vals: dict):
+    key = (case_key or "").upper()
+    inputs = {k: float(v) for k, v in (input_vals or {}).items()}
+
+    L = inputs.get("L", None)
+    w = inputs.get("w", None)
+    P = inputs.get("P", None)
+    a = inputs.get("a", None)
+
+    if not L or L <= 0:
+        return None, None, None, "No span length L found for diagram."
+
+    if key.startswith("SS"):
+        if w is not None:
+            x, V, M = diagrams_simply_supported_udl(L, w)
+            return x, V, M, "Simply supported UDL diagram."
+        if P is not None:
+            x, V, M = diagrams_simply_supported_point(L, P, a=a)
+            return x, V, M, "Simply supported point-load diagram."
+        return None, None, None, "SS case recognized but missing w or P."
+
+    if key.startswith("C"):
+        if w is not None:
+            x, V, M = diagrams_cantilever_udl(L, w)
+            return x, V, M, "Cantilever UDL diagram."
+        if P is not None:
+            x, V, M = diagrams_cantilever_point(L, P, a=a)
+            return x, V, M, "Cantilever point-load diagram."
+        return None, None, None, "Cantilever case recognized but missing w or P."
+
+    return None, None, None, "Diagram not implemented yet for this category."
+
+def render_beam_diagrams_panel():
+    ready_case = st.session_state.get("ready_selected_case")
+    input_vals = st.session_state.get("ready_input_vals")
+
+    if not ready_case or not input_vals:
+        return
+
+    chosen_type = st.session_state.get("ready_type_gallery", "Beam")
+
+    st.markdown("### Moment & Shear diagrams")
+
+    if chosen_type != "Beam":
+        st.info("Diagrams for frame cases will be added later.")
+        return
+
+    case_key = ready_case.get("key", "")
+    x, V, M, note = get_beam_diagrams_for_case(case_key, input_vals)
+
+    if x is None:
+        st.info(note)
+        return
+
+    col_v, col_m = st.columns(2)
+    with col_v:
+        fig1, ax1 = plt.subplots()
+        ax1.plot(x, V)
+        ax1.axhline(0, linewidth=1)
+        ax1.set_title("Shear diagram V(x)")
+        ax1.set_xlabel("x (m)")
+        ax1.set_ylabel("V (kN)")
+        ax1.grid(True)
+        st.pyplot(fig1, use_container_width=True)
+
+    with col_m:
+        fig2, ax2 = plt.subplots()
+        ax2.plot(x, M)
+        ax2.axhline(0, linewidth=1)
+        ax2.set_title("Bending moment diagram M(x)")
+        ax2.set_xlabel("x (m)")
+        ax2.set_ylabel("M (kN·m)")
+        ax2.grid(True)
+        st.pyplot(fig2, use_container_width=True)
+
+    st.caption(note)
+
+
+# =========================================================
 # REPORT TAB UPGRADES + PDF
 # =========================================================
 def render_project_data_readonly(meta, key_prefix="rpt_proj"):
@@ -1018,29 +1135,20 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
 
     st.markdown("---")
 
-    # 1) Project data
     render_project_data_readonly(meta, key_prefix="rpt_proj_v2")
-
     st.markdown("---")
 
-    # 2) Material properties
     render_material_properties_readonly(material, key_prefix="rpt_mat_v2")
-
     st.markdown("---")
 
-    # 3) Full section properties only
     st.markdown("### 3. Section properties (from DB)")
     render_section_properties_readonly(use_props, key_prefix="rpt_sec_v2")
-
     st.markdown("---")
 
-    # 4) Loads & buckling as boxes
     torsion_supported = supports_torsion_and_warping(use_props.get("family", ""))
     render_loads_readonly(inputs, torsion_supported, key_prefix="rpt_load_v2")
-
     st.markdown("---")
 
-    # 5) Results summary + detailed
     st.markdown("### 5. Results summary")
     gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
@@ -1111,6 +1219,7 @@ div.block-container {padding-top: 1.2rem;}
 st.title("EngiSnap — Standard steel beam checks (Eurocode prototype)")
 st.caption("Simplified screening checks — not a full EN1993 implementation.")
 
+
 def render_section_preview_placeholder(title="Cross-section preview", key_prefix="prev"):
     st.markdown("### Cross-section preview")
 
@@ -1158,7 +1267,6 @@ with tab1:
 
         render_section_summary_like_props(material, sr_display, key_prefix="sum_tab1")
 
-        # NEW: cross-section preview placeholder
         render_section_preview_placeholder(
             title=f"{sr_display.get('family','')}  {sr_display.get('name','')}",
             key_prefix="tab1_prev"
@@ -1178,6 +1286,10 @@ with tab2:
         st.warning("Go to Member & Section tab first and select a section.")
     else:
         render_ready_cases_panel()
+
+        # NEW: render diagrams after ready-case selection
+        render_beam_diagrams_panel()
+
         render_loads_form(sr_display.get("family", ""))
 
 with tab3:
@@ -1223,7 +1335,3 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
-
-
-
-
