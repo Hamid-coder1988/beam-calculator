@@ -1,6 +1,8 @@
 streamlit>=1.20
 pandas
 numpy
+matplotlib
 psycopg2-binary   # for Postgres access from Python (or use 'asyncpg' if needed)
 sqlalchemy        # optional if you use SQLAlchemy in migration scripts
 reportlab         # if you want PDF generation on server (optional)
+
