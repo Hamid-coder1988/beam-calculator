@@ -1055,9 +1055,9 @@ def get_beam_diagrams_for_case(case_key: str, input_vals: dict):
 
 def render_beam_diagrams_panel():
     """
-    Draw V(x), M(x) always.
+    Draw V(x) and M(x) side-by-side.
+    Show δ_max above diagrams.
     Deflection δ(x) is optional via checkbox.
-    Shows δ_max if stiffness data is available.
     """
     selected_case = st.session_state.get("ready_selected_case")
     input_vals = st.session_state.get("ready_input_vals")
@@ -1078,7 +1078,6 @@ def render_beam_diagrams_panel():
 
     # Section stiffness for deflection
     E = 210e9  # Pa
-
     Iy_m4 = float(sr_display.get("I_y_cm4", 0.0)) * 1e-8 if sr_display else 0.0
     if Iy_m4 <= 0:
         Iy_m4 = None  # allow V/M but block deflection
@@ -1087,30 +1086,46 @@ def render_beam_diagrams_panel():
     args = [input_vals[k] for k in selected_case["inputs"].keys()]
     x, V, M, delta = diag_func(*args, E=E, I=Iy_m4)
 
-    st.markdown("#### Shear force diagram V(x)")
-    fig1, ax1 = plt.subplots()
-    ax1.plot(x, V)
-    ax1.axhline(0, linewidth=1)
-    ax1.set_xlabel("x (m)")
-    ax1.set_ylabel("V (kN)")
-    ax1.grid(True)
-    st.pyplot(fig1)
+    # ---- Show max deflection ABOVE diagrams ----
+    defl_max_func = selected_case.get("defl_max_func")
+    if defl_max_func and Iy_m4 is not None:
+        try:
+            dmax_m = defl_max_func(*args, E, Iy_m4)
+            st.info(f"Maximum deflection δ_max ≈ **{dmax_m*1000.0:.3f} mm**")
+        except Exception:
+            pass
+    else:
+        st.caption("δ_max not available for this case (missing Iy or formula).")
 
-    st.markdown("#### Bending moment diagram M(x)")
-    fig2, ax2 = plt.subplots()
-    ax2.plot(x, M)
-    ax2.axhline(0, linewidth=1)
-    ax2.set_xlabel("x (m)")
-    ax2.set_ylabel("M (kN·m)")
-    ax2.grid(True)
-    st.pyplot(fig2)
+    # ---- V(x) and M(x) side-by-side ----
+    colV, colM = st.columns(2)
 
-    # Optional deflection plot
+    with colV:
+        st.markdown("#### Shear force diagram V(x)")
+        fig1, ax1 = plt.subplots()
+        ax1.plot(x, V)
+        ax1.axhline(0, linewidth=1)
+        ax1.set_xlabel("x (m)")
+        ax1.set_ylabel("V (kN)")
+        ax1.grid(True)
+        st.pyplot(fig1)
+
+    with colM:
+        st.markdown("#### Bending moment diagram M(x)")
+        fig2, ax2 = plt.subplots()
+        ax2.plot(x, M)
+        ax2.axhline(0, linewidth=1)
+        ax2.set_xlabel("x (m)")
+        ax2.set_ylabel("M (kN·m)")
+        ax2.grid(True)
+        st.pyplot(fig2)
+
+    # ---- Optional deflection diagram ----
     show_defl = st.checkbox("Show deflection diagram δ(x)", value=False, key="show_defl_diag")
 
     if show_defl:
         if delta is None or Iy_m4 is None:
-            st.warning("Deflection not available: missing Iy or case deflection formula.")
+            st.warning("Deflection diagram not available: missing Iy or case deflection formula.")
             return
 
         st.markdown("#### Deflection diagram δ(x)")
@@ -1121,19 +1136,6 @@ def render_beam_diagrams_panel():
         ax3.set_ylabel("δ (mm)")
         ax3.grid(True)
         st.pyplot(fig3)
-
-        dmax_mm = float(np.max(np.abs(delta)) * 1000.0)
-        st.info(f"Maximum deflection δ_max ≈ **{dmax_mm:.3f} mm**")
-
-    else:
-        # Still show max deflection even if diagram hidden (nice UX)
-        defl_max_func = selected_case.get("defl_max_func")
-        if defl_max_func and Iy_m4 is not None:
-            try:
-                dmax_m = defl_max_func(*args, E, Iy_m4)
-                st.caption(f"δ_max ≈ {dmax_m*1000.0:.3f} mm (enable checkbox to see δ(x))")
-            except Exception:
-                pass
 
 # =========================================================
 # REPORT TAB UPGRADES + PDF
@@ -1487,6 +1489,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
