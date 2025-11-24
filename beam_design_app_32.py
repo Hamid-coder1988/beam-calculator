@@ -864,7 +864,7 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
     st.markdown("### 3. Section properties (from DB)")
     render_section_summary_like_props(material, use_props, key_prefix="sum_report")
 
-   with st.expander("Full section properties", expanded=False):
+with st.expander("Full section properties", expanded=False):
     render_section_properties_readonly(use_props, key_prefix="report_db")
 
 
@@ -1051,4 +1051,5 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
