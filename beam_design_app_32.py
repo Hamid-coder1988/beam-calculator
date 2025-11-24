@@ -1121,19 +1121,23 @@ with tab1:
     st.session_state["material"] = material
     st.session_state["meta"] = meta
 
-    if selected_row is not None:
-        sr_display, bad_fields = build_section_display(selected_row)
-        st.session_state["sr_display"] = sr_display
+if selected_row is not None:
+    sr_display, bad_fields = build_section_display(selected_row)
+    st.session_state["sr_display"] = sr_display
 
-        render_section_summary_like_props(material, sr_display, key_prefix="sum_tab1")
+    # Selected section summary (already in Beam Code 5)
+    render_section_summary_like_props(material, sr_display, key_prefix="sum_tab1")
 
-        with st.expander("Section properties (from DB — read only)", expanded=False):
-            render_section_properties_readonly(sr_display, key_prefix="tab1_db")
+    # NEW → Section preview placeholder box
+    render_section_preview_placeholder(
+        title=f"{sr_display.get('family','')}  {sr_display.get('name','')}",
+        key_prefix="tab1_prev"
+    )
 
-        if bad_fields:
-            st.warning("Some DB numeric fields were not parsed cleanly. See debug in Results tab.")
-    else:
-        st.info("Select a DB section to continue.")
+    # Full section properties (DB)
+    with st.expander("Section properties (from DB — read only)", expanded=False):
+        render_section_properties_readonly(sr_display, key_prefix="tab1_db")
+
 
 with tab2:
     sr_display = st.session_state.get("sr_display", None)
@@ -1186,3 +1190,4 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
