@@ -21,6 +21,15 @@ except Exception:
     psycopg2 = None
     HAS_PG = False
 
+# --- Optional PDF engine ---
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import mm
+    HAS_RL = True
+except Exception:
+    HAS_RL = False
+
 # -------------------------
 # get_conn() using st.secrets (UNCHANGED)
 # -------------------------
@@ -1078,4 +1087,5 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
