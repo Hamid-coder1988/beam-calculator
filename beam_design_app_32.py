@@ -1121,7 +1121,7 @@ with tab1:
     st.session_state["material"] = material
     st.session_state["meta"] = meta
 
-    if selected_row is not None:
+   if selected_row is not None:
     sr_display, bad_fields = build_section_display(selected_row)
     st.session_state["sr_display"] = sr_display
 
@@ -1140,7 +1140,6 @@ with tab1:
         st.warning("Some DB numeric fields were not parsed cleanly. See debug in Results tab.")
 else:
     st.info("Select a DB section to continue.")
-
 
 with tab2:
     sr_display = st.session_state.get("sr_display", None)
@@ -1193,4 +1192,5 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
