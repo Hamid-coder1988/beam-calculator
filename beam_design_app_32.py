@@ -317,60 +317,103 @@ def supports_torsion_and_warping(family: str) -> bool:
 # =========================================================
 # READY CASES GALLERY SYSTEM (77 placeholders)
 # =========================================================
+# ============================
+# CASE 1: SSB-UDL
+# ============================
 def ss_udl_case(L, w):
     """
     Simply supported beam with full-span UDL.
-    Inputs:
-      L (m), w (kN/m)
+    Inputs: L (m), w (kN/m)
     Returns (N, My, Mz, Vy, Vz) maxima for prefill.
-    Convention matches your old ready cases:
-      My = sagging major-axis moment
-      Vy = vertical shear resultant used in checks
     """
-    Mmax = w * L**2 / 8.0      # kN·m
-    Vmax = w * L / 2.0        # kN
+    Mmax = w * L**2 / 8.0   # kN·m
+    Vmax = w * L / 2.0      # kN
     return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
 
 
-def ss_udl_diagram(L, w, n=200):
+def ss_udl_diagram(L, w, E=None, I=None, n=200):
     """
-    Returns arrays for diagrams: x (m), V (kN), M (kN·m)
+    Returns x (m), V (kN), M (kN·m), delta (m) for SSB-UDL.
+
     V(x) = w(L/2 - x)
-    M(x) = w x (L - x)/2
+    M(x) = w x (L - x) / 2
+    δ(x) = w x / (24 E I) * (L^3 - 2Lx^2 + x^3)
     """
     x = np.linspace(0.0, L, n)
-    V = w * (L/2.0 - x)
-    M = w * x * (L - x) / 2.0
-    return x, V, M
 
+    V = w * (L/2.0 - x)                 # kN
+    M = w * x * (L - x) / 2.0           # kN·m
+
+    delta = None
+    if E and I and I > 0:
+        w_Nm = w * 1000.0               # N/m
+        delta = (w_Nm * x / (24.0 * E * I)) * (L**3 - 2*L*x**2 + x**3)  # m
+
+    return x, V, M, delta
+
+
+def ss_udl_deflection_max(L, w, E, I):
+    """
+    δ_max = 5 w L^4 / (384 E I)
+    Inputs: L (m), w (kN/m), E (Pa), I (m^4)
+    Returns δ_max in meters.
+    """
+    w_Nm = w * 1000.0
+    return 5.0 * w_Nm * L**4 / (384.0 * E * I)
+
+
+# ============================
+# CASE 2: SSB-CLAC (central point load)
+# ============================
 def ss_central_point_case(L, P):
     """
     Simply supported beam with a point load at midspan.
-    Inputs:
-      L (m), P (kN)
+    Inputs: L (m), P (kN)
     Returns (N, My, Mz, Vy, Vz) maxima for prefill.
     """
-    Mmax = P * L / 4.0    # kN·m
-    Vmax = P / 2.0        # kN
+    Mmax = P * L / 4.0      # kN·m
+    Vmax = P / 2.0          # kN
     return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
 
 
-def ss_central_point_diagram(L, P, n=200):
+def ss_central_point_diagram(L, P, E=None, I=None, n=200):
     """
-    Returns arrays for diagrams: x (m), V (kN), M (kN·m)
+    Returns x (m), V (kN), M (kN·m), delta (m) for midspan point load.
 
     Reactions: R = P/2
-    Shear:
-      V(x) = +P/2  for 0<=x<L/2
-      V(x) = -P/2  for L/2<=x<=L
-    Moment:
-      M(x) = P*x/2          for x<L/2
-      M(x) = P*(L-x)/2      for x>=L/2
+    V(x) = +P/2 for x<L/2, -P/2 for x>=L/2
+    M(x) = P x /2 for x<L/2,  P(L-x)/2 for x>=L/2
+
+    Deflection:
+      δ(x) = P x / (48 E I) * (3L^2 - 4x^2) for x<=L/2
+      symmetrical about midspan
     """
     x = np.linspace(0.0, L, n)
-    V = np.where(x < L/2.0, P/2.0, -P/2.0)
-    M = np.where(x < L/2.0, P*x/2.0, P*(L-x)/2.0)
-    return x, V, M
+
+    V = np.where(x < L/2.0, P/2.0, -P/2.0)  # kN
+    M = np.where(x < L/2.0, P*x/2.0, P*(L-x)/2.0)  # kN·m
+
+    delta = None
+    if E and I and I > 0:
+        P_N = P * 1000.0  # N
+        # use left-half formula, mirror automatically by x definition
+        delta = (P_N * x / (48.0 * E * I)) * (3*L**2 - 4*x**2)  # m
+        # for x>L/2, formula gives negative; take symmetric absolute
+        # so we mirror shape:
+        delta = np.where(x <= L/2.0, delta, (P_N * (L-x) / (48.0 * E * I)) * (3*L**2 - 4*(L-x)**2))
+
+    return x, V, M, delta
+
+
+def ss_central_point_deflection_max(L, P, E, I):
+    """
+    δ_max = P L^3 / (48 E I)
+    Inputs: L (m), P (kN), E (Pa), I (m^4)
+    Returns δ_max in meters.
+    """
+    P_N = P * 1000.0
+    return P_N * L**3 / (48.0 * E * I)
+
 
 def dummy_case_func(*args, **kwargs):
     return (0.0, 0.0, 0.0, 0.0, 0.0)
@@ -1408,6 +1451,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
