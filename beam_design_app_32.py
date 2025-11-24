@@ -536,39 +536,55 @@ def render_section_summary_like_props(material, sr_display, key_prefix="sum"):
     s14.text_input("Web class (bending, DB)", value=str(sr_display.get("web_class_bending_db","n/a")), disabled=True, key=f"{key_prefix}_wb")
     s15.text_input("Web class (compression, DB)", value=str(sr_display.get("web_class_compression_db","n/a")), disabled=True, key=f"{key_prefix}_wc")
 
-def render_section_properties_readonly(sr_display):
+def render_section_properties_readonly(sr_display, key_prefix="db"):
     c1, c2, c3 = st.columns(3)
-    c1.number_input("A (cm²)", value=float(sr_display.get('A_cm2', 0.0)), disabled=True, key="db_A")
-    c2.number_input("S_y (cm³) about y", value=float(sr_display.get('S_y_cm3', 0.0)), disabled=True, key="db_Sy")
-    c3.number_input("S_z (cm³) about z", value=float(sr_display.get('S_z_cm3', 0.0)), disabled=True, key="db_Sz")
+    c1.number_input("A (cm²)", value=float(sr_display.get('A_cm2', 0.0)),
+                    disabled=True, key=f"{key_prefix}_A")
+    c2.number_input("S_y (cm³) about y", value=float(sr_display.get('S_y_cm3', 0.0)),
+                    disabled=True, key=f"{key_prefix}_Sy")
+    c3.number_input("S_z (cm³) about z", value=float(sr_display.get('S_z_cm3', 0.0)),
+                    disabled=True, key=f"{key_prefix}_Sz")
 
     c4, c5, c6 = st.columns(3)
-    c4.number_input("I_y (cm⁴) about y", value=float(sr_display.get('I_y_cm4', 0.0)), disabled=True, key="db_Iy")
-    c5.number_input("I_z (cm⁴) about z", value=float(sr_display.get('I_z_cm4', 0.0)), disabled=True, key="db_Iz")
-    c6.number_input("J (cm⁴) (torsion const)", value=float(sr_display.get('J_cm4', 0.0)), disabled=True, key="db_J")
+    c4.number_input("I_y (cm⁴) about y", value=float(sr_display.get('I_y_cm4', 0.0)),
+                    disabled=True, key=f"{key_prefix}_Iy")
+    c5.number_input("I_z (cm⁴) about z", value=float(sr_display.get('I_z_cm4', 0.0)),
+                    disabled=True, key=f"{key_prefix}_Iz")
+    c6.number_input("J (cm⁴) (torsion const)", value=float(sr_display.get('J_cm4', 0.0)),
+                    disabled=True, key=f"{key_prefix}_J")
 
     c7, c8, c9 = st.columns(3)
-    c7.number_input("c_max (mm)", value=float(sr_display.get('c_max_mm', 0.0)), disabled=True, key="db_c")
-    c8.number_input("Wpl_y (cm³)", value=float(sr_display.get('Wpl_y_cm3', 0.0)), disabled=True, key="db_Wply")
-    c9.number_input("Wpl_z (cm³)", value=float(sr_display.get('Wpl_z_cm3', 0.0)), disabled=True, key="db_Wplz")
+    c7.number_input("c_max (mm)", value=float(sr_display.get('c_max_mm', 0.0)),
+                    disabled=True, key=f"{key_prefix}_c")
+    c8.number_input("Wpl_y (cm³)", value=float(sr_display.get('Wpl_y_cm3', 0.0)),
+                    disabled=True, key=f"{key_prefix}_Wply")
+    c9.number_input("Wpl_z (cm³)", value=float(sr_display.get('Wpl_z_cm3', 0.0)),
+                    disabled=True, key=f"{key_prefix}_Wplz")
 
     c10, c11, c12 = st.columns(3)
-    c10.number_input("Iw (cm⁶) (warping)", value=float(sr_display.get("Iw_cm6", 0.0)), disabled=True, key="db_Iw")
-    c11.number_input("It (cm⁴) (torsion inertia)", value=float(sr_display.get("It_cm4", 0.0)), disabled=True, key="db_It")
+    c10.number_input("Iw (cm⁶) (warping)", value=float(sr_display.get("Iw_cm6", 0.0)),
+                     disabled=True, key=f"{key_prefix}_Iw")
+    c11.number_input("It (cm⁴) (torsion inertia)", value=float(sr_display.get("It_cm4", 0.0)),
+                     disabled=True, key=f"{key_prefix}_It")
     c12.empty()
 
     cls1, cls2, cls3 = st.columns(3)
-    cls1.text_input("Flange class (DB)", value=str(sr_display.get('flange_class_db', "n/a")), disabled=True, key="db_fc")
-    cls2.text_input("Web class (bending, DB)", value=str(sr_display.get('web_class_bending_db', "n/a")), disabled=True, key="db_wc_b")
-    cls3.text_input("Web class (compression, DB)", value=str(sr_display.get('web_class_compression_db', "n/a")), disabled=True, key="db_wc_c")
+    cls1.text_input("Flange class (DB)", value=str(sr_display.get('flange_class_db', "n/a")),
+                    disabled=True, key=f"{key_prefix}_fc")
+    cls2.text_input("Web class (bending, DB)", value=str(sr_display.get('web_class_bending_db', "n/a")),
+                    disabled=True, key=f"{key_prefix}_wc_b")
+    cls3.text_input("Web class (compression, DB)", value=str(sr_display.get('web_class_compression_db', "n/a")),
+                    disabled=True, key=f"{key_prefix}_wc_c")
 
     a1, a2, a3 = st.columns(3)
     alpha_db_val = sr_display.get('alpha_curve', 0.49)
     alpha_label_db = next((lbl for lbl, val in [
         ("0.13 (a)",0.13),("0.21 (b)",0.21),("0.34 (c)",0.34),("0.49 (d)",0.49),("0.76 (e)",0.76)
     ] if abs(val - float(alpha_db_val)) < 1e-8), f"{alpha_db_val}")
-    a1.text_input("Buckling α (DB)", value=str(alpha_label_db), disabled=True, key="db_alpha")
+    a1.text_input("Buckling α (DB)", value=str(alpha_label_db),
+                  disabled=True, key=f"{key_prefix}_alpha")
     a2.empty(); a3.empty()
+
 
 def render_loads_form(family_for_torsion: str):
     prefill = st.session_state.get("prefill_from_case", False)
@@ -848,8 +864,9 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
     st.markdown("### 3. Section properties (from DB)")
     render_section_summary_like_props(material, use_props, key_prefix="sum_report")
 
-    with st.expander("Full section properties", expanded=False):
-        render_section_properties_readonly(use_props)
+   with st.expander("Full section properties", expanded=False):
+    render_section_properties_readonly(use_props, key_prefix="report_db")
+
 
     # --- 4) Load inputs ---
     st.markdown("---")
@@ -975,7 +992,8 @@ with tab1:
         render_section_summary_like_props(material, sr_display, key_prefix="sum_tab1")
 
         with st.expander("Section properties (from DB — read only)", expanded=False):
-            render_section_properties_readonly(sr_display)
+    render_section_properties_readonly(sr_display, key_prefix="tab1_db")
+
 
         if bad_fields:
             st.warning("Some DB numeric fields were not parsed cleanly. See debug in Results tab.")
@@ -1033,3 +1051,4 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
