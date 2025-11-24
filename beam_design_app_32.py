@@ -1,5 +1,6 @@
 # beam_design_app.py
-# EngiSnap — Standard Steel Beam Calculator (DB-backed, refactored UI)
+# EngiSnap — Standard Steel Beam Calculator (DB-backed, refactored UI + improved summary/expander/report)
+
 import streamlit as st
 import pandas as pd
 import math
@@ -28,7 +29,6 @@ except Exception:
 def get_conn():
     if not HAS_PG:
         raise RuntimeError("psycopg2 not installed. Install with: pip install psycopg2-binary")
-    # Try structured secrets first
     try:
         pg = st.secrets["postgres"]
         host = pg.get("host")
@@ -39,9 +39,11 @@ def get_conn():
         sslmode = pg.get("sslmode", "require")
         if not (host and database and user and password):
             raise KeyError("postgres secrets incomplete")
-        return psycopg2.connect(host=host, port=port, database=database, user=user, password=password, sslmode=sslmode)
+        return psycopg2.connect(
+            host=host, port=port, database=database,
+            user=user, password=password, sslmode=sslmode
+        )
     except Exception:
-        # Try a DATABASE_URL style secret (Railway / Heroku)
         try:
             from urllib.parse import urlparse
             dburl = st.secrets["DATABASE_URL"]
@@ -310,11 +312,10 @@ def supports_torsion_and_warping(family: str) -> bool:
     hollow = any(x in f for x in ["CHS", "RHS", "SHS", "HSS", "BOX", "TUBE"])
     if hollow:
         return False
-    # Open/rolled I/H/U sections typically support warping/torsion checks
     return any(x in f for x in ["IPE", "IPN", "HEA", "HEB", "HEM", "UB", "UC", "UNP", "UPN", "I ", "H "])
 
 # -------------------------
-# Ready cases (same behavior as your previous code)
+# Ready cases
 # -------------------------
 def ss_udl(span_m: float, w_kN_per_m: float):
     Mmax = w_kN_per_m * span_m**2 / 8.0
@@ -354,18 +355,16 @@ def render_sidebar_guidelines():
     st.sidebar.title("Guidelines")
     st.sidebar.markdown("""
 **How to use this tool**
-1. Go to **Member & Section** tab  
-2. Select **Material → Family → Size**  
-3. Go to **Loads** tab  
-4. Enter length, buckling factors, forces  
-5. Click **Run check**  
-6. View results in **Results** tab  
+1. **Member & Section** → select Material / Family / Size  
+2. **Loads** → enter length, K-factors, ULS forces  
+3. Click **Run check**  
+4. View **Results**  
+5. Export from **Report**  
 
 **Notes**
-- This app provides *preliminary screening checks* only.
-- DB sections are read-only.
-- Buckling curves and classes are taken from your DB if present.
-- Always verify final design with a licensed engineer.
+- Preliminary EN1993 screening only
+- DB sections read-only
+- Buckling α and classes from DB if present
 """)
 
 def render_project_data():
@@ -385,28 +384,23 @@ def render_project_data():
 
 def render_section_selection():
     st.subheader("Section selection")
-    st.caption("Select material and a standard section from the database. DB sections are read-only.")
+    st.caption("Select material and a standard section from DB. DB sections are read-only.")
 
     types, sizes_map, detected_table = fetch_types_and_sizes()
 
     c1, c2, c3 = st.columns([1,1,1])
-
     with c1:
         material = st.selectbox("Material", ["S235","S275","S355"], index=2)
     with c2:
-        if types:
-            family = st.selectbox("Section family / Type (DB)", ["-- choose --"] + types)
-        else:
-            family = st.selectbox("Section family / Type (DB)", ["-- choose --"])
+        family = st.selectbox("Section family / Type (DB)", ["-- choose --"] + types if types else ["-- choose --"])
     with c3:
         selected_name = None
         selected_row = None
         if family and family != "-- choose --":
             names = sizes_map.get(family, [])
-            if names:
-                selected_name = st.selectbox("Section size (DB)", ["-- choose --"] + names)
-                if selected_name and selected_name != "-- choose --":
-                    selected_row = get_section_row_db(family, selected_name, detected_table if detected_table != "sample" else None)
+            selected_name = st.selectbox("Section size (DB)", ["-- choose --"] + names if names else ["-- choose --"])
+            if selected_name and selected_name != "-- choose --":
+                selected_row = get_section_row_db(family, selected_name, detected_table if detected_table != "sample" else None)
 
     return material, family, selected_name, selected_row, detected_table
 
@@ -460,23 +454,57 @@ def build_section_display(selected_row):
     }
     return sr_display, bad_fields
 
+# -------- UI CHANGE #1: Summary as clean boxed card --------
 def render_section_summary(material, sr_display):
     fy = material_to_fy(material)
-    st.markdown("### Selected section summary")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Material", material)
-    c2.metric("fy (MPa)", f"{fy:.0f}")
-    c3.metric("Section", f"{sr_display['family']} — {sr_display['name']}")
-    c4.metric("Area A (cm²)", f"{sr_display['A_cm2']:.2f}")
 
-    d1, d2, d3, d4 = st.columns(4)
-    d1.metric("Iy (cm⁴)", f"{sr_display['I_y_cm4']:.1f}")
-    d2.metric("Iz (cm⁴)", f"{sr_display['I_z_cm4']:.1f}")
-    d3.metric("Wpl_y (cm³)", f"{sr_display['Wpl_y_cm3']:.1f}")
-    d4.metric("Wpl_z (cm³)", f"{sr_display['Wpl_z_cm3']:.1f}")
+    st.markdown("""
+    <style>
+      .summary-card {
+        border: 1px solid #e6e6e6;
+        border-radius: 12px;
+        padding: 12px 14px;
+        background: #fafafa;
+        margin-bottom: 10px;
+      }
+      .summary-title {
+        font-weight: 700;
+        margin-bottom: 6px;
+        font-size: 16px;
+      }
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px 14px;
+        font-size: 14px;
+      }
+      .summary-item b { font-weight: 700; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="summary-card">
+      <div class="summary-title">Selected section summary</div>
+      <div class="summary-grid">
+        <div class="summary-item"><b>Material:</b> {material}</div>
+        <div class="summary-item"><b>fy:</b> {fy:.0f} MPa</div>
+        <div class="summary-item"><b>Family:</b> {sr_display['family']}</div>
+        <div class="summary-item"><b>Size:</b> {sr_display['name']}</div>
+
+        <div class="summary-item"><b>A:</b> {sr_display['A_cm2']:.2f} cm²</div>
+        <div class="summary-item"><b>Iy:</b> {sr_display['I_y_cm4']:.1f} cm⁴</div>
+        <div class="summary-item"><b>Iz:</b> {sr_display['I_z_cm4']:.1f} cm⁴</div>
+        <div class="summary-item"><b>Wpl,y:</b> {sr_display['Wpl_y_cm3']:.1f} cm³</div>
+
+        <div class="summary-item"><b>Wpl,z:</b> {sr_display['Wpl_z_cm3']:.1f} cm³</div>
+        <div class="summary-item"><b>α curve:</b> {sr_display.get('alpha_curve','n/a')}</div>
+        <div class="summary-item"><b>Web class (bend):</b> {sr_display.get('web_class_bending_db','n/a')}</div>
+        <div class="summary-item"><b>Flange class:</b> {sr_display.get('flange_class_db','n/a')}</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 def render_section_properties_readonly(sr_display):
-    st.markdown("### Section properties (from DB — read only)")
     c1, c2, c3 = st.columns(3)
     c1.number_input("A (cm²)", value=float(sr_display.get('A_cm2', 0.0)), disabled=True)
     c2.number_input("S_y (cm³) about y", value=float(sr_display.get('S_y_cm3', 0.0)), disabled=True)
@@ -494,7 +522,7 @@ def render_section_properties_readonly(sr_display):
 
     c10, c11, c12 = st.columns(3)
     c10.number_input("Iw (cm⁶) (warping)", value=float(sr_display.get("Iw_cm6", 0.0)), disabled=True)
-    c11.number_input("It (cm⁴) (torsion moment of inertia)", value=float(sr_display.get("It_cm4", 0.0)), disabled=True)
+    c11.number_input("It (cm⁴) (torsion inertia)", value=float(sr_display.get("It_cm4", 0.0)), disabled=True)
     c12.empty()
 
     cls1, cls2, cls3 = st.columns(3)
@@ -648,7 +676,6 @@ def render_ready_cases_panel():
                                     st.rerun()
 
 def render_loads_form(family_for_torsion: str):
-    # Prefill defaults if ready case applied
     prefill = st.session_state.get("prefill_from_case", False)
     defval = lambda key, fallback: float(st.session_state.get(key, fallback)) if prefill else fallback
 
@@ -693,7 +720,6 @@ def render_loads_form(family_for_torsion: str):
         run_btn = st.form_submit_button("Run check")
         if run_btn:
             st.session_state["run_clicked"] = True
-
             st.session_state["inputs"] = dict(
                 L=L, N_kN=N_kN, Vy_kN=Vy_kN, Vz_kN=Vz_kN,
                 My_kNm=My_kNm, Mz_kNm=Mz_kNm, Tx_kNm=Tx_kNm,
@@ -702,11 +728,9 @@ def render_loads_form(family_for_torsion: str):
     return torsion_supported
 
 def compute_checks(use_props, fy, inputs, torsion_supported):
-    # Safety factors already included in your DB → use gamma=1 internally
     gamma_M0 = 1.0
     gamma_M1 = 1.0
 
-    # Inputs
     L = inputs["L"]
     N_kN = inputs["N_kN"]
     Vy_kN = inputs["Vy_kN"]
@@ -716,7 +740,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     Tx_kNm = inputs.get("Tx_kNm", 0.0)
     K_y = inputs["K_y"]; K_z = inputs["K_z"]; K_LT = inputs["K_LT"]; K_T = inputs["K_T"]
 
-    # Unit conversions
     N_N = N_kN * 1e3
     Vy_N = Vy_kN * 1e3
     Vz_N = Vz_kN * 1e3
@@ -740,14 +763,13 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     if A_m2 <= 0:
         raise ValueError("Section area not provided (A <= 0).")
 
-    # Resistances (simplified but consistent with your previous logic)
     N_Rd_N = A_m2 * fy * 1e6 / gamma_M0
     T_Rd_N = N_Rd_N
     M_Rd_y_Nm = Wpl_y_m3 * fy * 1e6 / gamma_M0
     Av_m2 = 0.6 * A_m2
     V_Rd_N = Av_m2 * fy * 1e6 / (math.sqrt(3) * gamma_M0)
 
-    sigma_allow_MPa = 0.6 * fy  # same as before, but no gamma inputs
+    sigma_allow_MPa = 0.6 * fy
 
     sigma_axial_Pa = N_N / A_m2
     sigma_by_Pa = My_Nm / S_y_m3 if S_y_m3 > 0 else 0.0
@@ -767,7 +789,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
     tau_allow_Pa = 0.6 * sigma_allow_MPa * 1e6
 
-    # Buckling simplified
     E = 210e9
     buck_results = []
     I_check_list = [("y", I_y_m4, K_y), ("z", I_z_m4, K_z)]
@@ -791,7 +812,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     N_b_Rd_min_N = min(N_b_Rd_candidates) if N_b_Rd_candidates else None
     compression_resistance_N = N_b_Rd_min_N if N_b_Rd_min_N is not None else N_Rd_N
 
-    # Table rows
     def status_and_util(applied, resistance):
         if resistance is None or resistance == 0:
             return ("n/a", None)
@@ -803,29 +823,32 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     applied_N = N_N if N_N >= 0 else 0.0
     status_comp, util_comp = status_and_util(applied_N, compression_resistance_N)
     rows.append({"Check":"Compression (N≥0)","Applied":f"{applied_N/1e3:.3f} kN",
-                 "Resistance":f"{compression_resistance_N/1e3:.3f} kN","Utilization":f"{util_comp:.3f}" if util_comp else "n/a",
+                 "Resistance":f"{compression_resistance_N/1e3:.3f} kN",
+                 "Utilization":f"{util_comp:.3f}" if util_comp else "n/a",
                  "Status":status_comp})
 
     applied_tension_N = -N_N if N_N < 0 else 0.0
     status_ten, util_ten = status_and_util(applied_tension_N, T_Rd_N)
     rows.append({"Check":"Tension (N<0)","Applied":f"{applied_tension_N/1e3:.3f} kN",
-                 "Resistance":f"{T_Rd_N/1e3:.3f} kN","Utilization":f"{util_ten:.3f}" if util_ten else "n/a",
+                 "Resistance":f"{T_Rd_N/1e3:.3f} kN",
+                 "Utilization":f"{util_ten:.3f}" if util_ten else "n/a",
                  "Status":status_ten})
 
     applied_shear_N = math.sqrt(Vy_N**2 + Vz_N**2)
     status_shear, util_shear = status_and_util(applied_shear_N, V_Rd_N)
     rows.append({"Check":"Shear (resultant Vy & Vz)","Applied":f"{applied_shear_N/1e3:.3f} kN",
-                 "Resistance":f"{V_Rd_N/1e3:.3f} kN","Utilization":f"{util_shear:.3f}" if util_shear else "n/a",
+                 "Resistance":f"{V_Rd_N/1e3:.3f} kN",
+                 "Utilization":f"{util_shear:.3f}" if util_shear else "n/a",
                  "Status":status_shear})
 
     if torsion_supported:
         util_torsion_val = (tau_torsion_Pa / tau_allow_Pa) if tau_allow_Pa > 0 else None
         status_tors = "OK" if util_torsion_val is not None and util_torsion_val <= 1.0 else ("EXCEEDS" if util_torsion_val is not None else "n/a")
         rows.append({"Check":"Torsion (τ = T·c/J)","Applied":f"{tau_torsion_Pa/1e6:.6f} MPa",
-                     "Resistance":f"{tau_allow_Pa/1e6:.6f} MPa (approx)","Utilization":f"{util_torsion_val:.3f}" if util_torsion_val else "n/a",
+                     "Resistance":f"{tau_allow_Pa/1e6:.6f} MPa (approx)",
+                     "Utilization":f"{util_torsion_val:.3f}" if util_torsion_val else "n/a",
                      "Status":status_tors})
 
-    # Bending & interaction indicative
     rows.append({"Check":"Bending y-y (σ_by)","Applied":f"{sigma_by_Pa/1e6:.3f} MPa",
                  "Resistance":f"{sigma_allow_MPa:.3f} MPa",
                  "Utilization":f"{(abs(sigma_by_Pa/1e6)/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a",
@@ -851,7 +874,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
                          "Utilization":f"{util_buck:.3f}",
                          "Status":"OK" if util_buck<=1.0 else "EXCEEDS"})
 
-    # LT buckling (only meaningful if warping exists)
     Iw_cm6 = use_props.get("Iw_cm6", 0.0)
     It_cm4 = use_props.get("It_cm4", 0.0)
     Iw_m6 = Iw_cm6 * 1e-12 if Iw_cm6 else 0.0
@@ -883,7 +905,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     df_rows = pd.DataFrame(rows).set_index("Check")
     overall_ok = not any(df_rows["Status"] == "EXCEEDS")
 
-    # Governing check
     util_values = []
     for chk, r in df_rows.iterrows():
         try:
@@ -910,7 +931,6 @@ def render_results(df_rows, overall_ok, governing):
         c1.success("DESIGN OK (preliminary)")
     else:
         c1.error("DESIGN NOT OK (preliminary)")
-
     c2.metric("Governing check", gov_check if gov_check else "n/a")
     c3.metric("Max utilization", f"{gov_util:.3f}" if gov_util else "n/a")
 
@@ -929,42 +949,109 @@ def render_results(df_rows, overall_ok, governing):
 
     st.write(df_rows.style.apply(highlight_row, axis=1))
 
-def render_report_tab(doc_name, project_name, position, requested_by, revision, run_date, use_props, inputs, overall_ok):
-    st.subheader("Report / Export")
-    st.caption("PDF export can be re-enabled later (reportlab). For now, saving is session-based.")
+# -------- UI CHANGE #3: Light vs Full Report, nice layout --------
+def render_report_tab(doc_name, project_name, position, requested_by, revision, run_date,
+                      material, use_props, inputs, df_rows, overall_ok, governing, extras):
+    st.subheader("Engineering report")
 
-    if "saved_results" not in st.session_state:
-        st.session_state["saved_results"] = []
+    report_mode = st.radio(
+        "Report mode",
+        ["Light report (summary)", "Full report (with formulas & details)"],
+        horizontal=True
+    )
 
-    def build_result_record():
-        return {
-            "timestamp": datetime.now().isoformat(sep=" ", timespec="seconds"),
-            "doc_title": doc_name,
-            "project_name": project_name,
-            "position": position,
-            "requested_by": requested_by,
-            "revision": revision,
-            "date": run_date.isoformat(),
-            "section_type": use_props.get("family", "CUSTOM"),
-            "section_name": use_props.get("name"),
-            "material": st.session_state.get("material", "S355"),
-            "A_cm2": use_props.get("A_cm2"),
-            "S_y_cm3": use_props.get("S_y_cm3"),
-            **inputs,
-            "overall_ok": overall_ok
-        }
+    fy = material_to_fy(material)
+    gov_check, gov_util = governing if governing else (None, None)
 
-    c1, c2 = st.columns([1,2])
-    with c1:
-        if st.button("Save results (session)"):
-            st.session_state["saved_results"].append(build_result_record())
-            st.success("Saved in this browser session.")
-    with c2:
-        st.info("Saved runs persist only for this browser. You can add DB export later.")
+    st.markdown("### Project & member information")
+    c1, c2, c3 = st.columns(3)
+    c1.text_input("Document title", value=doc_name, disabled=True)
+    c1.text_input("Project name", value=project_name, disabled=True)
+    c2.text_input("Position / Beam ID", value=position, disabled=True)
+    c2.text_input("Requested by", value=requested_by, disabled=True)
+    c3.text_input("Revision", value=revision, disabled=True)
+    c3.text_input("Date", value=run_date.isoformat(), disabled=True)
 
-    if st.session_state["saved_results"]:
-        st.markdown("### Saved runs (session)")
-        st.dataframe(pd.DataFrame(st.session_state["saved_results"]))
+    st.markdown("---")
+
+    st.markdown("### Selected section")
+    render_section_summary(material, use_props)
+
+    st.markdown("---")
+
+    st.markdown("### Loads & buckling inputs (ULS)")
+    li1, li2, li3, li4 = st.columns(4)
+    li1.metric("L (m)", f"{inputs['L']:.3f}")
+    li2.metric("K_y", f"{inputs['K_y']:.3f}")
+    li3.metric("K_z", f"{inputs['K_z']:.3f}")
+    li4.metric("K_LT", f"{inputs['K_LT']:.3f}")
+
+    lj1, lj2, lj3 = st.columns(3)
+    lj1.metric("N (kN)", f"{inputs['N_kN']:.3f}")
+    lj2.metric("My (kN·m)", f"{inputs['My_kNm']:.3f}")
+    lj3.metric("Mz (kN·m)", f"{inputs['Mz_kNm']:.3f}")
+
+    lk1, lk2, lk3 = st.columns(3)
+    lk1.metric("Vy (kN)", f"{inputs['Vy_kN']:.3f}")
+    lk2.metric("Vz (kN)", f"{inputs['Vz_kN']:.3f}")
+    lk3.metric("Tx (kN·m)", f"{inputs.get('Tx_kNm',0.0):.3f}")
+
+    st.markdown("---")
+
+    st.markdown("### Result summary")
+    r1, r2, r3 = st.columns(3)
+    r1.metric("Overall status", "OK" if overall_ok else "NOT OK")
+    r2.metric("Governing check", gov_check if gov_check else "n/a")
+    r3.metric("Max utilization", f"{gov_util:.3f}" if gov_util else "n/a")
+
+    st.markdown("---")
+    st.markdown("### Detailed check table")
+    st.dataframe(df_rows, use_container_width=True)
+
+    # Full report adds formulas + intermediate values
+    if report_mode.startswith("Full"):
+        st.markdown("---")
+        st.markdown("## Full formulas & intermediate steps")
+
+        with st.expander("Material properties / assumptions", expanded=True):
+            st.write(f"E = 210000 MPa (steel), fy = {fy:.1f} MPa")
+            st.write("Safety factors are assumed already included in DB capacities (γ = 1.0).")
+
+        with st.expander("Axial resistance (EN1993-1-1 §6.2.3)", expanded=False):
+            st.latex(r"N_{Rd} = A \cdot f_y")
+            st.write(f"A = {use_props['A_cm2']/1e4:.6e} m², fy = {fy:.1f} MPa")
+            st.write(f"N_Rd = {extras['N_Rd_N']/1e3:.3f} kN")
+
+        with st.expander("Bending resistance (EN1993-1-1 §6.2.5)", expanded=False):
+            st.latex(r"M_{Rd,y} = W_{pl,y} \cdot f_y")
+            st.write(f"Wpl,y = {use_props.get('Wpl_y_cm3',0.0)*1e-6:.6e} m³")
+            st.write(f"M_Rd,y = {extras['M_Rd_y_Nm']/1e3:.3f} kN·m")
+
+        with st.expander("Shear resistance (EN1993-1-1 §6.2.6)", expanded=False):
+            st.latex(r"V_{Rd} = \dfrac{A_v f_y}{\sqrt{3}}")
+            st.write(f"Av (used) = 0.6 A = {0.6*use_props['A_cm2']/1e4:.6e} m²")
+            st.write(f"V_Rd = {extras['V_Rd_N']/1e3:.3f} kN")
+
+        with st.expander("Flexural buckling (EN1993-1-1 §6.3.1)", expanded=False):
+            st.latex(r"N_{cr} = \dfrac{\pi^2 E I}{(K L)^2}")
+            for axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status in extras["buck_results"]:
+                if N_b_Rd_N:
+                    st.write(f"Axis {axis_label}: Ncr={Ncr/1e3:.2f} kN, λ̄={lambda_bar:.3f}, χ={chi:.3f}, Nb,Rd={N_b_Rd_N/1e3:.2f} kN → {status}")
+
+        with st.expander("Lateral–torsional buckling (EN1993-1-1 §6.3.2)", expanded=False):
+            if extras.get("M_Rd_LT") is not None:
+                st.write(f"Mcr ≈ {extras.get('Mcr'):.3e} N·m")
+                st.write(f"χ_LT ≈ {extras.get('chi_LT'):.3f}")
+                st.write(f"M_Rd,LT ≈ {extras.get('M_Rd_LT')/1e3:.3f} kN·m")
+            else:
+                st.write("LT buckling not evaluated (no warping data or closed section).")
+
+        with st.expander("Engineer debug (raw DB row + extras)", expanded=False):
+            st.json(use_props)
+            st.write(extras)
+
+    st.markdown("---")
+    st.caption("This report is preliminary. Always verify final design per EN1993.")
 
 # -------------------------
 # App entry
@@ -980,34 +1067,32 @@ It is **not** a full EN1993 design package. Use only for preliminary design.
 
 render_sidebar_guidelines()
 
-# Tabs = wizard steps
 tab1, tab2, tab3, tab4 = st.tabs(["1) Member & Section", "2) Loads", "3) Results", "4) Report"])
 
 with tab1:
-    # Project data
     doc_name, project_name, position, requested_by, revision, run_date = render_project_data()
 
-    # Selection
     material, family, selected_name, selected_row, detected_table = render_section_selection()
     st.session_state["material"] = material
 
-    # If DB selected
     use_custom_section = False
     custom_props = None
 
     if selected_row is not None:
         sr_display, bad_fields = build_section_display(selected_row)
         st.session_state["sr_display"] = sr_display
+
         render_section_summary(material, sr_display)
-        st.markdown("---")
-        render_section_properties_readonly(sr_display)
+
+        # -------- UI CHANGE #2: Section properties expandable --------
+        with st.expander("Section properties (from DB — read only)", expanded=False):
+            render_section_properties_readonly(sr_display)
 
         if bad_fields:
             st.warning("Some DB numeric fields were not parsed cleanly. Check raw DB row in Results tab debug.")
     else:
         st.info("Select a DB section, or open Advanced to use a custom section.")
 
-    # Advanced → Custom section
     use_custom_section, custom_props = render_custom_section_expander(material)
     if use_custom_section and custom_props:
         st.session_state["sr_display"] = custom_props
@@ -1018,9 +1103,7 @@ with tab2:
     if sr_display is None:
         st.warning("Go to Member & Section tab first and select a section.")
     else:
-        # Ready cases panel (outside form)
         render_ready_cases_panel()
-
         torsion_supported = render_loads_form(sr_display.get("family", ""))
 
 with tab3:
@@ -1042,6 +1125,7 @@ with tab3:
             st.session_state["overall_ok"] = overall_ok
             st.session_state["governing"] = governing
             st.session_state["extras"] = extras
+
             render_results(df_rows, overall_ok, governing)
 
             with st.expander("Engineer debug (raw DB row & intermediate values)", expanded=False):
@@ -1055,11 +1139,16 @@ with tab4:
     sr_display = st.session_state.get("sr_display", None)
     inputs = st.session_state.get("inputs", {})
     overall_ok = st.session_state.get("overall_ok", None)
+    df_rows = st.session_state.get("df_rows", None)
+    governing = st.session_state.get("governing", (None, None))
+    extras = st.session_state.get("extras", {})
 
-    if sr_display is None or not inputs or overall_ok is None:
+    material = st.session_state.get("material", "S355")
+
+    if sr_display is None or not inputs or overall_ok is None or df_rows is None:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(
             doc_name, project_name, position, requested_by, revision, run_date,
-            sr_display, inputs, overall_ok
+            material, sr_display, inputs, df_rows, overall_ok, governing, extras
         )
