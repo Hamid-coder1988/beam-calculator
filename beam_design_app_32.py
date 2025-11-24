@@ -317,6 +317,32 @@ def supports_torsion_and_warping(family: str) -> bool:
 # =========================================================
 # READY CASES GALLERY SYSTEM (77 placeholders)
 # =========================================================
+def ss_udl_case(L, w):
+    """
+    Simply supported beam with full-span UDL.
+    Inputs:
+      L (m), w (kN/m)
+    Returns (N, My, Mz, Vy, Vz) maxima for prefill.
+    Convention matches your old ready cases:
+      My = sagging major-axis moment
+      Vy = vertical shear resultant used in checks
+    """
+    Mmax = w * L**2 / 8.0      # kN·m
+    Vmax = w * L / 2.0        # kN
+    return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
+
+
+def ss_udl_diagram(L, w, n=200):
+    """
+    Returns arrays for diagrams: x (m), V (kN), M (kN·m)
+    V(x) = w(L/2 - x)
+    M(x) = w x (L - x)/2
+    """
+    x = np.linspace(0.0, L, n)
+    V = w * (L/2.0 - x)
+    M = w * x * (L - x) / 2.0
+    return x, V, M
+    
 def dummy_case_func(*args, **kwargs):
     return (0.0, 0.0, 0.0, 0.0, 0.0)
 
@@ -356,6 +382,12 @@ READY_CATALOG = {
         "Two Member Frames (Fixed / Free) (4 cases)": make_cases("FR2FFr", 4, {"L": 4.0, "H": 3.0, "P": 10.0}),
     }
 }
+
+# ---- Patch Case 1 of Simply Supported Beams to real UDL formulas ----
+READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["label"] = "Simply Supported Beam - With UDL"
+READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["inputs"] = {"L": 6.0, "w": 10.0}
+READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["func"] = ss_udl_case
+READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["diagram_func"] = ss_udl_diagram
 
 
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
@@ -1342,4 +1374,5 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
