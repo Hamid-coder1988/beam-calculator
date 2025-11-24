@@ -1054,50 +1054,86 @@ def get_beam_diagrams_for_case(case_key: str, input_vals: dict):
     return None, None, None, "Diagram not implemented yet for this category."
 
 def render_beam_diagrams_panel():
-    ready_case = st.session_state.get("ready_selected_case")
+    """
+    Draw V(x), M(x) always.
+    Deflection δ(x) is optional via checkbox.
+    Shows δ_max if stiffness data is available.
+    """
+    selected_case = st.session_state.get("ready_selected_case")
     input_vals = st.session_state.get("ready_input_vals")
-
-    if not ready_case or not input_vals:
-        return
-
+    sr_display = st.session_state.get("sr_display")
     chosen_type = st.session_state.get("ready_type_gallery", "Beam")
 
-    st.markdown("### Moment & Shear diagrams")
-
     if chosen_type != "Beam":
-        st.info("Diagrams for frame cases will be added later.")
+        st.info("Diagrams for frames will be added later.")
         return
 
-    case_key = ready_case.get("key", "")
-    x, V, M, note = get_beam_diagrams_for_case(case_key, input_vals)
-
-    if x is None:
-        st.info(note)
+    if not selected_case or not input_vals:
         return
 
-    col_v, col_m = st.columns(2)
-    with col_v:
-        fig1, ax1 = plt.subplots()
-        ax1.plot(x, V)
-        ax1.axhline(0, linewidth=1)
-        ax1.set_title("Shear diagram V(x)")
-        ax1.set_xlabel("x (m)")
-        ax1.set_ylabel("V (kN)")
-        ax1.grid(True)
-        st.pyplot(fig1, use_container_width=True)
+    diag_func = selected_case.get("diagram_func")
+    if not diag_func:
+        st.info("No diagrams yet for this case.")
+        return
 
-    with col_m:
-        fig2, ax2 = plt.subplots()
-        ax2.plot(x, M)
-        ax2.axhline(0, linewidth=1)
-        ax2.set_title("Bending moment diagram M(x)")
-        ax2.set_xlabel("x (m)")
-        ax2.set_ylabel("M (kN·m)")
-        ax2.grid(True)
-        st.pyplot(fig2, use_container_width=True)
+    # Section stiffness for deflection
+    E = 210e9  # Pa
 
-    st.caption(note)
+    Iy_m4 = float(sr_display.get("I_y_cm4", 0.0)) * 1e-8 if sr_display else 0.0
+    if Iy_m4 <= 0:
+        Iy_m4 = None  # allow V/M but block deflection
 
+    # Run diagram function
+    args = [input_vals[k] for k in selected_case["inputs"].keys()]
+    x, V, M, delta = diag_func(*args, E=E, I=Iy_m4)
+
+    st.markdown("#### Shear force diagram V(x)")
+    fig1, ax1 = plt.subplots()
+    ax1.plot(x, V)
+    ax1.axhline(0, linewidth=1)
+    ax1.set_xlabel("x (m)")
+    ax1.set_ylabel("V (kN)")
+    ax1.grid(True)
+    st.pyplot(fig1)
+
+    st.markdown("#### Bending moment diagram M(x)")
+    fig2, ax2 = plt.subplots()
+    ax2.plot(x, M)
+    ax2.axhline(0, linewidth=1)
+    ax2.set_xlabel("x (m)")
+    ax2.set_ylabel("M (kN·m)")
+    ax2.grid(True)
+    st.pyplot(fig2)
+
+    # Optional deflection plot
+    show_defl = st.checkbox("Show deflection diagram δ(x)", value=False, key="show_defl_diag")
+
+    if show_defl:
+        if delta is None or Iy_m4 is None:
+            st.warning("Deflection not available: missing Iy or case deflection formula.")
+            return
+
+        st.markdown("#### Deflection diagram δ(x)")
+        fig3, ax3 = plt.subplots()
+        ax3.plot(x, delta * 1000.0)  # mm
+        ax3.axhline(0, linewidth=1)
+        ax3.set_xlabel("x (m)")
+        ax3.set_ylabel("δ (mm)")
+        ax3.grid(True)
+        st.pyplot(fig3)
+
+        dmax_mm = float(np.max(np.abs(delta)) * 1000.0)
+        st.info(f"Maximum deflection δ_max ≈ **{dmax_mm:.3f} mm**")
+
+    else:
+        # Still show max deflection even if diagram hidden (nice UX)
+        defl_max_func = selected_case.get("defl_max_func")
+        if defl_max_func and Iy_m4 is not None:
+            try:
+                dmax_m = defl_max_func(*args, E, Iy_m4)
+                st.caption(f"δ_max ≈ {dmax_m*1000.0:.3f} mm (enable checkbox to see δ(x))")
+            except Exception:
+                pass
 
 # =========================================================
 # REPORT TAB UPGRADES + PDF
@@ -1451,6 +1487,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
