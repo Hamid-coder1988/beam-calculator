@@ -364,9 +364,28 @@ def render_ready_cases_panel():
     with st.expander("Ready design cases (Beam & Frame) — Gallery", expanded=False):
         st.write("Pick a case visually, then enter its parameters. Apply fills Loads automatically.")
 
-        chosen_type = st.radio("Step 1 — Structural type", ["Beam", "Frame"], horizontal=True, key="ready_type_gallery")
+        chosen_type = st.radio(
+            "Step 1 — Structural type",
+            ["Beam", "Frame"],
+            horizontal=True,
+            key="ready_type_gallery"
+        )
+
         categories = list(READY_CATALOG[chosen_type].keys())
-        chosen_cat = st.selectbox("Step 2 — Category", categories, key="ready_cat_gallery")
+        chosen_cat = st.selectbox(
+            "Step 2 — Category",
+            categories,
+            key="ready_cat_gallery"
+        )
+
+        # ---- Reset selection if type/category changes ----
+        last_type = st.session_state.get("_ready_last_type")
+        last_cat  = st.session_state.get("_ready_last_cat")
+
+        if (last_type != chosen_type) or (last_cat != chosen_cat):
+            st.session_state["ready_case_key"] = None  # clear old selection
+            st.session_state["_ready_last_type"] = chosen_type
+            st.session_state["_ready_last_cat"] = chosen_cat
 
         st.markdown("Step 3 — Choose a case:")
         clicked_key = render_case_gallery(chosen_type, chosen_cat, n_per_row=5)
@@ -375,17 +394,31 @@ def render_ready_cases_panel():
             st.session_state["ready_case_key"] = clicked_key
 
         case_key = st.session_state.get("ready_case_key")
+
+        # Guard: nothing selected yet
         if not case_key:
             st.info("Select a case above to enter its parameters.")
             return
 
-        selected_case = next(c for c in READY_CATALOG[chosen_type][chosen_cat] if c["key"] == case_key)
+        # Guard: case_key from previous tab/type doesn't exist here
+        current_cases = READY_CATALOG[chosen_type][chosen_cat]
+        current_keys = {c["key"] for c in current_cases}
+        if case_key not in current_keys:
+            st.session_state["ready_case_key"] = None
+            st.info("Selected case was from another category. Please pick a case again.")
+            return
+
+        selected_case = next(c for c in current_cases if c["key"] == case_key)
 
         st.markdown(f"**Selected:** {selected_case['key']} — {selected_case['label']}")
 
         input_vals = {}
         for k, v in selected_case.get("inputs", {}).items():
-            input_vals[k] = st.number_input(k, value=float(v), key=f"ready_param_{case_key}_{k}")
+            input_vals[k] = st.number_input(
+                k,
+                value=float(v),
+                key=f"ready_param_{case_key}_{k}"
+            )
 
         if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
             func = selected_case.get("func", dummy_case_func)
@@ -397,13 +430,12 @@ def render_ready_cases_panel():
                 N_case, My_case, Mz_case, Vy_case, Vz_case = 0.0, 0.0, 0.0, 0.0, 0.0
 
             st.session_state["prefill_from_case"] = True
-            st.session_state["prefill_N_kN"]  = float(N_case)
+            st.session_state["prefill_N_kN"]   = float(N_case)
             st.session_state["prefill_My_kNm"] = float(My_case)
             st.session_state["prefill_Mz_kNm"] = float(Mz_case)
             st.session_state["prefill_Vy_kN"]  = float(Vy_case)
             st.session_state["prefill_Vz_kN"]  = float(Vz_case)
 
-            # Try to infer a single span length if present
             if "L" in input_vals:
                 st.session_state["case_L"] = float(input_vals["L"])
             elif "L1" in input_vals:
@@ -1046,3 +1078,4 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
