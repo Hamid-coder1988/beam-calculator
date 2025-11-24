@@ -415,6 +415,11 @@ READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["inputs"] = {"L": 
 READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["func"] = ss_udl_case
 READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["diagram_func"] = ss_udl_diagram
 
+# ---- Patch Case 2 of Simply Supported Beams: central point load ----
+READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][1]["label"] = "SSB-CLAC"
+READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][1]["inputs"] = {"L": 6.0, "P": 20.0}
+READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][1]["func"] = ss_central_point_case
+READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][1]["diagram_func"] = ss_central_point_diagram
 
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
     cases = READY_CATALOG[chosen_type][chosen_cat]
@@ -1400,6 +1405,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
