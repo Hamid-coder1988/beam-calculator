@@ -385,8 +385,10 @@ def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
 
 
 def render_ready_cases_panel():
-    with st.expander("Ready design cases (Beam & Frame) — Gallery", expanded=False):
-        st.write("Pick a case visually, then enter its parameters. Apply fills Loads automatically.")
+    # Make it open by default so diagrams are visible immediately
+    with st.expander("Ready design cases (Beam & Frame) — Gallery", expanded=True):
+        st.write("Pick a case visually, then enter its parameters. "
+                 "Diagrams update instantly for Beam cases where implemented.")
 
         chosen_type = st.radio(
             "Step 1 — Structural type",
@@ -419,7 +421,10 @@ def render_ready_cases_panel():
         case_key = st.session_state.get("ready_case_key")
 
         if not case_key:
-            st.info("Select a case above to enter its parameters.")
+            st.info("Select a case above to enter its parameters and see diagrams.")
+            # Clear diagram state
+            st.session_state["ready_selected_case"] = None
+            st.session_state["ready_input_vals"] = None
             return
 
         current_cases = READY_CATALOG[chosen_type][chosen_cat]
@@ -427,6 +432,8 @@ def render_ready_cases_panel():
         if case_key not in current_keys:
             st.session_state["ready_case_key"] = None
             st.info("Selected case was from another category. Please pick a case again.")
+            st.session_state["ready_selected_case"] = None
+            st.session_state["ready_input_vals"] = None
             return
 
         selected_case = next(c for c in current_cases if c["key"] == case_key)
@@ -441,9 +448,12 @@ def render_ready_cases_panel():
                 key=f"ready_param_{case_key}_{k}"
             )
 
-        # NEW: store selection + current inputs for diagrams
+        # Store selection + inputs for diagrams
         st.session_state["ready_selected_case"] = selected_case
         st.session_state["ready_input_vals"] = input_vals
+
+        # >>> SHOW DIAGRAMS RIGHT HERE <<<
+        render_beam_diagrams_panel()
 
         if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
             func = selected_case.get("func", dummy_case_func)
@@ -1285,12 +1295,9 @@ with tab2:
     if sr_display is None:
         st.warning("Go to Member & Section tab first and select a section.")
     else:
-        render_ready_cases_panel()
-
-        # NEW: render diagrams after ready-case selection
-        render_beam_diagrams_panel()
-
+        render_ready_cases_panel()  # diagrams are inside now
         render_loads_form(sr_display.get("family", ""))
+
 
 with tab3:
     sr_display = st.session_state.get("sr_display", None)
@@ -1335,3 +1342,4 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
