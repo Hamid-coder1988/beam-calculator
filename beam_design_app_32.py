@@ -689,6 +689,16 @@ def render_section_selection():
 
 
 def build_section_display(selected_row):
+    """
+    Map DB row -> a clean sr_display dict with:
+    - all UI fields the user wants
+    - plus the "old" A_cm2, S_y_cm3, etc. for calculations.
+    DB column names assumed:
+      h, b, tw, tf, m, A, Av,z, Av,y, Iy, iy, Wel,y, Wpl,y,
+      Iz, iz, Wel,z, Wpl,z, IT, WT, Iw, Ww,
+      Npl,Rd, Vpl,Rd,z, Vpl,Rd,y, Mel,Rd,y, Mpl,Rd,y, Mel,Rd,z, Mpl,Rd,z,
+      a y, a z, CL Wb, CL Wc, CL Fb
+    """
     alpha_default_val = 0.49
     sr = selected_row
     bad_fields = []
@@ -700,44 +710,145 @@ def build_section_display(selected_row):
             bad_fields.append((fieldname or keys[0], raw))
         return val
 
-    A_cm2 = get_num_from_row("A_cm2", "area_cm2", "area", "A", default=0.0, fieldname="A_cm2")
-    S_y_cm3 = get_num_from_row("S_y_cm3", "Sy_cm3", "S_y", "Wel_y", "Wy_cm3", default=0.0, fieldname="S_y_cm3")
-    S_z_cm3 = get_num_from_row("S_z_cm3", "Sz_cm3", "S_z", "Wel_z", "Wz_cm3", default=0.0, fieldname="S_z_cm3")
-    I_y_cm4 = get_num_from_row("I_y_cm4", "Iy_cm4", "I_y", "Iy", "Iyy", default=0.0, fieldname="I_y_cm4")
-    I_z_cm4 = get_num_from_row("I_z_cm4", "Iz_cm4", "I_z", "Iz", "Izz", default=0.0, fieldname="I_z_cm4")
-    J_cm4 = get_num_from_row("J_cm4", "J", "torsion_const", default=0.0, fieldname="J_cm4")
-    c_max_mm = get_num_from_row("c_max_mm", "c_mm", "c", "cmax", default=0.0, fieldname="c_max_mm")
-    Wpl_y_cm3 = get_num_from_row("Wpl_y_cm3", "Wpl_y", "W_pl_y", default=0.0, fieldname="Wpl_y_cm3")
-    Wpl_z_cm3 = get_num_from_row("Wpl_z_cm3", "Wpl_z", "W_pl_z", default=0.0, fieldname="Wpl_z_cm3")
-    Iw_cm6 = get_num_from_row("Iw_cm6", "Iw", default=0.0, fieldname="Iw_cm6")
-    It_cm4 = get_num_from_row("It_cm4", "It", default=0.0, fieldname="It_cm4")
-    alpha_curve = get_num_from_row("alpha_curve", "alpha", default=alpha_default_val, fieldname="alpha_curve")
+    # --- Geometry & basic section data (mm / kg/m / mm²) ---
+    h_mm   = get_num_from_row("h", "H", "depth", fieldname="h_mm")
+    b_mm   = get_num_from_row("b", "B", "width", fieldname="b_mm")
+    tw_mm  = get_num_from_row("tw", "t_w", "tw_mm", "web_thk", fieldname="tw_mm")
+    tf_mm  = get_num_from_row("tf", "t_f", "tf_mm", "flange_thk", fieldname="tf_mm")
+    m_kg_m = get_num_from_row("m", "m_kgm", "kg/m", "mass", fieldname="m_kg_m")
+    A_mm2  = get_num_from_row("A", "A_mm2", "area_mm2", fieldname="A_mm2")
+    Avz_mm2 = get_num_from_row("Av,z", "Av_z", "Avz", "Avz_mm2", fieldname="Avz_mm2")
+    Avy_mm2 = get_num_from_row("Av,y", "Av_y", "Avy", "Avy_mm2", fieldname="Avy_mm2")
 
-    flange_class_db = str(pick(sr, "flange_class_db", "flange_class", default="n/a"))
-    web_class_bending_db = str(pick(sr, "web_class_bending_db", "web_class_bending", default="n/a"))
-    web_class_compression_db = str(pick(sr, "web_class_compression_db", "web_class_compression", default="n/a"))
+    # --- Bending stiffness & section moduli (cm⁴ / cm³ / mm) ---
+    Iy_cm4  = get_num_from_row("Iy", "I_y_cm4", "Iy_cm4", fieldname="Iy_cm4")
+    iy_mm   = get_num_from_row("iy", "ry", "iy_mm", fieldname="iy_mm")
+    Wel_y_cm3 = get_num_from_row("Wel,y", "Wel_y", "Wy_el", "Wel_y_cm3", fieldname="Wel_y_cm3")
+    Wpl_y_cm3 = get_num_from_row("Wpl,y", "Wpl_y", "Wpl_y_cm3", fieldname="Wpl_y_cm3")
+
+    Iz_cm4  = get_num_from_row("Iz", "I_z_cm4", "Iz_cm4", fieldname="Iz_cm4")
+    iz_mm   = get_num_from_row("iz", "rz", "iz_mm", fieldname="iz_mm")
+    Wel_z_cm3 = get_num_from_row("Wel,z", "Wel_z", "Wz_el", "Wel_z_cm3", fieldname="Wel_z_cm3")
+    Wpl_z_cm3 = get_num_from_row("Wpl,z", "Wpl_z", "Wpl_z_cm3", fieldname="Wpl_z_cm3")
+
+    # --- Torsion & warping (IT, WT, Iw, Ww in mm-based units) ---
+    IT_k_mm4 = get_num_from_row("IT", "It", fieldname="IT_k_mm4")   # [×10³ mm⁴]
+    WT_k_mm3 = get_num_from_row("WT", "Wt", fieldname="WT_k_mm3")   # [×10³ mm³]
+    Iw_6_mm6 = get_num_from_row("Iw", "Iw6", fieldname="Iw_6_mm6")  # [×10⁶ mm⁶]
+    Ww_k_mm4 = get_num_from_row("Ww", "Ww_k", fieldname="Ww_k_mm4") # [×10³ mm⁴]
+
+    # --- Resistances (kN / kNm) ---
+    Npl_Rd_kN   = get_num_from_row("Npl,Rd", "Npl_Rd", fieldname="Npl_Rd_kN")
+    Vpl_Rd_z_kN = get_num_from_row("Vpl,Rd,z", "Vpl_Rd_z", fieldname="Vpl_Rd_z_kN")
+    Vpl_Rd_y_kN = get_num_from_row("Vpl,Rd,y", "Vpl_Rd_y", fieldname="Vpl_Rd_y_kN")
+    Mel_Rd_y_kNm = get_num_from_row("Mel,Rd,y", "Mel_Rd_y", fieldname="Mel_Rd_y_kNm")
+    Mpl_Rd_y_kNm = get_num_from_row("Mpl,Rd,y", "Mpl_Rd_y", fieldname="Mpl_Rd_y_kNm")
+    Mel_Rd_z_kNm = get_num_from_row("Mel,Rd,z", "Mel_Rd_z", fieldname="Mel_Rd_z_kNm")
+    Mpl_Rd_z_kNm = get_num_from_row("Mpl,Rd,z", "Mpl_Rd_z", fieldname="Mpl_Rd_z_kNm")
+
+    # --- Buckling curves & classes ---
+    alpha_y = get_num_from_row("a y", "ay", "alpha_y", default=alpha_default_val, fieldname="alpha_y")
+    alpha_z = get_num_from_row("a z", "az", "alpha_z", default=alpha_default_val, fieldname="alpha_z")
+
+    CL_Wb = str(pick(sr, "CL Wb", "CL_Wb", "web_class_bend", default="n/a"))
+    CL_Wc = str(pick(sr, "CL Wc", "CL_Wc", "web_class_comp", default="n/a"))
+    CL_Fb = str(pick(sr, "CL Fb", "CL_Fb", "flange_class", default="n/a"))
+
+    # --- Optional: c_max for torsion radius ---
+    c_max_mm = get_num_from_row("c_max_mm", "c_mm", "c", "cmax", default=0.0, fieldname="c_max_mm")
+
+    # --- Convert DB units to the old calculation format ---
+    # Area: mm² -> cm²
+    A_cm2 = A_mm2 / 100.0 if A_mm2 else 0.0
+
+    # Shear area: mm² -> m² (for checks)
+    # will be used as Av_m2 ~ 0.6*A, but we keep mm² here for info.
+
+    # Torsion const: IT [×10³ mm⁴] -> true mm⁴ -> cm⁴
+    #  IT_k * 10³ mm⁴ * 1e-4 = IT_k * 0.1 cm⁴
+    J_cm4 = IT_k_mm4 * 0.1 if IT_k_mm4 else 0.0
+    It_cm4 = J_cm4
+
+    # Warping constant Iw: [×10⁶ mm⁶] -> true mm⁶ -> cm⁶
+    #  1 mm⁶ = 1e-6 cm⁶ ⇒ Iw_cm6 = Iw_6_mm6 * 10⁶ * 1e-6 = Iw_6_mm6
+    Iw_cm6 = Iw_6_mm6 if Iw_6_mm6 else 0.0
+
+    # Use elastic moduli as section moduli for bending checks
+    S_y_cm3 = Wel_y_cm3
+    S_z_cm3 = Wel_z_cm3
+
+    family = pick(sr, "Type", "family", "type", default="DB")
+    name   = pick(sr, "Size", "name", "designation", default="DB")
 
     sr_display = {
-        "family": pick(sr, "Type", "family", "type", default="DB"),
-        "name": pick(sr, "Size", "name", "designation", default="DB"),
+        "family": family,
+        "name":   name,
+
+        # --- for Selected section summary ---
+        "m_kg_per_m": m_kg_m,
+        "Iy_cm4": Iy_cm4,
+        "Iz_cm4": Iz_cm4,
+        "Wel_y_cm3": Wel_y_cm3,
+        "Wel_z_cm3": Wel_z_cm3,
+        "It_cm4": It_cm4,
+
+        # --- raw geometry & area (mm / kg/m / mm²) ---
+        "h_mm": h_mm,
+        "b_mm": b_mm,
+        "tw_mm": tw_mm,
+        "tf_mm": tf_mm,
+        "A_mm2": A_mm2,
+        "Avz_mm2": Avz_mm2,
+        "Avy_mm2": Avy_mm2,
+        "iy_mm": iy_mm,
+        "iz_mm": iz_mm,
+
+        # --- bending / torsion / warping ---
+        "Iy_cm4": Iy_cm4,
+        "Iz_cm4": Iz_cm4,
+        "Wel_y_cm3": Wel_y_cm3,
+        "Wpl_y_cm3": Wpl_y_cm3,
+        "Wel_z_cm3": Wel_z_cm3,
+        "Wpl_z_cm3": Wpl_z_cm3,
+        "IT_k_mm4": IT_k_mm4,
+        "WT_k_mm3": WT_k_mm3,
+        "Iw_6_mm6": Iw_6_mm6,
+        "Ww_k_mm4": Ww_k_mm4,
+
+        # --- design resistances ---
+        "Npl_Rd_kN": Npl_Rd_kN,
+        "Vpl_Rd_z_kN": Vpl_Rd_z_kN,
+        "Vpl_Rd_y_kN": Vpl_Rd_y_kN,
+        "Mel_Rd_y_kNm": Mel_Rd_y_kNm,
+        "Mpl_Rd_y_kNm": Mpl_Rd_y_kNm,
+        "Mel_Rd_z_kNm": Mel_Rd_z_kNm,
+        "Mpl_Rd_z_kNm": Mpl_Rd_z_kNm,
+
+        # --- buckling curves & classes ---
+        "alpha_y": alpha_y,
+        "alpha_z": alpha_z,
+        "CL_Wb": CL_Wb,
+        "CL_Wc": CL_Wc,
+        "CL_Fb": CL_Fb,
+
+        # --- also keep legacy keys used by compute_checks() ---
         "A_cm2": A_cm2,
         "S_y_cm3": S_y_cm3,
         "S_z_cm3": S_z_cm3,
-        "I_y_cm4": I_y_cm4,
-        "I_z_cm4": I_z_cm4,
+        "I_y_cm4": Iy_cm4,
+        "I_z_cm4": Iz_cm4,
         "J_cm4": J_cm4,
         "c_max_mm": c_max_mm,
-        "Wpl_y_cm3": Wpl_y_cm3,
-        "Wpl_z_cm3": Wpl_z_cm3,
         "Iw_cm6": Iw_cm6,
         "It_cm4": It_cm4,
-        "alpha_curve": alpha_curve,
-        "flange_class_db": flange_class_db,
-        "web_class_bending_db": web_class_bending_db,
-        "web_class_compression_db": web_class_compression_db
+        # single alpha_curve (use major-axis value for now)
+        "alpha_curve": alpha_y if alpha_y else alpha_default_val,
+        "flange_class_db": CL_Fb,
+        "web_class_bending_db": CL_Wb,
+        "web_class_compression_db": CL_Wc,
     }
-    return sr_display, bad_fields
 
+    return sr_display, bad_fields
 
 def render_section_summary_like_props(material, sr_display, key_prefix="sum"):
     fy = material_to_fy(material)
@@ -1544,6 +1655,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
