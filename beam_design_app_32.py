@@ -577,13 +577,34 @@ def render_ready_cases_panel():
         render_beam_diagrams_panel()
 
         if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
+
             func = selected_case.get("func", dummy_case_func)
             try:
                 args = [input_vals[k] for k in selected_case["inputs"].keys()]
-                N_case, My_case, Mz_case, Vy_case, Vz_case = func(*args)
+                # Your case functions currently return: N, My, Mz, Vy, Vz
+                N_case, My_raw, Mz_raw, Vy_raw, Vz_raw = func(*args)
             except Exception:
-                N_case, My_case, Mz_case, Vy_case, Vz_case = 0.0, 0.0, 0.0, 0.0, 0.0
+                N_case = My_raw = Mz_raw = Vy_raw = Vz_raw = 0.0
 
+            # Decide which axis this case is using
+            bending_axis = "y" if axis_choice.startswith("Strong") else "z"
+            st.session_state["bending_axis"] = bending_axis
+
+            # Map bending and shear to that axis
+            if bending_axis == "y":
+                # Use My/Vy as-is (strong axis). If those are zero, fall back to z.
+                My_case = My_raw if My_raw != 0.0 else Mz_raw
+                Mz_case = 0.0
+                Vy_case = Vy_raw if Vy_raw != 0.0 else Vz_raw
+                Vz_case = 0.0
+            else:
+                # Weak axis: move My→Mz, Vy→Vz
+                Mz_case = My_raw if My_raw != 0.0 else Mz_raw
+                My_case = 0.0
+                Vz_case = Vy_raw if Vy_raw != 0.0 else Vz_raw
+                Vy_case = 0.0
+
+            # Prefill Loads tab
             st.session_state["prefill_from_case"] = True
             st.session_state["prefill_N_kN"] = float(N_case)
             st.session_state["prefill_My_kNm"] = float(My_case)
@@ -591,13 +612,17 @@ def render_ready_cases_panel():
             st.session_state["prefill_Vy_kN"] = float(Vy_case)
             st.session_state["prefill_Vz_kN"] = float(Vz_case)
 
+            # Use L or L1 as element length if present
             if "L" in input_vals:
                 st.session_state["case_L"] = float(input_vals["L"])
             elif "L1" in input_vals:
                 st.session_state["case_L"] = float(input_vals["L1"])
 
-            st.success("Case applied. Now scroll down to Loads form and click Run check.")
+            # Keep these for diagrams (you already had something like this)
+            st.session_state["ready_selected_case"] = selected_case
+            st.session_state["ready_input_vals"] = input_vals
 
+            st.success("Case applied. Now go to Loads tab and click Run check.")
 
 # =========================================================
 # UI RENDERERS
@@ -1509,4 +1534,5 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
