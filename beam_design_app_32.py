@@ -1100,10 +1100,25 @@ def render_beam_diagrams_panel():
         return
 
     # Section stiffness for deflection
+    # Section stiffness for deflection
     E = 210e9  # Pa
-    Iy_m4 = float(sr_display.get("I_y_cm4", 0.0)) * 1e-8 if sr_display else 0.0
-    if Iy_m4 <= 0:
-        Iy_m4 = None  # allow V/M but block deflection
+
+    I_y_m4 = float(sr_display.get("I_y_cm4", 0.0)) * 1e-8 if sr_display else 0.0
+    I_z_m4 = float(sr_display.get("I_z_cm4", 0.0)) * 1e-8 if sr_display else 0.0
+
+    bending_axis = st.session_state.get("bending_axis", "y")
+    if bending_axis == "z":
+        I_m4 = I_z_m4
+    else:
+        I_m4 = I_y_m4
+
+    if I_m4 <= 0:
+        I_m4 = None  # allow V/M but block deflection
+
+    # Run diagram function with I depending on strong/weak axis
+    args = [input_vals[k] for k in selected_case["inputs"].keys()]
+    x, V, M, delta = diag_func(*args, E=E, I=I_m4)
+
 
     # Run diagram function
     args = [input_vals[k] for k in selected_case["inputs"].keys()]
@@ -1520,6 +1535,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
