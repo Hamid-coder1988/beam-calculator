@@ -1461,7 +1461,7 @@ def render_beam_diagrams_panel():
 
     with f1:
         st.number_input(
-            "Maximum bending moment M_max (kN·m)",
+            "Max bending moment M_max (kN·m)",
             value=float(summary["M_max"]) if summary.get("M_max") is not None else 0.0,
             disabled=True,
             key="diag_Mmax"
@@ -1890,4 +1890,5 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
