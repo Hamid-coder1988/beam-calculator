@@ -494,11 +494,10 @@ def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
 
 
 def render_ready_cases_panel():
-    # Make it open by default so diagrams are visible immediately
-    with st.expander("Ready design cases (Beam & Frame) — Gallery", expanded=True):
-        st.write("Pick a case visually, then enter its parameters. "
-                 "Diagrams update instantly for Beam cases where implemented.")
+    with st.expander("Ready design cases (Beam & Frame) — Gallery", expanded=False):
+        st.write("Pick a case visually, then enter its parameters. Apply to fill Loads automatically.")
 
+        # 1) Choose Beam / Frame
         chosen_type = st.radio(
             "Step 1 — Structural type",
             ["Beam", "Frame"],
@@ -506,6 +505,7 @@ def render_ready_cases_panel():
             key="ready_type_gallery"
         )
 
+        # 2) Choose category
         categories = list(READY_CATALOG[chosen_type].keys())
         chosen_cat = st.selectbox(
             "Step 2 — Category",
@@ -521,6 +521,7 @@ def render_ready_cases_panel():
             st.session_state["_ready_last_type"] = chosen_type
             st.session_state["_ready_last_cat"] = chosen_cat
 
+        # 3) Case gallery
         st.markdown("Step 3 — Choose a case:")
         clicked_key = render_case_gallery(chosen_type, chosen_cat, n_per_row=5)
 
@@ -530,25 +531,34 @@ def render_ready_cases_panel():
         case_key = st.session_state.get("ready_case_key")
 
         if not case_key:
-            st.info("Select a case above to enter its parameters and see diagrams.")
-            # Clear diagram state
-            st.session_state["ready_selected_case"] = None
-            st.session_state["ready_input_vals"] = None
+            st.info("Select a case above to enter its parameters.")
             return
 
+        # Make sure the selected key belongs to this category
         current_cases = READY_CATALOG[chosen_type][chosen_cat]
         current_keys = {c["key"] for c in current_cases}
         if case_key not in current_keys:
             st.session_state["ready_case_key"] = None
             st.info("Selected case was from another category. Please pick a case again.")
-            st.session_state["ready_selected_case"] = None
-            st.session_state["ready_input_vals"] = None
             return
 
         selected_case = next(c for c in current_cases if c["key"] == case_key)
 
         st.markdown(f"**Selected:** {selected_case['key']} — {selected_case['label']}")
 
+        # ---- NEW: axis choice (for beams) ----
+        if chosen_type == "Beam":
+            axis_choice = st.radio(
+                "Bending axis for this case",
+                ["Strong axis (y)", "Weak axis (z)"],
+                horizontal=True,
+                key=f"axis_choice_{case_key}"
+            )
+        else:
+            # For frames, just keep strong axis by default
+            axis_choice = "Strong axis (y)"
+
+        # 4) Parameters of this case
         input_vals = {}
         for k, v in selected_case.get("inputs", {}).items():
             input_vals[k] = st.number_input(
@@ -557,21 +567,38 @@ def render_ready_cases_panel():
                 key=f"ready_param_{case_key}_{k}"
             )
 
-        # Store selection + inputs for diagrams
-        st.session_state["ready_selected_case"] = selected_case
-        st.session_state["ready_input_vals"] = input_vals
-
-        # >>> SHOW DIAGRAMS RIGHT HERE <<<
-        render_beam_diagrams_panel()
-
+        # 5) Apply → map to N, My/Mz, Vy/Vz and prefill loads
         if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
+
             func = selected_case.get("func", dummy_case_func)
+
             try:
                 args = [input_vals[k] for k in selected_case["inputs"].keys()]
-                N_case, My_case, Mz_case, Vy_case, Vz_case = func(*args)
+                # Your case functions currently return:
+                # N, My, Mz, Vy, Vz
+                N_case, My_case_raw, Mz_case_raw, Vy_case_raw, Vz_case_raw = func(*args)
             except Exception:
-                N_case, My_case, Mz_case, Vy_case, Vz_case = 0.0, 0.0, 0.0, 0.0, 0.0
+                N_case = My_case_raw = Mz_case_raw = Vy_case_raw = Vz_case_raw = 0.0
 
+            # Decide which axis this case is using
+            bending_axis = "y" if axis_choice.startswith("Strong") else "z"
+            st.session_state["bending_axis"] = bending_axis
+
+            # Map bending/shear to the chosen axis
+            if bending_axis == "y":
+                # Use My/Vy as-is (strong axis)
+                My_case = My_case_raw if My_case_raw != 0.0 else Mz_case_raw
+                Mz_case = 0.0
+                Vy_case = Vy_case_raw if Vy_case_raw != 0.0 else Vz_case_raw
+                Vz_case = 0.0
+            else:
+                # Rotate to weak axis: move My→Mz, Vy→Vz
+                Mz_case = My_case_raw if My_case_raw != 0.0 else Mz_case_raw
+                My_case = 0.0
+                Vz_case = Vy_case_raw if Vy_case_raw != 0.0 else Vz_case_raw
+                Vy_case = 0.0
+
+            # Save to session state for Loads form prefill
             st.session_state["prefill_from_case"] = True
             st.session_state["prefill_N_kN"] = float(N_case)
             st.session_state["prefill_My_kNm"] = float(My_case)
@@ -579,13 +606,17 @@ def render_ready_cases_panel():
             st.session_state["prefill_Vy_kN"] = float(Vy_case)
             st.session_state["prefill_Vz_kN"] = float(Vz_case)
 
+            # Use L or L1 as element length if present
             if "L" in input_vals:
                 st.session_state["case_L"] = float(input_vals["L"])
             elif "L1" in input_vals:
                 st.session_state["case_L"] = float(input_vals["L1"])
 
-            st.success("Case applied. Now scroll down to Loads form and click Run check.")
+            # Store for diagrams
+            st.session_state["ready_selected_case"] = selected_case
+            st.session_state["ready_input_vals"] = input_vals
 
+            st.success("Case applied. Now go to Loads tab and click Run check.")
 
 # =========================================================
 # UI RENDERERS
@@ -1497,3 +1528,4 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
