@@ -462,7 +462,7 @@ READY_CATALOG = {
 
 
 # ---- Patch Case 1 of Simply Supported Beams to real UDL formulas ----
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["label"] = "SSB -  UDL"
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["label"] = "SSB -  C1"
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["inputs"] = {"L": 6.0, "w": 10.0}
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["func"] = ss_udl_case
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["diagram_func"] = ss_udl_diagram
@@ -1888,6 +1888,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
