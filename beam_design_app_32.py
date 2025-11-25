@@ -615,6 +615,19 @@ def render_ready_cases_panel():
             # Store for diagrams
             st.session_state["ready_selected_case"] = selected_case
             st.session_state["ready_input_vals"] = input_vals
+            
+        # -------------------------------------------------
+        # Beam diagrams (V, M, deflection) – if available
+        # -------------------------------------------------
+        if chosen_type == "Beam":
+            sel_case = st.session_state.get("ready_selected_case")
+            vals = st.session_state.get("ready_input_vals")
+            sr_display = st.session_state.get("sr_display")
+
+            # Only draw if we have everything and a diag_func
+            if sel_case and vals and sr_display and sel_case.get("diag_func"):
+                st.markdown("### Beam diagrams (V, M, deflection)")
+                render_beam_diagrams_panel(sel_case, vals, sr_display)
 
             st.success("Case applied. Now go to Loads tab and click Run check.")
 
@@ -1538,5 +1551,6 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
