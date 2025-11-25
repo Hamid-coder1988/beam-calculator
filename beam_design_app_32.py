@@ -1869,9 +1869,7 @@ with tab3:
 
             render_results(df_rows, overall_ok, governing)
 
-            with st.expander("Engineer debug (raw DB row & intermediate values)", expanded=False):
-                st.json(sr_display)
-                st.write(extras)
+
 
         except Exception as e:
             st.error(f"Computation error: {e}")
@@ -1890,5 +1888,6 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
