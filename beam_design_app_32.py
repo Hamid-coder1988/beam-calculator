@@ -575,39 +575,55 @@ def render_ready_cases_panel():
         render_beam_diagrams_panel()
 
         if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
-            func = selected_case.get("func", dummy_case_func)
-            try:
-                args = [input_vals[k] for k in selected_case["inputs"].keys()]
-                # generic result from the case
-                N_case, M_generic, _, V_generic, _ = func(*args)
-            except Exception:
-                N_case, M_generic, V_generic = 0.0, 0.0, 0.0
 
-            # save axis choice for later (diagrams & deflection)
-            st.session_state["bending_axis"] = "y" if axis_choice.startswith("Strong") else "z"
+    func = selected_case.get("func", dummy_case_func)
 
-            # Map generic M, V to My/Mz and Vy/Vz based on bending axis
-            if st.session_state["bending_axis"] == "y":
-                My_case, Mz_case = M_generic, 0.0
-                Vy_case, Vz_case = V_generic, 0.0
-            else:
-                My_case, Mz_case = 0.0, M_generic
-                Vy_case, Vz_case = 0.0, V_generic
+    try:
+        args = [input_vals[k] for k in selected_case["inputs"].keys()]
+        # generic response from the ready-case function
+        N_case, M_generic, _, V_generic, _ = func(*args)
+    except Exception:
+        N_case, M_generic, V_generic = 0.0, 0.0, 0.0
 
-            st.session_state["prefill_from_case"] = True
-            st.session_state["prefill_N_kN"] = float(N_case)
-            st.session_state["prefill_My_kNm"] = float(My_case)
-            st.session_state["prefill_Mz_kNm"] = float(Mz_case)
-            st.session_state["prefill_Vy_kN"] = float(Vy_case)
-            st.session_state["prefill_Vz_kN"] = float(Vz_case)
+    # -----------------------------------------
+    # NEW — store axis choice
+    # -----------------------------------------
+    axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
+    st.session_state["bending_axis"] = (
+        "y" if axis_choice.startswith("Strong") else "z"
+    )
 
-            if "L" in input_vals:
-                st.session_state["case_L"] = float(input_vals["L"])
-            elif "L1" in input_vals:
-                st.session_state["case_L"] = float(input_vals["L1"])
+    # -----------------------------------------
+    # NEW — map M and V to My/Mz and Vy/Vz
+    # -----------------------------------------
+    if st.session_state["bending_axis"] == "y":
+        My_case = M_generic
+        Mz_case = 0.0
+        Vy_case = V_generic
+        Vz_case = 0.0
+    else:
+        My_case = 0.0
+        Mz_case = M_generic
+        Vy_case = 0.0
+        Vz_case = V_generic
 
-            st.success("Case applied. Now scroll down to Loads form and click Run check.")
-)
+    # -----------------------------------------
+    # Save to session state
+    # -----------------------------------------
+    st.session_state["prefill_from_case"] = True
+    st.session_state["prefill_N_kN"] = float(N_case)
+    st.session_state["prefill_My_kNm"] = float(My_case)
+    st.session_state["prefill_Mz_kNm"] = float(Mz_case)
+    st.session_state["prefill_Vy_kN"] = float(Vy_case)
+    st.session_state["prefill_Vz_kN"] = float(Vz_case)
+
+    if "L" in input_vals:
+        st.session_state["case_L"] = float(input_vals["L"])
+    elif "L1" in input_vals:
+        st.session_state["case_L"] = float(input_vals["L1"])
+
+    st.success("Case applied. Now scroll down to Loads form and click Run check.")
+
 
 
 # =========================================================
@@ -1535,6 +1551,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
