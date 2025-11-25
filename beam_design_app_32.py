@@ -411,6 +411,126 @@ def ss_central_point_deflection_max(L, P, E, I):
     P_N = P * 1000.0
     return P_N * L**3 / (48.0 * E * I)
 
+# ============================
+# CASE 3: SSB-C1
+# Simply supported beam, 2 unequal point loads + partial UDL
+# ============================
+
+def ssb_c1_diagram(L, P1, a1, P2, a2, w, a_udl, b_udl, E=None, I=None, n=801):
+    """
+    Simply supported beam with:
+      - Point load P1 at x = a1
+      - Point load P2 at x = a2
+      - Partial UDL of intensity w from x = a_udl to x = a_udl + b_udl
+
+    Units:
+      L, a1, a2, a_udl, b_udl in m
+      P1, P2 in kN
+      w in kN/m
+      E in Pa, I in m^4
+
+    Returns:
+      x (m), V (kN), M (kN·m), delta (m or None if E/I not given)
+    """
+    L = float(L)
+    P1 = float(P1)
+    P2 = float(P2)
+    w = float(w)
+    a1 = float(a1)
+    a2 = float(a2)
+    a_udl = float(a_udl)
+    b_udl = float(b_udl)
+
+    # clamp UDL to the span
+    udl_start = max(0.0, a_udl)
+    udl_end = min(L, a_udl + b_udl)
+    b_eff = max(0.0, udl_end - udl_start)
+
+    # x grid
+    x = np.linspace(0.0, L, n)
+
+    # ------------------
+    # Reactions R1, R2
+    # ------------------
+    W_udl = w * b_eff  # kN
+    if b_eff > 0.0:
+        x_udl_c = udl_start + b_eff / 2.0
+    else:
+        x_udl_c = 0.0
+
+    M_total = P1 * a1 + P2 * a2 + W_udl * x_udl_c
+    R1 = M_total / L
+    R2 = P1 + P2 + W_udl - R1
+
+    # ------------------
+    # Shear V(x)
+    # ------------------
+    V = np.full_like(x, R1, dtype=float)
+
+    # subtract point loads when x >= their positions
+    V = V - P1 * (x >= a1) - P2 * (x >= a2)
+
+    # UDL contribution
+    if b_eff > 0.0:
+        mask1 = (x >= udl_start) & (x <= udl_end)
+        mask2 = (x > udl_end)
+
+        V[mask1] -= w * (x[mask1] - udl_start)
+        V[mask2] -= w * b_eff
+
+    # ------------------
+    # Moment M(x)
+    # ------------------
+    M = R1 * x
+    M -= P1 * np.clip(x - a1, 0.0, None)
+    M -= P2 * np.clip(x - a2, 0.0, None)
+
+    if b_eff > 0.0:
+        M_udl = np.zeros_like(x)
+        # within UDL region
+        mask1 = (x >= udl_start) & (x <= udl_end)
+        M_udl[mask1] = w * (x[mask1] - udl_start)**2 / 2.0
+        # to the right of UDL
+        mask2 = (x > udl_end)
+        M_udl[mask2] = w * b_eff * (x[mask2] - (udl_start + b_eff / 2.0))
+        M -= M_udl
+
+    # ------------------
+    # Deflection δ(x) via numeric double integration of M/EI
+    # ------------------
+    delta = None
+    if E and I and I > 0 and L > 0:
+        M_Nm = M * 1000.0  # kN·m -> N·m
+        curvature = M_Nm / (E * I)  # 1/m
+
+        dx = np.diff(x)
+        theta = np.zeros_like(x)
+        delta_raw = np.zeros_like(x)
+
+        # integrate curvature -> slope
+        for i in range(len(x) - 1):
+            theta[i+1] = theta[i] + 0.5 * (curvature[i] + curvature[i+1]) * dx[i]
+
+        # integrate slope -> deflection
+        for i in range(len(x) - 1):
+            delta_raw[i+1] = delta_raw[i] + 0.5 * (theta[i] + theta[i+1]) * dx[i]
+
+        # enforce simply supported: δ(0) = δ(L) = 0
+        delta = delta_raw - (x / L) * delta_raw[-1]
+
+    return x, V, M, delta
+
+
+def ssb_c1_case(L, P1, a1, P2, a2, w, a_udl, b_udl):
+    """
+    Case function for SSB-C1 used to prefill Loads tab.
+    Returns (N, My, Mz, Vy, Vz) maxima (strong axis).
+    """
+    x, V, M, _ = ssb_c1_diagram(L, P1, a1, P2, a2, w, a_udl, b_udl, E=None, I=None)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
 
 def dummy_case_func(*args, **kwargs):
     return (0.0, 0.0, 0.0, 0.0, 0.0)
@@ -468,10 +588,25 @@ READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["func"] = ss_udl_ca
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["diagram_func"] = ss_udl_diagram
 
 # ---- Patch Case 2 of Simply Supported Beams: central point load ----
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["label"] = "SSB-CLAC"
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["label"] = "SSB -  C2"
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["inputs"] = {"L": 6.0, "P": 20.0}
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["func"] = ss_central_point_case
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["diagram_func"] = ss_central_point_diagram
+
+# ---- Patch Case 3 of Simply Supported Beams: SSB-C1 (2P + partial UDL) ----
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["label"] = "SSB - C3"
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["inputs"] = {
+    "L": 6.0,
+    "P1": 50.0,
+    "a1": 2.0,
+    "P2": 30.0,
+    "a2": 4.0,
+    "w": 10.0,
+    "a_udl": 1.5,
+    "b_udl": 3.0,
+}
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["func"] = ssb_c1_case
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["diagram_func"] = ssb_c1_diagram
 
 
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
@@ -1888,6 +2023,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
