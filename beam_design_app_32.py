@@ -574,19 +574,19 @@ def render_ready_cases_panel():
         # >>> SHOW DIAGRAMS RIGHT HERE <<<
         render_beam_diagrams_panel()
 
-        if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
+if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
 
+    # Get the function for this case
     func = selected_case.get("func", dummy_case_func)
 
     try:
         args = [input_vals[k] for k in selected_case["inputs"].keys()]
-        # generic response from the ready-case function
         N_case, M_generic, _, V_generic, _ = func(*args)
     except Exception:
         N_case, M_generic, V_generic = 0.0, 0.0, 0.0
 
     # -----------------------------------------
-    # NEW — store axis choice
+    # NEW — get axis choice (stored by radio button)
     # -----------------------------------------
     axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
     st.session_state["bending_axis"] = (
@@ -594,7 +594,7 @@ def render_ready_cases_panel():
     )
 
     # -----------------------------------------
-    # NEW — map M and V to My/Mz and Vy/Vz
+    # NEW — Map M and V to My/Mz and Vy/Vz
     # -----------------------------------------
     if st.session_state["bending_axis"] == "y":
         My_case = M_generic
@@ -608,7 +608,7 @@ def render_ready_cases_panel():
         Vz_case = V_generic
 
     # -----------------------------------------
-    # Save to session state
+    # Save values to session_state
     # -----------------------------------------
     st.session_state["prefill_from_case"] = True
     st.session_state["prefill_N_kN"] = float(N_case)
@@ -622,8 +622,7 @@ def render_ready_cases_panel():
     elif "L1" in input_vals:
         st.session_state["case_L"] = float(input_vals["L1"])
 
-    st.success("Case applied. Now scroll down to Loads form and click Run check.")
-
+    st.success("Case applied. Scroll down to Loads tab and run check.")
 
 
 # =========================================================
@@ -1551,6 +1550,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
