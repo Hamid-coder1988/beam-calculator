@@ -548,6 +548,18 @@ def render_ready_cases_panel():
         selected_case = next(c for c in current_cases if c["key"] == case_key)
 
         st.markdown(f"**Selected:** {selected_case['key']} — {selected_case['label']}")
+        
+        # Choose bending axis for this beam case
+        if chosen_type == "Beam":
+            axis_choice = st.radio(
+                "Bending axis for this case",
+                ["Strong axis (y)", "Weak axis (z)"],
+                horizontal=True,
+                key=f"axis_choice_{case_key}"
+            )
+        else:
+            # Frames: just keep strong axis convention
+            axis_choice = "Strong axis (y)"
 
         input_vals = {}
         for k, v in selected_case.get("inputs", {}).items():
@@ -1497,3 +1509,4 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
