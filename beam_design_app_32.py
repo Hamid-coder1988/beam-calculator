@@ -1402,34 +1402,23 @@ def render_beam_diagrams_panel():
     st.markdown("### Diagram-based summary")
 
     # ---- Deflection summary ----
+        # ---- Deflection summary ----
     if summary.get("defl_available"):
+        # First line: ONLY maximum deflection (same box style)
         r1c1, r1c2, r1c3 = st.columns(3)
         with r1c1:
-            st.number_input(
-                "Span L (m)",
-                value=float(L_val),
-                disabled=True,
-                key="diag_L"
-            )
-        with r1c2:
             st.number_input(
                 "Maximum deflection δ_max (mm)",
                 value=float(summary["w_max_mm"]),
                 disabled=True,
                 key="diag_dmax"
             )
+        with r1c2:
+            st.empty()
         with r1c3:
-            if summary.get("limit_L300"):
-                ratio300 = abs(summary["w_max_mm"]) / summary["limit_L300"]
-            else:
-                ratio300 = 0.0
-            st.number_input(
-                "δ_max / (L/300)",
-                value=float(ratio300),
-                disabled=True,
-                key="diag_ratio300"
-            )
+            st.empty()
 
+        # Second line: L/300, L/600, L/900 (mm)
         r2c1, r2c2, r2c3 = st.columns(3)
         with r2c1:
             st.number_input(
@@ -1456,7 +1445,13 @@ def render_beam_diagrams_panel():
         st.info("Deflection summary not available: missing section inertia or deflection formula.")
 
     # ---- Internal forces summary ----
-    st.markdown("#### Internal forces summary (from diagrams)")
+    st.markdown(
+    "<div style='font-size:0.9rem;font-weight:600;margin-top:0.3rem;'>"
+    "Internal forces summary (from diagrams)"
+    "</div>",
+    unsafe_allow_html=True
+)
+
     f1, f2, f3, f4 = st.columns(4)
 
     with f1:
@@ -1883,6 +1878,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
