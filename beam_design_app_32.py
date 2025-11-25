@@ -703,13 +703,23 @@ def render_ready_cases_panel():
             # Frames: just keep strong axis convention
             axis_choice = "Strong axis (y)"
 
+        # Arrange case inputs in rows of 3 per line
         input_vals = {}
-        for k, v in selected_case.get("inputs", {}).items():
-            input_vals[k] = st.number_input(
-                k,
-                value=float(v),
-                key=f"ready_param_{case_key}_{k}"
-            )
+        inputs_dict = selected_case.get("inputs", {})
+        keys = list(inputs_dict.keys())
+
+        for i in range(0, len(keys), 3):
+            row_keys = keys[i:i+3]
+            cols = st.columns(3)
+            for col, k in zip(cols, row_keys):
+                with col:
+                    v = inputs_dict[k]
+                    input_vals[k] = st.number_input(
+                        k,
+                        value=float(float(v)),
+                        key=f"ready_param_{case_key}_{k}"
+                    )
+
 
         # Store selection + inputs for diagrams
         st.session_state["ready_selected_case"] = selected_case
@@ -2023,6 +2033,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
