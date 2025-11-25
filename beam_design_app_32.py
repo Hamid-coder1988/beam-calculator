@@ -549,6 +549,16 @@ def render_ready_cases_panel():
 
         st.markdown(f"**Selected:** {selected_case['key']} — {selected_case['label']}")
 
+        # NEW: which bending axis this case represents
+        axis_choice = st.radio(
+            "Bending axis for this case",
+            ["Strong axis (y)", "Weak axis (z)"],
+            horizontal=True,
+            key=f"axis_choice_{case_key}"
+        )
+
+
+        
         input_vals = {}
         for k, v in selected_case.get("inputs", {}).items():
             input_vals[k] = st.number_input(
@@ -1497,6 +1507,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
