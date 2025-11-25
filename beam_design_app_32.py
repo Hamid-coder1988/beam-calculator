@@ -1833,11 +1833,6 @@ with tab1:
         with st.expander("Section properties (from DB — read only)", expanded=False):
             render_section_properties_readonly(sr_display, key_prefix="tab1_db")
 
-        if bad_fields:
-            st.warning("Some DB numeric fields were not parsed cleanly. See debug in Results tab.")
-    else:
-        st.info("Select a DB section to continue.")
-
 with tab2:
     sr_display = st.session_state.get("sr_display", None)
     if sr_display is None:
@@ -1888,6 +1883,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
