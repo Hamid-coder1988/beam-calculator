@@ -431,14 +431,22 @@ def make_cases(prefix, n, default_inputs):
 
 READY_CATALOG = {
     "Beam": {
-        "Simply Supported Beams (13 cases)": make_cases("SS", 13, {"L": 6.0, "w": 10.0}),
-        "Beams Fixed at one end (3 cases)": make_cases("FE", 3, {"L": 6.0, "w": 10.0}),
-        "Beams Fixed at both ends (3 cases)": make_cases("FB", 3, {"L": 6.0, "w": 10.0}),
-        "Cantilever Beams (6 cases)": make_cases("C", 6, {"L": 3.0, "w": 10.0}),
-        "Beams with Overhang (6 cases)": make_cases("OH", 6, {"L": 6.0, "a": 1.5, "w": 10.0}),
-        "Continuous Beams — Two Spans / Three Supports (7 cases)": make_cases("CS2", 7, {"L1": 4.0, "L2": 4.0, "w": 10.0}),
-        "Continuous Beams — Three Spans / Four Supports (3 cases)": make_cases("CS3", 3, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "w": 10.0}),
-        "Continuous Beams — Four Spans / Five Supports (3 cases)": make_cases("CS4", 3, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "L4": 4.0, "w": 10.0}),
+        # Category 1: 5 cases
+        "Simply Supported Beams (5 cases)": make_cases("SS", 5, {"L": 6.0, "w": 10.0}),
+        # Category 2: 1 case
+        "Beams Fixed at one end (1 case)": make_cases("FE", 1, {"L": 6.0, "w": 10.0}),
+        # Category 3: 1 case
+        "Beams Fixed at both ends (1 case)": make_cases("FB", 1, {"L": 6.0, "w": 10.0}),
+        # Category 4: 2 cases
+        "Cantilever Beams (2 cases)": make_cases("C", 2, {"L": 3.0, "w": 10.0}),
+        # Category 5: 3 cases
+        "Beams with Overhang (3 cases)": make_cases("OH", 3, {"L": 6.0, "a": 1.5, "w": 10.0}),
+        # Category 6: 2 cases
+        "Continuous Beams — Two Spans / Three Supports (2 cases)": make_cases("CS2", 2, {"L1": 4.0, "L2": 4.0, "w": 10.0}),
+        # Category 7: 1 case
+        "Continuous Beams — Three Spans / Four Supports (1 case)": make_cases("CS3", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "w": 10.0}),
+        # Category 8: 1 case
+        "Continuous Beams — Four Spans / Five Supports (1 case)": make_cases("CS4", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "L4": 4.0, "w": 10.0}),
     },
     "Frame": {
         "Three Member Frames (Pin / Roller) (8 cases)": make_cases("FR3PR", 8, {"L": 4.0, "H": 3.0, "P": 10.0}),
@@ -452,17 +460,19 @@ READY_CATALOG = {
     }
 }
 
+
 # ---- Patch Case 1 of Simply Supported Beams to real UDL formulas ----
-READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["label"] = "SSB -  UDL"
-READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["inputs"] = {"L": 6.0, "w": 10.0}
-READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["func"] = ss_udl_case
-READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][0]["diagram_func"] = ss_udl_diagram
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["label"] = "SSB -  UDL"
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["inputs"] = {"L": 6.0, "w": 10.0}
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["func"] = ss_udl_case
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["diagram_func"] = ss_udl_diagram
 
 # ---- Patch Case 2 of Simply Supported Beams: central point load ----
-READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][1]["label"] = "SSB-CLAC"
-READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][1]["inputs"] = {"L": 6.0, "P": 20.0}
-READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][1]["func"] = ss_central_point_case
-READY_CATALOG["Beam"]["Simply Supported Beams (13 cases)"][1]["diagram_func"] = ss_central_point_diagram
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["label"] = "SSB-CLAC"
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["inputs"] = {"L": 6.0, "P": 20.0}
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["func"] = ss_central_point_case
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["diagram_func"] = ss_central_point_diagram
+
 
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
     cases = READY_CATALOG[chosen_type][chosen_cat]
@@ -1878,6 +1888,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
