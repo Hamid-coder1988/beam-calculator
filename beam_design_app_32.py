@@ -650,7 +650,7 @@ def render_project_data():
             position = st.text_input("Position / Location (Beam ID)", value="", key="position_in")
             requested_by = st.text_input("Requested by", value="", key="requested_by_in")
         with meta_col3:
-            revision = st.text_input("Revision", value="0.1", key="revision_in")
+            revision = st.text_input("Revision", value="A", key="revision_in")
             run_date = st.date_input("Date", value=date.today(), key="run_date_in")
     st.markdown("---")
     return doc_name, project_name, position, requested_by, revision, run_date
@@ -1544,6 +1544,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
