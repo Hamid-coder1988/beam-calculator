@@ -1348,9 +1348,9 @@ def get_beam_summary_for_diagrams(x, V, M, delta, L):
 
 def render_beam_diagrams_panel():
     """
-    Draw V(x) and M(x) side-by-side.
-    Show δ_max and diagram-based summary above/below diagrams.
-    Deflection δ(x) is optional via checkbox.
+    Draw V(x) and M(x) diagrams.
+    Show deflection and internal force summaries ABOVE the diagrams
+    in the same 'box' style as other inputs.
     """
     selected_case = st.session_state.get("ready_selected_case")
     input_vals = st.session_state.get("ready_input_vals")
@@ -1396,50 +1396,108 @@ def render_beam_diagrams_panel():
     # ---- Summary from diagrams (δ_max, M_max, shear, reactions) ----
     summary = get_beam_summary_for_diagrams(x, V, M, delta, L_val)
 
-    # ---- Show max deflection ABOVE diagrams ----
+    # =====================================================
+    # SUMMARY BLOCKS ABOVE DIAGRAMS (box style like inputs)
+    # =====================================================
+    st.markdown("### Diagram-based summary")
+
+    # ---- Deflection summary ----
     if summary.get("defl_available"):
-        st.markdown("### Deflection summary from diagram")
-
-        c1, c2, c3, c4 = st.columns(4)
-
-        with c1:
-            st.metric(
-                "δ_max [mm]",
-                f"{summary['w_max_mm']:.3f}"
+        r1c1, r1c2, r1c3 = st.columns(3)
+        with r1c1:
+            st.number_input(
+                "Span L (m)",
+                value=float(L_val),
+                disabled=True,
+                key="diag_L"
             )
-            st.caption(f"at x = {summary['x_defl_max']:.3f} m")
-
-        with c2:
+        with r1c2:
+            st.number_input(
+                "Maximum deflection δ_max (mm)",
+                value=float(summary["w_max_mm"]),
+                disabled=True,
+                key="diag_dmax"
+            )
+        with r1c3:
             if summary.get("limit_L300"):
                 ratio300 = abs(summary["w_max_mm"]) / summary["limit_L300"]
-                st.metric("Limit L/300 [mm]", f"{summary['limit_L300']:.2f}")
-                st.caption(f"δ_max / (L/300) = {ratio300:.2f}")
             else:
-                st.write("L/300: n/a")
+                ratio300 = 0.0
+            st.number_input(
+                "δ_max / (L/300)",
+                value=float(ratio300),
+                disabled=True,
+                key="diag_ratio300"
+            )
 
-        with c3:
-            if summary.get("limit_L600"):
-                ratio600 = abs(summary["w_max_mm"]) / summary["limit_L600"]
-                st.metric("Limit L/600 [mm]", f"{summary['limit_L600']:.2f}")
-                st.caption(f"δ_max / (L/600) = {ratio600:.2f}")
-            else:
-                st.write("L/600: n/a")
-
-        with c4:
-            if summary.get("limit_L900"):
-                ratio900 = abs(summary["w_max_mm"]) / summary["limit_L900"]
-                st.metric("Limit L/900 [mm]", f"{summary['limit_L900']:.2f}")
-                st.caption(f"δ_max / (L/900) = {ratio900:.2f}")
-            else:
-                st.write("L/900: n/a")
+        r2c1, r2c2, r2c3 = st.columns(3)
+        with r2c1:
+            st.number_input(
+                "Limit L/300 (mm)",
+                value=float(summary["limit_L300"]) if summary.get("limit_L300") else 0.0,
+                disabled=True,
+                key="diag_L300"
+            )
+        with r2c2:
+            st.number_input(
+                "Limit L/600 (mm)",
+                value=float(summary["limit_L600"]) if summary.get("limit_L600") else 0.0,
+                disabled=True,
+                key="diag_L600"
+            )
+        with r2c3:
+            st.number_input(
+                "Limit L/900 (mm)",
+                value=float(summary["limit_L900"]) if summary.get("limit_L900") else 0.0,
+                disabled=True,
+                key="diag_L900"
+            )
     else:
-        st.caption("δ_max not available for this case (no deflection results for given I/E).")
+        st.info("Deflection summary not available: missing section inertia or deflection formula.")
 
-    # ---- V(x) and M(x) side-by-side ----
+    # ---- Internal forces summary ----
+    st.markdown("#### Internal forces summary (from diagrams)")
+    f1, f2, f3, f4 = st.columns(4)
+
+    with f1:
+        st.number_input(
+            "Maximum bending moment M_max (kN·m)",
+            value=float(summary["M_max"]) if summary.get("M_max") is not None else 0.0,
+            disabled=True,
+            key="diag_Mmax"
+        )
+    with f2:
+        st.number_input(
+            "Shear at M_max, V(x_Mmax) (kN)",
+            value=float(summary["V_at_Mmax"]) if summary.get("V_at_Mmax") is not None else 0.0,
+            disabled=True,
+            key="diag_VatMmax"
+        )
+    with f3:
+        st.number_input(
+            "Left reaction R_A (kN)",
+            value=float(summary["R_left"]) if summary.get("R_left") is not None else 0.0,
+            disabled=True,
+            key="diag_Rleft"
+        )
+    with f4:
+        st.number_input(
+            "Right reaction R_B (kN)",
+            value=float(summary["R_right"]) if summary.get("R_right") is not None else 0.0,
+            disabled=True,
+            key="diag_Rright"
+        )
+
+    # =====================================================
+    # DIAGRAMS (labels with smaller font)
+    # =====================================================
     colV, colM = st.columns(2)
 
     with colV:
-        st.markdown("#### Shear force diagram V(x)")
+        st.markdown(
+            "<div style='font-size:0.9rem;font-weight:600;'>Shear force diagram V(x)</div>",
+            unsafe_allow_html=True
+        )
         fig1, ax1 = plt.subplots()
         ax1.plot(x, V)
         ax1.axhline(0, linewidth=1)
@@ -1449,7 +1507,10 @@ def render_beam_diagrams_panel():
         st.pyplot(fig1)
 
     with colM:
-        st.markdown("#### Bending moment diagram M(x)")
+        st.markdown(
+            "<div style='font-size:0.9rem;font-weight:600;'>Bending moment diagram M(x)</div>",
+            unsafe_allow_html=True
+        )
         fig2, ax2 = plt.subplots()
         ax2.plot(x, M)
         ax2.axhline(0, linewidth=1)
@@ -1467,7 +1528,10 @@ def render_beam_diagrams_panel():
         else:
             colD, colEmpty = st.columns(2)
             with colD:
-                st.markdown("#### Deflection diagram δ(x)")
+                st.markdown(
+                    "<div style='font-size:0.9rem;font-weight:600;'>Deflection diagram δ(x)</div>",
+                    unsafe_allow_html=True
+                )
                 fig3, ax3 = plt.subplots()
                 ax3.plot(x, delta * 1000.0)  # m -> mm
                 ax3.axhline(0, linewidth=1)
@@ -1477,37 +1541,6 @@ def render_beam_diagrams_panel():
                 st.pyplot(fig3)
             with colEmpty:
                 st.empty()
-
-    # ---- Internal forces summary UNDER diagrams ----
-    st.markdown("### Internal forces summary from diagrams")
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-        if summary.get("M_max") is not None:
-            st.metric("M_max [kN·m]", f"{summary['M_max']:.3f}")
-            st.caption(f"at x = {summary['x_M_max']:.3f} m")
-        else:
-            st.write("M_max: n/a")
-
-    with c2:
-        if summary.get("V_at_Mmax") is not None:
-            st.metric("V at M_max [kN]", f"{summary['V_at_Mmax']:.3f}")
-        else:
-            st.write("V at M_max: n/a")
-
-    with c3:
-        if summary.get("R_left") is not None:
-            st.metric("Left reaction R_A [kN]", f"{summary['R_left']:.3f}")
-        else:
-            st.write("R_A: n/a")
-
-    with c4:
-        if summary.get("R_right") is not None:
-            st.metric("Right reaction R_B [kN]", f"{summary['R_right']:.3f}")
-        else:
-            st.write("R_B: n/a")
-
 
 # =========================================================
 # REPORT TAB UPGRADES + PDF
@@ -1857,3 +1890,4 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
