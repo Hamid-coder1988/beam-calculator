@@ -851,19 +851,47 @@ def build_section_display(selected_row):
     return sr_display, bad_fields
 
 def render_section_summary_like_props(material, sr_display, key_prefix="sum"):
-    fy = material_to_fy(material)
     st.markdown("### Selected section summary")
 
     s1, s2, s3 = st.columns(3)
-    s1.text_input("Material", value=material, disabled=True, key=f"{key_prefix}_mat")
-    s2.text_input("fy (MPa)", value=f"{fy:.0f}", disabled=True, key=f"{key_prefix}_fy")
-    s3.text_input("Family / Type", value=str(sr_display.get("family", "")), disabled=True, key=f"{key_prefix}_fam")
+    s1.number_input(
+        "m (kg/m)",
+        value=float(sr_display.get("m_kg_per_m", 0.0)),
+        disabled=True,
+        key=f"{key_prefix}_m"
+    )
+    s2.number_input(
+        "Iy (cm⁴)",
+        value=float(sr_display.get("Iy_cm4", 0.0)),
+        disabled=True,
+        key=f"{key_prefix}_Iy"
+    )
+    s3.number_input(
+        "Iz (cm⁴)",
+        value=float(sr_display.get("Iz_cm4", 0.0)),
+        disabled=True,
+        key=f"{key_prefix}_Iz"
+    )
 
     s4, s5, s6 = st.columns(3)
-    s4.text_input("Size", value=str(sr_display.get("name", "")), disabled=True, key=f"{key_prefix}_size")
-    s5.number_input("A (cm²)", value=float(sr_display.get("A_cm2", 0.0)), disabled=True, key=f"{key_prefix}_A")
-    s6.number_input("c_max (mm)", value=float(sr_display.get("c_max_mm", 0.0)), disabled=True, key=f"{key_prefix}_c")
-
+    s4.number_input(
+        "Wel,y (cm³)",
+        value=float(sr_display.get("Wel_y_cm3", 0.0)),
+        disabled=True,
+        key=f"{key_prefix}_Wel_y"
+    )
+    s5.number_input(
+        "Wel,z (cm³)",
+        value=float(sr_display.get("Wel_z_cm3", 0.0)),
+        disabled=True,
+        key=f"{key_prefix}_Wel_z"
+    )
+    s6.number_input(
+        "It (cm⁴)",
+        value=float(sr_display.get("It_cm4", 0.0)),
+        disabled=True,
+        key=f"{key_prefix}_It"
+    )
 
 def render_section_properties_readonly(sr_display, key_prefix="db"):
     c1, c2, c3 = st.columns(3)
@@ -1655,6 +1683,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
