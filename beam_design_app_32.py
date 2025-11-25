@@ -578,9 +578,21 @@ def render_ready_cases_panel():
             func = selected_case.get("func", dummy_case_func)
             try:
                 args = [input_vals[k] for k in selected_case["inputs"].keys()]
-                N_case, My_case, Mz_case, Vy_case, Vz_case = func(*args)
+                # generic result from the case
+                N_case, M_generic, _, V_generic, _ = func(*args)
             except Exception:
-                N_case, My_case, Mz_case, Vy_case, Vz_case = 0.0, 0.0, 0.0, 0.0, 0.0
+                N_case, M_generic, V_generic = 0.0, 0.0, 0.0
+
+            # save axis choice for later (diagrams & deflection)
+            st.session_state["bending_axis"] = "y" if axis_choice.startswith("Strong") else "z"
+
+            # Map generic M, V to My/Mz and Vy/Vz based on bending axis
+            if st.session_state["bending_axis"] == "y":
+                My_case, Mz_case = M_generic, 0.0
+                Vy_case, Vz_case = V_generic, 0.0
+            else:
+                My_case, Mz_case = 0.0, M_generic
+                Vy_case, Vz_case = 0.0, V_generic
 
             st.session_state["prefill_from_case"] = True
             st.session_state["prefill_N_kN"] = float(N_case)
@@ -595,6 +607,7 @@ def render_ready_cases_panel():
                 st.session_state["case_L"] = float(input_vals["L1"])
 
             st.success("Case applied. Now scroll down to Loads form and click Run check.")
+)
 
 
 # =========================================================
@@ -1507,6 +1520,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
