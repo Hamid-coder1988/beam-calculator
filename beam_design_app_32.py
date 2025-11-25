@@ -296,7 +296,6 @@ def pick(d, *keys, default=None):
                     return v
     return default
 
-
 # =========================================================
 # GENERAL HELPERS
 # =========================================================
@@ -330,7 +329,6 @@ def ss_udl_case(L, w):
     Vmax = w * L / 2.0      # kN
     return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
 
-
 def ss_udl_diagram(L, w, E=None, I=None, n=200):
     """
     Returns x (m), V (kN), M (kN·m), delta (m) for SSB-UDL.
@@ -350,7 +348,6 @@ def ss_udl_diagram(L, w, E=None, I=None, n=200):
         delta = (w_Nm * x / (24.0 * E * I)) * (L**3 - 2*L*x**2 + x**3)  # m
 
     return x, V, M, delta
-
 
 def ss_udl_deflection_max(L, w, E, I):
     """
@@ -1030,7 +1027,6 @@ def render_loads_form(family_for_torsion: str):
 
     return torsion_supported
 
-
 # =========================================================
 # COMPUTATION CORE
 # =========================================================
@@ -1213,7 +1209,6 @@ def render_results(df_rows, overall_ok, governing):
 
     st.write(df_rows.style.apply(highlight_row, axis=1))
 
-
 # =========================================================
 # DIAGRAM GENERATION (Beam only for now)
 # =========================================================
@@ -1279,10 +1274,82 @@ def get_beam_diagrams_for_case(case_key: str, input_vals: dict):
 
     return None, None, None, "Diagram not implemented yet for this category."
 
+def get_beam_summary_for_diagrams(x, V, M, delta, L):
+    """
+    From diagram arrays, extract:
+      - max deflection and its location
+      - comparison vs L/300, L/600, L/900
+      - max bending moment and location
+      - shear at the max-moment location
+      - support reactions (from ends of V)
+    Units:
+      x in m, V in kN, M in kN·m, delta in m, L in m
+    """
+    summary = {}
+
+    # ---- Max deflection ----
+    if delta is None:
+        summary["defl_available"] = False
+    else:
+        try:
+            idx_defl_max = int(np.nanargmax(np.abs(delta)))
+            w_max_m = float(delta[idx_defl_max])
+            x_defl_max = float(x[idx_defl_max])
+            summary["defl_available"] = True
+            summary["w_max_m"] = w_max_m
+            summary["w_max_mm"] = w_max_m * 1000.0
+            summary["x_defl_max"] = x_defl_max
+
+            L_mm = float(L) * 1000.0 if L else (float(x[-1] - x[0]) * 1000.0)
+            summary["limit_L300"] = L_mm / 300.0 if L_mm > 0 else None
+            summary["limit_L600"] = L_mm / 600.0 if L_mm > 0 else None
+            summary["limit_L900"] = L_mm / 900.0 if L_mm > 0 else None
+        except Exception:
+            summary["defl_available"] = False
+
+    # ---- Max bending moment ----
+    if M is not None:
+        try:
+            idx_M_max = int(np.nanargmax(np.abs(M)))
+            M_max = float(M[idx_M_max])
+            x_M_max = float(x[idx_M_max])
+            summary["M_max"] = M_max
+            summary["x_M_max"] = x_M_max
+            summary["idx_M_max"] = idx_M_max
+        except Exception:
+            summary["M_max"] = None
+    else:
+        summary["M_max"] = None
+
+    # ---- Shear at max-moment location ----
+    if summary.get("M_max") is not None and V is not None:
+        idx_M_max = summary.get("idx_M_max", 0)
+        try:
+            summary["V_at_Mmax"] = float(V[idx_M_max])
+        except Exception:
+            summary["V_at_Mmax"] = None
+    else:
+        summary["V_at_Mmax"] = None
+
+    # ---- Support reactions (approx from ends of V) ----
+    if V is not None and len(V) >= 2:
+        try:
+            summary["R_left"] = float(V[0])          # kN (signed)
+            summary["R_right"] = float(-V[-1])       # kN (signed)
+        except Exception:
+            summary["R_left"] = None
+            summary["R_right"] = None
+    else:
+        summary["R_left"] = None
+        summary["R_right"] = None
+
+    return summary
+
+
 def render_beam_diagrams_panel():
     """
     Draw V(x) and M(x) side-by-side.
-    Show δ_max above diagrams.
+    Show δ_max and diagram-based summary above/below diagrams.
     Deflection δ(x) is optional via checkbox.
     """
     selected_case = st.session_state.get("ready_selected_case")
@@ -1302,8 +1369,7 @@ def render_beam_diagrams_panel():
         st.info("No diagrams yet for this case.")
         return
 
-    # Section stiffness for deflection
-    # Section stiffness for deflection
+    # ---- Section stiffness for deflection ----
     E = 210e9  # Pa
 
     I_y_m4 = float(sr_display.get("I_y_cm4", 0.0)) * 1e-8 if sr_display else 0.0
@@ -1318,20 +1384,56 @@ def render_beam_diagrams_panel():
     if I_m4 <= 0:
         I_m4 = None  # allow V/M but disable deflection if no inertia
 
+    # arguments in the same order as selected_case["inputs"]
     args = [input_vals[k] for k in selected_case["inputs"].keys()]
     x, V, M, delta = diag_func(*args, E=E, I=I_m4)
 
+    # extract L from inputs (fallback to x-range)
+    L_val = float(input_vals.get("L", 0.0))
+    if (not L_val or L_val <= 0.0) and x is not None and len(x) > 1:
+        L_val = float(x[-1] - x[0])
+
+    # ---- Summary from diagrams (δ_max, M_max, shear, reactions) ----
+    summary = get_beam_summary_for_diagrams(x, V, M, delta, L_val)
 
     # ---- Show max deflection ABOVE diagrams ----
-    defl_max_func = selected_case.get("defl_max_func")
-    if defl_max_func and Iy_m4 is not None:
-        try:
-            dmax_m = defl_max_func(*args, E, Iy_m4)
-            st.info(f"Maximum deflection δ_max ≈ **{dmax_m*1000.0:.3f} mm**")
-        except Exception:
-            pass
+    if summary.get("defl_available"):
+        st.markdown("### Deflection summary from diagram")
+
+        c1, c2, c3, c4 = st.columns(4)
+
+        with c1:
+            st.metric(
+                "δ_max [mm]",
+                f"{summary['w_max_mm']:.3f}"
+            )
+            st.caption(f"at x = {summary['x_defl_max']:.3f} m")
+
+        with c2:
+            if summary.get("limit_L300"):
+                ratio300 = abs(summary["w_max_mm"]) / summary["limit_L300"]
+                st.metric("Limit L/300 [mm]", f"{summary['limit_L300']:.2f}")
+                st.caption(f"δ_max / (L/300) = {ratio300:.2f}")
+            else:
+                st.write("L/300: n/a")
+
+        with c3:
+            if summary.get("limit_L600"):
+                ratio600 = abs(summary["w_max_mm"]) / summary["limit_L600"]
+                st.metric("Limit L/600 [mm]", f"{summary['limit_L600']:.2f}")
+                st.caption(f"δ_max / (L/600) = {ratio600:.2f}")
+            else:
+                st.write("L/600: n/a")
+
+        with c4:
+            if summary.get("limit_L900"):
+                ratio900 = abs(summary["w_max_mm"]) / summary["limit_L900"]
+                st.metric("Limit L/900 [mm]", f"{summary['limit_L900']:.2f}")
+                st.caption(f"δ_max / (L/900) = {ratio900:.2f}")
+            else:
+                st.write("L/900: n/a")
     else:
-        st.caption("δ_max not available for this case (missing Iy or formula).")
+        st.caption("δ_max not available for this case (no deflection results for given I/E).")
 
     # ---- V(x) and M(x) side-by-side ----
     colV, colM = st.columns(2)
@@ -1360,25 +1462,51 @@ def render_beam_diagrams_panel():
     show_defl = st.checkbox("Show deflection diagram δ(x)", value=False, key="show_defl_diag")
 
     if show_defl:
-        if delta is None or Iy_m4 is None:
-            st.warning("Deflection diagram not available: missing Iy or case deflection formula.")
-            return
+        if delta is None or I_m4 is None:
+            st.warning("Deflection diagram not available: missing inertia or case deflection formula.")
+        else:
+            colD, colEmpty = st.columns(2)
+            with colD:
+                st.markdown("#### Deflection diagram δ(x)")
+                fig3, ax3 = plt.subplots()
+                ax3.plot(x, delta * 1000.0)  # m -> mm
+                ax3.axhline(0, linewidth=1)
+                ax3.set_xlabel("x (m)")
+                ax3.set_ylabel("δ (mm)")
+                ax3.grid(True)
+                st.pyplot(fig3)
+            with colEmpty:
+                st.empty()
 
-        # same layout as V/M: left column plot, right column empty
-        colD, colEmpty = st.columns(2)
+    # ---- Internal forces summary UNDER diagrams ----
+    st.markdown("### Internal forces summary from diagrams")
 
-        with colD:
-            st.markdown("#### Deflection diagram δ(x)")
-            fig3, ax3 = plt.subplots(figsize=(6, 3.5))  # SAME SIZE as V/M
-            ax3.plot(x, delta * 1000.0)  # mm
-            ax3.axhline(0, linewidth=1)
-            ax3.set_xlabel("x (m)")
-            ax3.set_ylabel("δ (mm)")
-            ax3.grid(True)
-            st.pyplot(fig3)
+    c1, c2, c3, c4 = st.columns(4)
 
-        with colEmpty:
-            st.empty()
+    with c1:
+        if summary.get("M_max") is not None:
+            st.metric("M_max [kN·m]", f"{summary['M_max']:.3f}")
+            st.caption(f"at x = {summary['x_M_max']:.3f} m")
+        else:
+            st.write("M_max: n/a")
+
+    with c2:
+        if summary.get("V_at_Mmax") is not None:
+            st.metric("V at M_max [kN]", f"{summary['V_at_Mmax']:.3f}")
+        else:
+            st.write("V at M_max: n/a")
+
+    with c3:
+        if summary.get("R_left") is not None:
+            st.metric("Left reaction R_A [kN]", f"{summary['R_left']:.3f}")
+        else:
+            st.write("R_A: n/a")
+
+    with c4:
+        if summary.get("R_right") is not None:
+            st.metric("Right reaction R_B [kN]", f"{summary['R_right']:.3f}")
+        else:
+            st.write("R_B: n/a")
 
 
 # =========================================================
@@ -1412,7 +1540,6 @@ def render_material_properties_readonly(material, key_prefix="rpt_mat"):
     m4.text_input("Shear modulus G (MPa)", value="80769", disabled=True, key=f"{key_prefix}_G")
     m5.text_input("Safety factors", value="Included in DB (γ=1.0)", disabled=True, key=f"{key_prefix}_gamma")
     m6.empty()
-
 
 def render_loads_readonly(inputs, torsion_supported, key_prefix="rpt_load"):
     st.markdown("### 4. Load inputs & buckling data (ULS)")
@@ -1506,7 +1633,6 @@ def build_report_pdf(meta, material, use_props, inputs, df_rows, overall_ok, gov
     pdf = buf.getvalue()
     buf.close()
     return pdf
-
 
 def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, governing, extras):
     st.markdown("## Engineering report")
@@ -1620,7 +1746,6 @@ div.block-container {padding-top: 1.2rem;}
 st.title("EngiSnap — Standard steel beam checks (Eurocode prototype)")
 st.caption("Simplified screening checks — not a full EN1993 implementation.")
 
-
 def render_section_preview_placeholder(title="Cross-section preview", key_prefix="prev"):
     st.markdown("### Cross-section preview")
 
@@ -1650,7 +1775,6 @@ def render_section_preview_placeholder(title="Cross-section preview", key_prefix
 """,
         unsafe_allow_html=True,
     )
-
 
 render_sidebar_guidelines()
 
@@ -1733,10 +1857,3 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
-
-
-
-
-
-
-
