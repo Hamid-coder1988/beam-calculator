@@ -549,16 +549,6 @@ def render_ready_cases_panel():
 
         st.markdown(f"**Selected:** {selected_case['key']} — {selected_case['label']}")
 
-        # NEW: which bending axis this case represents
-        axis_choice = st.radio(
-            "Bending axis for this case",
-            ["Strong axis (y)", "Weak axis (z)"],
-            horizontal=True,
-            key=f"axis_choice_{case_key}"
-        )
-
-
-        
         input_vals = {}
         for k, v in selected_case.get("inputs", {}).items():
             input_vals[k] = st.number_input(
@@ -574,55 +564,27 @@ def render_ready_cases_panel():
         # >>> SHOW DIAGRAMS RIGHT HERE <<<
         render_beam_diagrams_panel()
 
-if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
+        if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
+            func = selected_case.get("func", dummy_case_func)
+            try:
+                args = [input_vals[k] for k in selected_case["inputs"].keys()]
+                N_case, My_case, Mz_case, Vy_case, Vz_case = func(*args)
+            except Exception:
+                N_case, My_case, Mz_case, Vy_case, Vz_case = 0.0, 0.0, 0.0, 0.0, 0.0
 
-    # Get the function for this case
-    func = selected_case.get("func", dummy_case_func)
+            st.session_state["prefill_from_case"] = True
+            st.session_state["prefill_N_kN"] = float(N_case)
+            st.session_state["prefill_My_kNm"] = float(My_case)
+            st.session_state["prefill_Mz_kNm"] = float(Mz_case)
+            st.session_state["prefill_Vy_kN"] = float(Vy_case)
+            st.session_state["prefill_Vz_kN"] = float(Vz_case)
 
-    try:
-        args = [input_vals[k] for k in selected_case["inputs"].keys()]
-        N_case, M_generic, _, V_generic, _ = func(*args)
-    except Exception:
-        N_case, M_generic, V_generic = 0.0, 0.0, 0.0
+            if "L" in input_vals:
+                st.session_state["case_L"] = float(input_vals["L"])
+            elif "L1" in input_vals:
+                st.session_state["case_L"] = float(input_vals["L1"])
 
-    # -----------------------------------------
-    # NEW — get axis choice (stored by radio button)
-    # -----------------------------------------
-    axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
-    st.session_state["bending_axis"] = (
-        "y" if axis_choice.startswith("Strong") else "z"
-    )
-
-    # -----------------------------------------
-    # NEW — Map M and V to My/Mz and Vy/Vz
-    # -----------------------------------------
-    if st.session_state["bending_axis"] == "y":
-        My_case = M_generic
-        Mz_case = 0.0
-        Vy_case = V_generic
-        Vz_case = 0.0
-    else:
-        My_case = 0.0
-        Mz_case = M_generic
-        Vy_case = 0.0
-        Vz_case = V_generic
-
-    # -----------------------------------------
-    # Save values to session_state
-    # -----------------------------------------
-    st.session_state["prefill_from_case"] = True
-    st.session_state["prefill_N_kN"] = float(N_case)
-    st.session_state["prefill_My_kNm"] = float(My_case)
-    st.session_state["prefill_Mz_kNm"] = float(Mz_case)
-    st.session_state["prefill_Vy_kN"] = float(Vy_case)
-    st.session_state["prefill_Vz_kN"] = float(Vz_case)
-
-    if "L" in input_vals:
-        st.session_state["case_L"] = float(input_vals["L"])
-    elif "L1" in input_vals:
-        st.session_state["case_L"] = float(input_vals["L1"])
-
-    st.success("Case applied. Scroll down to Loads tab and run check.")
+            st.success("Case applied. Now scroll down to Loads form and click Run check.")
 
 
 # =========================================================
@@ -1115,25 +1077,10 @@ def render_beam_diagrams_panel():
         return
 
     # Section stiffness for deflection
-    # Section stiffness for deflection
     E = 210e9  # Pa
-
-    I_y_m4 = float(sr_display.get("I_y_cm4", 0.0)) * 1e-8 if sr_display else 0.0
-    I_z_m4 = float(sr_display.get("I_z_cm4", 0.0)) * 1e-8 if sr_display else 0.0
-
-    bending_axis = st.session_state.get("bending_axis", "y")
-    if bending_axis == "z":
-        I_m4 = I_z_m4
-    else:
-        I_m4 = I_y_m4
-
-    if I_m4 <= 0:
-        I_m4 = None  # allow V/M but block deflection
-
-    # Run diagram function with I depending on strong/weak axis
-    args = [input_vals[k] for k in selected_case["inputs"].keys()]
-    x, V, M, delta = diag_func(*args, E=E, I=I_m4)
-
+    Iy_m4 = float(sr_display.get("I_y_cm4", 0.0)) * 1e-8 if sr_display else 0.0
+    if Iy_m4 <= 0:
+        Iy_m4 = None  # allow V/M but block deflection
 
     # Run diagram function
     args = [input_vals[k] for k in selected_case["inputs"].keys()]
@@ -1550,20 +1497,3 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
