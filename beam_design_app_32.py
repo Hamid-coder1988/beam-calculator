@@ -1973,7 +1973,7 @@ with header_col2:
         """
         <div style="padding-top:10px;">
             <div style="font-size:1.5rem;font-weight:650;margin-bottom:0.1rem;">
-                EngiSnap — Standard steel beam checks
+                EngiSnap — Standard steel beam design & selection
             </div>
             <div style="color:#555;font-size:0.9rem;">
                 Eurocode-based screening checks for rolled steel members
@@ -2102,4 +2102,5 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
