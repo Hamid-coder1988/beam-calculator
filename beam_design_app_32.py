@@ -2458,3 +2458,12 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
+if "diagram_image_V" in st.session_state:
+    st.write("V type:", type(st.session_state["diagram_image_V"]))
+
+if "diagram_image_M" in st.session_state:
+    st.write("M type:", type(st.session_state["diagram_image_M"]))
+
+if "diagram_image_D" in st.session_state:
+    st.write("D type:", type(st.session_state["diagram_image_D"]))
