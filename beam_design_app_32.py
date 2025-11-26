@@ -34,6 +34,15 @@ try:
 except Exception:
     HAS_RL = False
 
+from io import BytesIO
+from reportlab.lib.utils import ImageReader  # for PDF images
+
+def fig_to_png_bytes(fig):
+    buf = BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    return buf.getvalue()
+
 
 # =========================================================
 # DB CONNECTION (same as Beam Code 3, uses st.secrets)
@@ -1664,13 +1673,11 @@ def render_beam_diagrams_panel():
     # =====================================================
     # DIAGRAMS (labels with smaller font)
     # =====================================================
+    # ---- V(x) and M(x) side-by-side ----
     colV, colM = st.columns(2)
 
     with colV:
-        st.markdown(
-            "<div style='font-size:0.9rem;font-weight:600;'>Shear force diagram V(x)</div>",
-            unsafe_allow_html=True
-        )
+        st.markdown("#### Shear force diagram V(x)")
         fig1, ax1 = plt.subplots()
         ax1.plot(x, V)
         ax1.axhline(0, linewidth=1)
@@ -1679,11 +1686,11 @@ def render_beam_diagrams_panel():
         ax1.grid(True)
         st.pyplot(fig1)
 
+        # save for report / PDF
+        st.session_state["diag_V_png"] = fig_to_png_bytes(fig1)
+
     with colM:
-        st.markdown(
-            "<div style='font-size:0.9rem;font-weight:600;'>Bending moment diagram M(x)</div>",
-            unsafe_allow_html=True
-        )
+        st.markdown("#### Bending moment diagram M(x)")
         fig2, ax2 = plt.subplots()
         ax2.plot(x, M)
         ax2.axhline(0, linewidth=1)
@@ -1692,28 +1699,34 @@ def render_beam_diagrams_panel():
         ax2.grid(True)
         st.pyplot(fig2)
 
+        # save for report / PDF
+        st.session_state["diag_M_png"] = fig_to_png_bytes(fig2)
+
     # ---- Optional deflection diagram ----
     show_defl = st.checkbox("Show deflection diagram δ(x)", value=False, key="show_defl_diag")
 
     if show_defl:
         if delta is None or I_m4 is None:
-            st.warning("Deflection diagram not available: missing inertia or case deflection formula.")
-        else:
-            colD, colEmpty = st.columns(2)
-            with colD:
-                st.markdown(
-                    "<div style='font-size:0.9rem;font-weight:600;'>Deflection diagram δ(x)</div>",
-                    unsafe_allow_html=True
-                )
-                fig3, ax3 = plt.subplots()
-                ax3.plot(x, delta * 1000.0)  # m -> mm
-                ax3.axhline(0, linewidth=1)
-                ax3.set_xlabel("x (m)")
-                ax3.set_ylabel("δ (mm)")
-                ax3.grid(True)
-                st.pyplot(fig3)
-            with colEmpty:
-                st.empty()
+            st.warning("Deflection diagram not available: missing Iy or case deflection formula.")
+            return
+
+        colD, colEmpty = st.columns(2)
+
+        with colD:
+            st.markdown("#### Deflection diagram δ(x)")
+            fig3, ax3 = plt.subplots(figsize=(6, 3.5))
+            ax3.plot(x, delta * 1000.0)  # mm
+            ax3.axhline(0, linewidth=1)
+            ax3.set_xlabel("x (m)")
+            ax3.set_ylabel("δ (mm)")
+            ax3.grid(True)
+            st.pyplot(fig3)
+
+            # save for report / PDF
+            st.session_state["diag_D_png"] = fig_to_png_bytes(fig3)
+
+        with colEmpty:
+            st.empty()
 
 # =========================================================
 # REPORT TAB UPGRADES + PDF
@@ -2148,6 +2161,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
