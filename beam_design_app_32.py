@@ -1915,19 +1915,74 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
 # =========================================================
 # APP ENTRY
 # =========================================================
-st.set_page_config(page_title="EngiSnap Beam Design Eurocode Checker", layout="wide")
+st.set_page_config(
+    page_title="EngiSnap Beam Design Eurocode Checker",
+    page_icon="EngiSnap-Logo.png",   # path to the logo
+    layout="wide"
+)
+
 
 st.markdown("""
 <style>
-h1 {font-size: 1.6rem !important;}
-h2 {font-size: 1.25rem !important;}
-h3 {font-size: 1.05rem !important;}
-div.block-container {padding-top: 1.2rem;}
+html, body, [class*="css"]  {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Headings */
+h1 {font-size: 1.6rem !important; font-weight: 650 !important;}
+h2 {font-size: 1.25rem !important; font-weight: 600 !important;}
+h3 {font-size: 1.05rem !important; font-weight: 600 !important;}
+
+/* Main container */
+div.block-container {
+    padding-top: 0.7rem;
+    max-width: 1200px;
+}
+
+/* Expander look */
+.stExpander {
+    border-radius: 8px !important;
+    border: 1px solid #e0e0e0 !important;
+}
+
+/* Labels a bit smaller & bolder */
+.stNumberInput > label {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Hide Streamlit default menu & footer */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-st.title("EngiSnap — Standard steel beam checks (Eurocode prototype)")
-st.caption("Simplified screening checks — not a full EN1993 implementation.")
+
+# Top header with EngiSnap logo + title
+header_col1, header_col2 = st.columns([1, 4])
+
+with header_col1:
+    st.image("EngiSnap-Logo.png", width=140)
+
+with header_col2:
+    st.markdown(
+        """
+        <div style="padding-top:10px;">
+            <div style="font-size:1.5rem;font-weight:650;margin-bottom:0.1rem;">
+                EngiSnap — Standard steel beam checks
+            </div>
+            <div style="color:#555;font-size:0.9rem;">
+                Eurocode-based screening checks for rolled steel members
+                <br/>
+                <span style="font-size:0.8rem;color:#888;">
+                    Prototype – not a full EN 1993 design package
+                </span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 def render_section_preview_placeholder(title="Cross-section preview", key_prefix="prev"):
     st.markdown("### Cross-section preview")
@@ -2043,6 +2098,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
