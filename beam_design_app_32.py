@@ -1784,7 +1784,12 @@ def render_beam_diagrams_panel():
         ax1.set_xlabel("x (m)")
         ax1.set_ylabel("V (kN)")
         ax1.grid(True)
-        st.pyplot(fig1)
+        import io
+buf = io.BytesIO()
+fig1.savefig(buf, format="png", dpi=200)
+st.session_state["diagram_image_V"] = buf.getvalue()
+st.pyplot(fig1)
+
 
         # save for report / PDF
         st.session_state["diag_V_png"] = fig_to_png_bytes(fig1)
@@ -1797,7 +1802,11 @@ def render_beam_diagrams_panel():
         ax2.set_xlabel("x (m)")
         ax2.set_ylabel("M (kN·m)")
         ax2.grid(True)
-        st.pyplot(fig2)
+        buf = io.BytesIO()
+fig2.savefig(buf, format="png", dpi=200)
+st.session_state["diagram_image_M"] = buf.getvalue()
+st.pyplot(fig2)
+
 
         # save for report / PDF
         st.session_state["diag_M_png"] = fig_to_png_bytes(fig2)
@@ -1820,7 +1829,11 @@ def render_beam_diagrams_panel():
             ax3.set_xlabel("x (m)")
             ax3.set_ylabel("δ (mm)")
             ax3.grid(True)
-            st.pyplot(fig3)
+            buf = io.BytesIO()
+fig3.savefig(buf, format="png", dpi=200)
+st.session_state["diagram_image_D"] = buf.getvalue()
+st.pyplot(fig3)
+
 
             # save for report / PDF
             st.session_state["diag_D_png"] = fig_to_png_bytes(fig3)
@@ -2467,3 +2480,4 @@ if "diagram_image_M" in st.session_state:
 
 if "diagram_image_D" in st.session_state:
     st.write("D type:", type(st.session_state["diagram_image_D"]))
+
