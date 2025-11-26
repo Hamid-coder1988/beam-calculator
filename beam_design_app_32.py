@@ -1915,14 +1915,15 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
 # =========================================================
 # APP ENTRY
 # =========================================================
+# --- PAGE CONFIG ---
 st.set_page_config(
     page_title="EngiSnap Beam Design Eurocode Checker",
-    page_icon="EngiSnap-Logo.png",   # path to the logo
+    page_icon="EngiSnap-Logo.png",
     layout="wide"
 )
 
-
-st.markdown("""
+# --- CUSTOM GLOBAL CSS ---
+custom_css = """
 <style>
 html, body, [class*="css"]  {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -1933,9 +1934,9 @@ h1 {font-size: 1.6rem !important; font-weight: 650 !important;}
 h2 {font-size: 1.25rem !important; font-weight: 600 !important;}
 h3 {font-size: 1.05rem !important; font-weight: 600 !important;}
 
-/* Main container */
+/* Main container – enough top padding so header isn't clipped */
 div.block-container {
-    padding-top: 0.7rem;
+    padding-top: 1.6rem;
     max-width: 1200px;
 }
 
@@ -1955,10 +1956,13 @@ div.block-container {
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 </style>
-""", unsafe_allow_html=True)
+"""
+st.markdown(custom_css, unsafe_allow_html=True)
 
+# --- SMALL SPACER SO NOTHING TOUCHES TOP EDGE ---
+st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
 
-# Top header with EngiSnap logo + title
+# --- HEADER WITH LOGO + TITLE ---
 header_col1, header_col2 = st.columns([1, 4])
 
 with header_col1:
@@ -2098,3 +2102,4 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
