@@ -34,6 +34,28 @@ try:
 except Exception:
     HAS_RL = False
 
+def get_section_image(family: str):
+    """
+    Returns the image path for the given family.
+    """
+    mapping = {
+        "IPE": "sections_img/IPE.png",
+        "HEA": "sections_img/IPE.png",
+        "HEB": "sections_img/IPE.png",
+        "HE":  "sections_img/IPE.png",   # fallback
+        "UNP": "sections_img/UNP.png",
+        "UPE": "sections_img/UNP.png",
+        "RHS": "sections_img/RHS.png",
+        "SHS": "sections_img/SHS.png",
+        "CHS": "sections_img/CHS.png",
+        "TUBE": "sections_img/TUBE.png",
+    }
+
+    for key in mapping:
+        if family.upper().startswith(key):
+            return mapping[key]
+
+    return None  # no image available
 
 # =========================================================
 # DB CONNECTION (same as Beam Code 3, uses st.secrets)
@@ -312,6 +334,35 @@ def supports_torsion_and_warping(family: str) -> bool:
         return False
     return any(x in f for x in ["IPE", "IPN", "HEA", "HEB", "HEM", "UB", "UC", "UNP", "UPN", "I ", "H "])
 
+# --------------------------------------------------------
+# SECTION IMAGE LOADER (CUSTOM FOR YOUR DB TYPES)
+# --------------------------------------------------------
+def get_section_image(family: str):
+    """
+    Returns the correct image file for the selected section family.
+    - IPE/HEA/HEB/HEM/UB/UC/UBP all share IPE.png
+    - SHS, RHS, CHS, UPE, UPN, PFC, L use their own {family}.png
+    """
+    if not family:
+        return None
+
+    family = family.upper().strip()
+
+    # Group 1: All use IPE.png
+    GROUP_IPE = ["IPE", "HEA", "HEB", "HEM", "UB", "UC", "UBP"]
+
+    # If family in shared-image group
+    if family in GROUP_IPE:
+        return "section_images/IPE.png"
+
+    # Group 2: each has its own image named after family
+    GROUP_OWN = ["SHS", "RHS", "CHS", "UPE", "UPN", "PFC", "L"]
+
+    if family in GROUP_OWN:
+        return f"section_images/{family}.png"
+
+    # Fallback (optional)
+    return None
 
 # =========================================================
 # READY CASES GALLERY SYSTEM (77 placeholders)
@@ -2038,10 +2089,18 @@ with tab1:
             key_prefix=f"sum_tab1_{prefix_id}"
         )
 
-        render_section_preview_placeholder(
-            title=f"{sr_display.get('family','')}  {sr_display.get('name','')}",
-            key_prefix=f"tab1_prev_{prefix_id}"
-        )
+# Show section image
+img_path = get_section_image(sr_display.get("family", ""))
+
+if img_path:
+    st.markdown("### Cross-section preview")
+    st.image(img_path, use_container_width=False)
+else:
+    render_section_preview_placeholder(
+        title=f"{sr_display.get('family','')}  {sr_display.get('name','')}",
+        key_prefix="tab1_prev"
+    )
+
 
         with st.expander("Section properties", expanded=False):
             render_section_properties_readonly(
@@ -2099,6 +2158,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
