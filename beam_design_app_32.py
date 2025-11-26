@@ -1890,6 +1890,16 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
     st.markdown("### 3. Section properties (from DB)")
     render_section_properties_readonly(use_props, key_prefix="rpt_sec_v2")
     st.markdown("---")
+    
+    # 3.1 Cross-section image
+    img_path = get_section_image(use_props.get("family", ""))
+
+    if img_path:
+        st.markdown("### 3.1 Cross-section view")
+        left, center, right = st.columns([3, 4, 3])
+        with center:
+            st.image(img_path, width=320, use_container_width=False)
+        st.markdown("---")
 
     torsion_supported = supports_torsion_and_warping(use_props.get("family", ""))
     render_loads_readonly(inputs, torsion_supported, key_prefix="rpt_load_v2")
@@ -1944,6 +1954,28 @@ def render_report_tab(meta, material, use_props, inputs, df_rows, overall_ok, go
                         f"λ̄={lambda_bar:.3f}, χ={chi:.3f}, "
                         f"Nb,Rd={N_b_Rd_N/1e3:.2f} kN → {status}"
                     )
+    # 6. Diagrams section (if available)
+    diag_V = st.session_state.get("diag_V_png", None)
+    diag_M = st.session_state.get("diag_M_png", None)
+    diag_D = st.session_state.get("diag_D_png", None)
+
+    if diag_V or diag_M or diag_D:
+        st.markdown("---")
+        st.markdown("## 6. Diagrams from ready case")
+
+        cols = st.columns(2)
+        if diag_V:
+            with cols[0]:
+                st.markdown("#### Shear V(x)")
+                st.image(diag_V)
+        if diag_M:
+            with cols[1]:
+                st.markdown("#### Moment M(x)")
+                st.image(diag_M)
+
+        if diag_D:
+            st.markdown("#### Deflection δ(x)")
+            st.image(diag_D)
 
     st.caption("Preliminary report only — verify final design per EN1993.")
 
@@ -2161,6 +2193,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
