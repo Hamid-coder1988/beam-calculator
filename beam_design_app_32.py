@@ -1934,41 +1934,10 @@ h2 {font-size: 1.25rem !important; font-weight: 600 !important;}
 h3 {font-size: 1.05rem !important; font-weight: 600 !important;}
 
 /* Main container */
-st.markdown("""
-<style>
-html, body, [class*="css"]  {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
-/* Headings */
-h1 {font-size: 1.6rem !important; font-weight: 650 !important;}
-h2 {font-size: 1.25rem !important; font-weight: 600 !important;}
-h3 {font-size: 1.05rem !important; font-weight: 600 !important;}
-
-/* Main container – give more top space so logo isn't clipped */
 div.block-container {
-    padding-top: 1.6rem;   /* was 0.7rem */
+    padding-top: 0.7rem;
     max-width: 1200px;
 }
-
-/* Expander look */
-.stExpander {
-    border-radius: 8px !important;
-    border: 1px solid #e0e0e0 !important;
-}
-
-/* Labels */
-.stNumberInput > label {
-    font-size: 0.85rem;
-    font-weight: 500;
-}
-
-/* Hide Streamlit default menu & footer */
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
-
 
 /* Expander look */
 .stExpander {
@@ -2129,18 +2098,3 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
