@@ -1978,9 +1978,6 @@ with header_col2:
             <div style="color:#555;font-size:0.9rem;">
                 Eurocode-based analysis and member selection for rolled steel sections
                 <br/>
-                <span style="font-size:0.8rem;color:#888;">
-                    Prototype – not a full EN 1993 design package
-                </span>
             </div>
         </div>
         """,
@@ -2102,6 +2099,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
