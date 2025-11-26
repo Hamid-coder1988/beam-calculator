@@ -2052,37 +2052,49 @@ with tab1:
         sr_display, bad_fields = build_section_display(selected_row)
         st.session_state["sr_display"] = sr_display
 
-        # dynamic key prefix so widgets refresh when family/size changes
+        # dynamic key so UI refreshes when section changes
         prefix_id = f"{family}_{selected_name}".replace(" ", "_")
 
+        # --- Selected section summary ---
         render_section_summary_like_props(
             material,
             sr_display,
             key_prefix=f"sum_tab1_{prefix_id}"
         )
 
-# --- SAFE SECTION IMAGE PREVIEW ---
-sr_display = st.session_state.get("sr_display", None)
+        # --- Cross-section preview (centered, with image if available) ---
+        st.markdown("### Cross-section preview")
 
-if sr_display:
-    family = sr_display.get("family", "")
-    name = sr_display.get("name", "")
+        img_path = get_section_image(sr_display.get("family", ""))
 
-    img_path = get_section_image(family)
+        left, center, right = st.columns([1, 2, 1])
 
-    st.markdown("### Cross-section preview")
+        with center:
+            if img_path:
+                st.image(
+                    img_path,
+                    width=240,         # control size
+                    use_container_width=False
+                )
+            else:
+                render_section_preview_placeholder(
+                    title=f"{sr_display.get('family','')} {sr_display.get('name','')}",
+                    key_prefix=f"tab1_prev_{prefix_id}"
+                )
 
-    if img_path:
-        st.image(img_path, use_container_width=False)
+        # --- DB properties ---
+        with st.expander("Section properties (from DB — read only)", expanded=False):
+            render_section_properties_readonly(
+                sr_display,
+                key_prefix=f"tab1_db_{prefix_id}"
+            )
+
+        # --- Warnings for DB parsing ---
+        if bad_fields:
+            st.warning("Some DB fields could not be parsed. See debug in Results tab.")
+
     else:
-        render_section_preview_placeholder(
-            title=f"{family}  {name}",
-            key_prefix="tab1_prev"
-        )
-
-else:
-    st.info("Select a section to preview its cross-section image.")
-
+        st.info("Select a section to continue.")
 
 with tab2:
     sr_display = st.session_state.get("sr_display", None)
@@ -2134,6 +2146,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
