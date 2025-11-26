@@ -2089,18 +2089,10 @@ with tab1:
             key_prefix=f"sum_tab1_{prefix_id}"
         )
 
-# Show section image
-img_path = get_section_image(sr_display.get("family", ""))
-
-if img_path:
-    st.markdown("### Cross-section preview")
-    st.image(img_path, use_container_width=False)
-else:
-    render_section_preview_placeholder(
-        title=f"{sr_display.get('family','')}  {sr_display.get('name','')}",
-        key_prefix="tab1_prev"
-    )
-
+render_section_preview_placeholder(
+    title=f"{sr_display.get('family','')}  {sr_display.get('name','')}",
+    key_prefix="tab1_prev"
+)
 
         with st.expander("Section properties", expanded=False):
             render_section_properties_readonly(
@@ -2158,6 +2150,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
