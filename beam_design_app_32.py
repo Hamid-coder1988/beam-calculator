@@ -2379,6 +2379,11 @@ def render_section_preview_placeholder(title="Cross-section preview", key_prefix
 
 render_sidebar_guidelines()
 
+st.write("DEBUG: diag_V_png =", type(st.session_state.get("diag_V_png")))
+st.write("DEBUG: diag_M_png =", type(st.session_state.get("diag_M_png")))
+st.write("DEBUG: diag_D_png =", type(st.session_state.get("diag_D_png")))
+
+
 tab1, tab2, tab3, tab4 = st.tabs(["1) Member & Section", "2) Loads", "3) Results", "4) Report"])
 
 with tab1:
@@ -2484,6 +2489,7 @@ if "diagram_image_M" in st.session_state:
 
 if "diagram_image_D" in st.session_state:
     st.write("D type:", type(st.session_state["diagram_image_D"]))
+
 
 
 
