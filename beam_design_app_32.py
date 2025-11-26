@@ -1784,15 +1784,15 @@ def render_beam_diagrams_panel():
         ax1.set_xlabel("x (m)")
         ax1.set_ylabel("V (kN)")
         ax1.grid(True)
-        import io
-buf = io.BytesIO()
-fig1.savefig(buf, format="png", dpi=200)
-st.session_state["diagram_image_V"] = buf.getvalue()
-st.pyplot(fig1)
 
+        # save PNG bytes for report / PDF
+        buf_v = io.BytesIO()
+        fig1.savefig(buf_v, format="png", dpi=200, bbox_inches="tight")
+        buf_v.seek(0)
+        st.session_state["diag_V_png"] = buf_v.getvalue()
 
-        # save for report / PDF
-        st.session_state["diag_V_png"] = fig_to_png_bytes(fig1)
+        # show in app
+        st.pyplot(fig1)
 
     with colM:
         st.markdown("#### Bending moment diagram M(x)")
@@ -1802,14 +1802,15 @@ st.pyplot(fig1)
         ax2.set_xlabel("x (m)")
         ax2.set_ylabel("M (kN·m)")
         ax2.grid(True)
-        buf = io.BytesIO()
-fig2.savefig(buf, format="png", dpi=200)
-st.session_state["diagram_image_M"] = buf.getvalue()
-st.pyplot(fig2)
 
+        # save PNG bytes for report / PDF
+        buf_m = io.BytesIO()
+        fig2.savefig(buf_m, format="png", dpi=200, bbox_inches="tight")
+        buf_m.seek(0)
+        st.session_state["diag_M_png"] = buf_m.getvalue()
 
-        # save for report / PDF
-        st.session_state["diag_M_png"] = fig_to_png_bytes(fig2)
+        # show in app
+        st.pyplot(fig2)
 
     # ---- Optional deflection diagram ----
     show_defl = st.checkbox("Show deflection diagram δ(x)", value=False, key="show_defl_diag")
@@ -1829,17 +1830,19 @@ st.pyplot(fig2)
             ax3.set_xlabel("x (m)")
             ax3.set_ylabel("δ (mm)")
             ax3.grid(True)
-            buf = io.BytesIO()
-fig3.savefig(buf, format="png", dpi=200)
-st.session_state["diagram_image_D"] = buf.getvalue()
-st.pyplot(fig3)
 
+            # save PNG bytes for report / PDF
+            buf_d = io.BytesIO()
+            fig3.savefig(buf_d, format="png", dpi=200, bbox_inches="tight")
+            buf_d.seek(0)
+            st.session_state["diag_D_png"] = buf_d.getvalue()
 
-            # save for report / PDF
-            st.session_state["diag_D_png"] = fig_to_png_bytes(fig3)
+            # show in app
+            st.pyplot(fig3)
 
         with colEmpty:
             st.empty()
+
 # =========================================================
 # REPORT TAB & PDF HELPERS
 # =========================================================
@@ -2480,4 +2483,5 @@ if "diagram_image_M" in st.session_state:
 
 if "diagram_image_D" in st.session_state:
     st.write("D type:", type(st.session_state["diagram_image_D"]))
+
 
