@@ -34,28 +34,6 @@ try:
 except Exception:
     HAS_RL = False
 
-def get_section_image(family: str):
-    """
-    Returns the image path for the given family.
-    """
-    mapping = {
-        "IPE": "sections_img/IPE.png",
-        "HEA": "sections_img/IPE.png",
-        "HEB": "sections_img/IPE.png",
-        "HE":  "sections_img/IPE.png",   # fallback
-        "UNP": "sections_img/UNP.png",
-        "UPE": "sections_img/UNP.png",
-        "RHS": "sections_img/RHS.png",
-        "SHS": "sections_img/SHS.png",
-        "CHS": "sections_img/CHS.png",
-        "TUBE": "sections_img/TUBE.png",
-    }
-
-    for key in mapping:
-        if family.upper().startswith(key):
-            return mapping[key]
-
-    return None  # no image available
 
 # =========================================================
 # DB CONNECTION (same as Beam Code 3, uses st.secrets)
@@ -338,11 +316,6 @@ def supports_torsion_and_warping(family: str) -> bool:
 # SECTION IMAGE LOADER (CUSTOM FOR YOUR DB TYPES)
 # --------------------------------------------------------
 def get_section_image(family: str):
-    """
-    Returns the correct image file for the selected section family.
-    - IPE/HEA/HEB/HEM/UB/UC/UBP all share IPE.png
-    - SHS, RHS, CHS, UPE, UPN, PFC, L use their own {family}.png
-    """
     if not family:
         return None
 
@@ -351,18 +324,17 @@ def get_section_image(family: str):
     # Group 1: All use IPE.png
     GROUP_IPE = ["IPE", "HEA", "HEB", "HEM", "UB", "UC", "UBP"]
 
-    # If family in shared-image group
     if family in GROUP_IPE:
-        return "section_images/IPE.png"
+        return "sections_img/IPE.png"   # <-- FIXED PATH
 
-    # Group 2: each has its own image named after family
+    # Group 2: own image
     GROUP_OWN = ["SHS", "RHS", "CHS", "UPE", "UPN", "PFC", "L"]
 
     if family in GROUP_OWN:
-        return f"section_images/{family}.png"
+        return f"sections_img/{family}.png"   # <-- FIXED PATH
 
-    # Fallback (optional)
     return None
+    
 
 # =========================================================
 # READY CASES GALLERY SYSTEM (77 placeholders)
@@ -2162,6 +2134,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
