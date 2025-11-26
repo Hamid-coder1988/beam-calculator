@@ -2021,6 +2021,233 @@ with tab3:
         except Exception as e:
             st.error(f"Computation error: {e}")
 
+def build_new_report_pdf(meta, material, sec, inputs, df_rows,
+                         overall_ok, governing, extras, full=False):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import mm
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+    x0, y = 20*mm, height - 20*mm
+    lh = 6*mm
+
+    def L(text, bold=False):
+        nonlocal y
+        if y < 20*mm:
+            c.showPage()
+            y = height - 20*mm
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", 9)
+        c.drawString(x0, y, str(text))
+        y -= lh
+
+    # Metadata
+    doc_name, project_name, position, requested_by, revision, run_date = meta
+
+    # --- HEADER ---
+    L(doc_name, bold=True)
+    L(f"Project: {project_name}")
+    L(f"Beam ID: {position}")
+    L(f"Requested by: {requested_by}")
+    L(f"Revision: {revision}, Date: {run_date}")
+    L("")
+
+    # --- Section 1: Project Info ---
+    L("1. Project Information", bold=True)
+    L(f"Project: {project_name}")
+    L(f"Beam ID: {position}")
+    L(f"Requested by: {requested_by}")
+    L(f"Date: {run_date}")
+    L("")
+
+    # --- Section 2: Member & Material ---
+    L("2. Member & Material", bold=True)
+    L(f"Steel grade: {material}")
+    L("E = 210000 MPa, G = 81000 MPa")
+    L("")
+
+    # --- Cross-section properties ---
+    L("Cross-section properties:", bold=True)
+    L(f"A = {sec.get('A_mm2', 0)} mm²")
+    L(f"Iy = {sec.get('Iy_cm4', 0)} cm⁴")
+    L(f"Iz = {sec.get('Iz_cm4', 0)} cm⁴")
+    L(f"Wel,y = {sec.get('Wel_y_cm3', 0)} cm³")
+    L(f"Wel,z = {sec.get('Wel_z_cm3', 0)} cm³")
+    L("")
+
+    # --- Section 3: Loads ---
+    L("3. Loading", bold=True)
+    L(f"L = {inputs['L']} m")
+    L(f"N = {inputs['N_kN']} kN")
+    L(f"My = {inputs['My_kNm']} kNm")
+    L(f"Mz = {inputs['Mz_kNm']} kNm")
+    L("")
+
+    # --- Section 4: SLS ---
+    L("4. SLS Deflection", bold=True)
+    L(f"Maximum deflection = {extras.get('dmax_mm', 'n/a')} mm")
+    L("")
+
+    # --- Section 5: Classification ---
+    L("5. Section Classification", bold=True)
+    L(f"Web bending class: {sec.get('web_class_bending_db', 'n/a')}")
+    L(f"Web compression class: {sec.get('web_class_compression_db', 'n/a')}")
+    L(f"Flange compression class: {sec.get('flange_class_db', 'n/a')}")
+    L("")
+
+    # --- Section 6: Cross-section checks ---
+    L("6. Cross-section Strength Checks", bold=True)
+    for chk, row in df_rows.iterrows():
+        L(f"{chk}: {row['Utilization']}  Status: {row['Status']}")
+
+    L("")
+
+    # --- Section 7: Member Stability ---
+    L("7. Member Stability Checks", bold=True)
+    gov_check, gov_util = governing
+    L(f"Governing: {gov_check} (util {gov_util:.3f})")
+    L("")
+
+    # --- Section 8: Summary ---
+    L("8. Summary", bold=True)
+    L(f"Overall Result: {'OK' if overall_ok else 'NOT OK'}")
+    L("")
+
+    # --- Section 9: References ---
+    L("9. References", bold=True)
+    L("EN 1993-1-1:2005 + A1:2014")
+    L("EN 1990 – Basis of Structural Design")
+    L("SCI P363, SCI P364")
+    L("")
+
+    c.save()
+    pdf = buf.getvalue()
+    buf.close()
+    return pdf
+
+with tab4:
+    st.markdown("## Engineering Report")
+
+    sr_display = st.session_state.get("sr_display")
+    inputs = st.session_state.get("inputs")
+    df_rows = st.session_state.get("df_rows")
+    overall_ok = st.session_state.get("overall_ok")
+    governing = st.session_state.get("governing")
+    extras = st.session_state.get("extras")
+    meta = st.session_state.get("meta")
+    material = st.session_state.get("material")
+
+    if not (sr_display and inputs and df_rows is not None and meta and governing):
+        st.info("Run the analysis first to generate the report.")
+        st.stop()
+
+    # Report Mode Selector
+    report_mode = st.radio(
+        "Report mode",
+        ["Light report", "Full engineering report"],
+        horizontal=True,
+        key="report_mode_new"
+    )
+    full = report_mode.startswith("Full")
+
+    # Generate PDF button
+    pdf_bytes = build_new_report_pdf(
+        meta, material, sr_display, inputs, df_rows,
+        overall_ok, governing, extras, full
+    )
+    st.download_button(
+        "Download PDF Report",
+        data=pdf_bytes,
+        file_name="EngiSnap_Report.pdf",
+        mime="application/pdf"
+    )
+
+    # -----------------------------------------------------------------
+    # NOW RENDER THE REPORT TAB EXACTLY LIKE THE PDF STRUCTURE
+    # -----------------------------------------------------------------
+
+    doc_name, project_name, position, requested_by, revision, run_date = meta
+
+    # 1. Project Information
+    st.markdown("### 1. Project Information")
+    st.write(f"**Project:** {project_name}")
+    st.write(f"**Beam position:** {position}")
+    st.write(f"**Requested by:** {requested_by}")
+    st.write(f"**Revision:** {revision}")
+    st.write(f"**Date:** {run_date}")
+
+    # 2. Member & Material
+    st.markdown("### 2. Member & Material")
+    st.write(f"**Steel grade:** {material}")
+    st.write("**E = 210000 MPa**, **G = 81000 MPa**, **γM0 = γM1 = 1.0**")
+
+    # Cross-section image
+    img_path = get_section_image(sr_display.get("family", ""))
+    if img_path:
+        st.image(img_path, width=300)
+
+    # Key section properties
+    st.markdown("#### Cross-section properties")
+    s1, s2, s3 = st.columns(3)
+    s1.write(f"A = {sr_display.get('A_mm2', 0):.1f} mm²")
+    s2.write(f"Iy = {sr_display.get('Iy_cm4', 0):.1f} cm⁴")
+    s3.write(f"Iz = {sr_display.get('Iz_cm4', 0):.1f} cm⁴")
+    s1.write(f"Wel,y = {sr_display.get('Wel_y_cm3', 0):.1f} cm³")
+    s2.write(f"Wel,z = {sr_display.get('Wel_z_cm3', 0):.1f} cm³")
+
+    # 3. Loading
+    st.markdown("### 3. Loading")
+    st.write(f"L = {inputs['L']} m")
+    st.write(f"N = {inputs['N_kN']} kN")
+    st.write(f"My = {inputs['My_kNm']} kNm")
+    st.write(f"Mz = {inputs['Mz_kNm']} kNm")
+    st.write(f"Vy = {inputs['Vy_kN']} kN,  Vz = {inputs['Vz_kN']} kN")
+
+    # Inserted diagrams (from tab2)
+    st.markdown("#### 3.1 Diagrams")
+    if "diagram_image_V" in st.session_state:
+        st.image(st.session_state["diagram_image_V"], width=500)
+    if "diagram_image_M" in st.session_state:
+        st.image(st.session_state["diagram_image_M"], width=500)
+    if "diagram_image_D" in st.session_state:
+        st.image(st.session_state["diagram_image_D"], width=500)
+
+    # 4. Serviceability
+    st.markdown("### 4. Serviceability Check (SLS)")
+    st.write(f"Max deflection: {extras.get('dmax_mm', 'n/a')} mm")
+    st.write(f"L/300: {inputs['L']*1000/300:.2f} mm")
+
+    # 5. Classification
+    st.markdown("### 5. Cross-section Classification (EC3 §5)")
+    st.write(f"Web (bending): {sr_display.get('web_class_bending_db', 'n/a')}")
+    st.write(f"Web (compression): {sr_display.get('web_class_compression_db', 'n/a')}")
+    st.write(f"Flange (compression): {sr_display.get('flange_class_db', 'n/a')}")
+
+    # 6. Cross-section resistance 1–14
+    st.markdown("### 6. Verification of Cross-section Strength")
+    st.dataframe(df_rows)
+
+    # 7. Member stability 15–22
+    st.markdown("### 7. Verification of Member Stability")
+    st.write("Included in detailed checks above (buckling rows).")
+
+    # 8. Summary
+    st.markdown("### 8. Summary of Checks")
+    gov_check, gov_util = governing
+    st.write(f"**Overall status:** {'OK' if overall_ok else 'NOT OK'}")
+    st.write(f"**Governing check:** {gov_check}")
+    st.write(f"**Utilization:** {gov_util:.3f}")
+
+    # 9. References
+    st.markdown("### 9. References")
+    st.write("""
+    1. EN 1993-1-1:2005 + A1:2014  
+    2. National Annex to EN 1993-1-1  
+    3. EN 1990 – Basis of Structural Design  
+    4. Steel Construction Institute (SCI) P363, P364  
+    """)
+
 
 
 
