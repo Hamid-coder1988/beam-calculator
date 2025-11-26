@@ -2085,7 +2085,7 @@ with tab1:
 
 
         # --- DB properties ---
-        with st.expander("Section properties (from DB — read only)", expanded=False):
+        with st.expander("Section properties", expanded=False):
             render_section_properties_readonly(
                 sr_display,
                 key_prefix=f"tab1_db_{prefix_id}"
@@ -2148,6 +2148,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
