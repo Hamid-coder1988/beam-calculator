@@ -12,6 +12,7 @@ import re
 import numbers
 import numpy as np
 import matplotlib.pyplot as plt  # NEW
+import io
 
 # -------------------------
 # Optional Postgres driver
@@ -2483,5 +2484,6 @@ if "diagram_image_M" in st.session_state:
 
 if "diagram_image_D" in st.session_state:
     st.write("D type:", type(st.session_state["diagram_image_D"]))
+
 
 
