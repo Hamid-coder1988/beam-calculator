@@ -2067,13 +2067,14 @@ with tab1:
 
         img_path = get_section_image(sr_display.get("family", ""))
 
-        left, center, right = st.columns([1, 2, 1])
+        # Perfect centering: middle column wider than sides
+        left, center, right = st.columns([3, 4, 3])
 
         with center:
             if img_path:
                 st.image(
                     img_path,
-                    width=240,         # control size
+                    width=320,           # adjust size here
                     use_container_width=False
                 )
             else:
@@ -2081,6 +2082,7 @@ with tab1:
                     title=f"{sr_display.get('family','')} {sr_display.get('name','')}",
                     key_prefix=f"tab1_prev_{prefix_id}"
                 )
+
 
         # --- DB properties ---
         with st.expander("Section properties (from DB — read only)", expanded=False):
@@ -2146,6 +2148,7 @@ with tab4:
         st.info("Select section and run checks first.")
     else:
         render_report_tab(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+
 
 
 
