@@ -564,6 +564,110 @@ def ssb_c1_case(L, P1, a1, P2, a2, w, a_udl, b_udl):
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
     return (0.0, Mmax, 0.0, Vmax, 0.0)
 
+def ssb_c4_diagram(L, a, b, c, w1, w2, E=None, I=None, n=400):
+    """
+    SSB - C4:
+      Simply supported beam, two different partial UDLs:
+        w1 over length a from the left support,
+        w2 over length c starting at x = a + b.
+      Total span = L.
+
+    Inputs (all in m / kN/m):
+        L  - span length
+        a  - length of left UDL w1
+        b  - distance between the two UDLs
+        c  - length of right UDL w2
+        w1 - left UDL intensity (kN/m)
+        w2 - right UDL intensity (kN/m)
+
+    Returns:
+        x (m), V (kN), M (kN·m), delta (m or None if E/I not given)
+    """
+    L = float(L)
+    a = float(a)
+    b = float(b)
+    c = float(c)
+    w1 = float(w1)
+    w2 = float(w2)
+
+    # Resultant loads and centroids
+    W1 = w1 * a
+    x1 = a / 2.0                      # centroid of left UDL
+
+    x0_2 = a + b                      # start of right UDL
+    W2 = w2 * c
+    x2 = x0_2 + c / 2.0               # centroid of right UDL
+
+    # Reactions from global equilibrium
+    R2 = (W1 * x1 + W2 * x2) / L
+    R1 = W1 + W2 - R2
+
+    # Discretisation
+    x = np.linspace(0.0, L, n)
+
+    # ------------------
+    # Shear diagram V(x)
+    # ------------------
+    V = np.full_like(x, R1, dtype=float)
+
+    # UDL1: from 0 to a, intensity w1
+    mask1 = (x >= 0.0) & (x <= a)
+    V[mask1] -= w1 * (x[mask1] - 0.0)
+
+    mask1_right = (x > a)
+    V[mask1_right] -= w1 * a
+
+    # UDL2: from x0_2 = a + b to x0_2 + c, intensity w2
+    x0_2_end = x0_2 + c
+    mask2 = (x >= x0_2) & (x <= x0_2_end)
+    V[mask2] -= w2 * (x[mask2] - x0_2)
+
+    mask2_right = (x > x0_2_end)
+    V[mask2_right] -= w2 * c
+
+    # ------------------
+    # Bending moment M(x) via numeric integration of V(x)
+    # ------------------
+    M = np.zeros_like(x)
+    dx = np.diff(x)
+    for i in range(len(x) - 1):
+        M[i+1] = M[i] + 0.5 * (V[i] + V[i+1]) * dx[i]  # kN·m
+
+    # ------------------
+    # Deflection δ(x) via numeric double integration of M/EI
+    # ------------------
+    delta = None
+    if E and I and I > 0 and L > 0:
+        M_Nm = M * 1000.0  # kN·m → N·m
+        curvature = M_Nm / (E * I)  # 1/m
+
+        theta = np.zeros_like(x)
+        delta_raw = np.zeros_like(x)
+
+        # integrate curvature -> slope
+        for i in range(len(x) - 1):
+            theta[i+1] = theta[i] + 0.5 * (curvature[i] + curvature[i+1]) * dx[i]
+
+        # integrate slope -> deflection
+        for i in range(len(x) - 1):
+            delta_raw[i+1] = delta_raw[i] + 0.5 * (theta[i] + theta[i+1]) * dx[i]
+
+        # enforce simply supported: δ(0) = δ(L) = 0
+        delta = delta_raw - (x / L) * delta_raw[-1]
+
+    return x, V, M, delta
+
+
+def ssb_c4_case(L, a, b, c, w1, w2):
+    """
+    Case function for SSB - C4 used to prefill Loads tab.
+    Returns (N, My, Mz, Vy, Vz) maxima (strong axis).
+    """
+    x, V, M, _ = ssb_c4_diagram(L, a, b, c, w1, w2, E=None, I=None)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
 
 def dummy_case_func(*args, **kwargs):
     return (0.0, 0.0, 0.0, 0.0, 0.0)
@@ -640,6 +744,19 @@ READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["inputs"] = {
 }
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["func"] = ssb_c1_case
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["diagram_func"] = ssb_c1_diagram
+
+# ---- Patch Case 4 of Simply Supported Beams: SSB-C4 (two partial UDLs) ----
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["label"] = "SSB - C4"
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["inputs"] = {
+    "L": 6.0,   # total span (m)
+    "a": 2.0,   # length of left UDL w1
+    "b": 2.0,   # gap between UDLs
+    "c": 2.0,   # length of right UDL w2
+    "w1": 20.0, # left UDL (kN/m)
+    "w2": 10.0, # right UDL (kN/m)
+}
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["func"] = ssb_c4_case
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["diagram_func"] = ssb_c4_diagram
 
 
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
@@ -3014,6 +3131,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
