@@ -2026,18 +2026,18 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     # Basic data
     # -----------------------
-if meta:
-    # support both old (6 items) and new (7 items with notes)
-    if len(meta) == 7:
-        doc_title, project_name, position, requested_by, revision, run_date, notes = meta
+    if meta:
+        # support both old (6 items) and new (7 items with notes)
+        if len(meta) == 7:
+            doc_title, project_name, position, requested_by, revision, run_date, notes = meta
+        else:
+            doc_title, project_name, position, requested_by, revision, run_date = meta
+            notes = "–"
     else:
-        doc_title, project_name, position, requested_by, revision, run_date = meta
+        doc_title = "Beam check"
+        project_name = position = requested_by = revision = ""
+        run_date = date.today()
         notes = "–"
-else:
-    doc_title = "Beam check"
-    project_name = position = requested_by = revision = ""
-    run_date = date.today()
-    notes = "–"
 
     fam = sr_display.get("family", "") if sr_display else ""
     name = sr_display.get("name", "") if sr_display else ""
@@ -2799,6 +2799,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
