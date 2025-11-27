@@ -2628,7 +2628,7 @@ utilisation for this group of checks.
 
     st.markdown("---")
 
-    # 7. Member stability
+        # 7. Member stability
     st.markdown("## 7. Verification of member stability (ULS buckling)")
     st.caption(
         "(15)-(16) Flexural buckling; (17) Torsional / torsional-flexural; "
@@ -2644,7 +2644,83 @@ utilisation for this group of checks.
                 )
     else:
         st.info("Buckling results not available.")
+
+    # 7.2 Explanations & formulas for member checks (15–22)
+    with st.expander("7.2 Member checks – Eurocode formulas and references", expanded=False):
+        st.markdown("""
+**(15)–(16) Flexural buckling – EN 1993-1-1 §6.3.1.3**
+
+For each principal axis:
+
+\\[
+N_{Ed} \\le N_{b,Rd} = \\chi \\, A f_y / \\gamma_{M1}
+\\]
+
+with reduction factor \\(\\chi\\) from the relevant buckling curve (a, b, c, d) using the non-dimensional
+slenderness \\(\\bar{\\lambda}\\).
+
+---
+
+**(17) Torsional and torsional–flexural buckling – EN 1993-1-1 §6.3.1.4**
+
+Elastic critical forces for pure torsion \\(N_{cr,T}\\) and torsional–flexural buckling \\(N_{cr,TF}\\) are based on
+St. Venant torsion constant \\(I_T\\), warping constant \\(I_w\\) and the polar radius of gyration.  
+Design resistance is again:
+
+\\[
+N_{b,Rd} = \\chi \\, A f_y / \\gamma_{M1}
+\\]
+
+using the same reduction procedure as flexural buckling.
+
+---
+
+**(18) Lateral–torsional buckling – EN 1993-1-1 §6.3.2**
+
+For major-axis bending of a laterally unrestrained flange:
+
+\\[
+M_{b,Rd} = \\chi_{LT} \\, W_{pl,y} f_y / \\gamma_{M1}
+\\]
+
+where \\(\\chi_{LT}\\) is obtained from the non-dimensional slenderness
+\\(\\bar{\\lambda}_{LT} = (W_{pl,y} f_y / M_{cr})^{1/2}\\) using the LTB buckling curve and the
+elastic critical moment \\(M_{cr}\\).
+
+---
+
+**(19)–(20) Buckling interaction – Method 1 (Annex A)**
+
+Combined compression and bending is checked with interaction equations (6.61)–(6.62):
+
+\\[
+\\frac{N_{Ed}}{\\chi_y N_{Rk}/\\gamma_{M1}}
++ k_{yy} \\frac{M_{y,Ed}}{\\chi_{LT} M_{y,Rk}/\\gamma_{M1}}
++ k_{yz} \\frac{M_{z,Ed}}{M_{z,Rk}/\\gamma_{M1}} \\le 1.0
+\\]
+
+(similarly about z-z), with interaction factors \\(k_{yy}, k_{yz}, k_{zy}, k_{zz}\\) from Annex A.
+
+---
+
+**(21)–(22) Buckling interaction – Method 2 (Annex B)**
+
+Alternative set of interaction factors, depending on slenderness and axial force level, is
+given in Annex B. The format is similar:
+
+\\[
+\\frac{N_{Ed}}{\\chi_y N_{Rk}/\\gamma_{M1}}
++ k_{yy}^* \\frac{M_{y,Ed}}{\\chi_{LT} M_{y,Rk}/\\gamma_{M1}}
++ k_{yz}^* \\frac{M_{z,Ed}}{M_{z,Rk}/\\gamma_{M1}} \\le 1.0
+\\]
+
+Your prototype currently reports the governing utilisation from the simplified cross-section check table
+and the separate buckling results above. A full Annex A/B implementation would plug directly into
+these interaction formulae.
+        """)
+
     st.markdown("---")
+
 
     # 8. Summary of checks
     st.markdown("## 8. Summary of checks")
@@ -2873,6 +2949,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
