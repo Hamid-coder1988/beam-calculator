@@ -449,7 +449,7 @@ def ss_central_point_deflection_max(L, P, E, I):
 # Simply supported beam, 2 unequal point loads + partial UDL
 # ============================
 
-def ssb_c1_diagram(L, P1, a1, P2, a2, w, a_udl, b_udl, E=None, I=None, n=801):
+def ssb_c3_diagram(L, P1, a1, P2, a2, w, a_udl, b_udl, E=None, I=None, n=801):
     """
     Simply supported beam with:
       - Point load P1 at x = a1
@@ -559,7 +559,7 @@ def ssb_c3_case(L, P1, a1, P2, a2, w, a_udl, b_udl):
     Case function for SSB-C1 used to prefill Loads tab.
     Returns (N, My, Mz, Vy, Vz) maxima (strong axis).
     """
-    x, V, M, _ = ssb_c1_diagram(L, P1, a1, P2, a2, w, a_udl, b_udl, E=None, I=None)
+    x, V, M, _ = ssb_c3_diagram(L, P1, a1, P2, a2, w, a_udl, b_udl, E=None, I=None)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
     return (0.0, Mmax, 0.0, Vmax, 0.0)
@@ -3187,6 +3187,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
