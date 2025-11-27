@@ -2709,6 +2709,34 @@ def render_report_tab():
 
     st.markdown("### 6.1 Detailed check table")
     st.write(df_rows.style.apply(_hl, axis=1))
+    
+        # 6.3 Explanations & formulas for section checks
+    with st.expander("6.3 Eurocode formulas for cross-section checks (1–14)", expanded=False):
+
+        st.markdown("### (1) Tension – EN 1993-1-1 §6.2.3")
+        st.latex(r"N_{Ed} \le N_{t,Rd} = \frac{A f_y}{\gamma_{M0}}")
+
+        st.markdown("### (2) Compression – EN 1993-1-1 §6.2.4")
+        st.latex(r"N_{Ed} \le N_{c,Rd} = \frac{A f_y}{\gamma_{M0}}")
+
+        st.markdown("### (3) Major-axis bending – EN 1993-1-1 §6.2.5")
+        st.latex(r"M_{y,Ed} \le M_{y,Rd} = \frac{W_{pl,y} f_y}{\gamma_{M0}}")
+
+        st.markdown("### (4) Minor-axis blending – EN 1993-1-1 §6.2.5")
+        st.latex(r"M_{z,Ed} \le M_{z,Rd} = \frac{W_{pl,z} f_y}{\gamma_{M0}}")
+
+        st.markdown("### (5–6) Shear – EN 1993-1-1 §6.2.6")
+        st.latex(r"V_{Ed} \le V_{pl,Rd} = \frac{A_v f_y}{\sqrt{3}\,\gamma_{M0}}")
+
+        st.markdown("### (7–8) Bending with high shear – EN 1993-1-1 §6.2.8")
+        st.latex(r"V_{Ed} > 0.5\,V_{pl,Rd} \Rightarrow M_{Rd,\text{red}} = \rho\, M_{pl}")
+
+        st.markdown("### (9–11) Axial + bending – EN 1993-1-1 §6.2.9")
+        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{y,Ed}}{M_{y,Rd}} \le 1.0")
+        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{z,Ed}}{M_{z,Rd}} \le 1.0")
+
+        st.markdown("### (12–14) Axial + shear + bending – EN 1993-1-1 §6.2.10")
+        st.latex(r"M_{Rd,\text{red}} = \rho\, M_{pl}")
 
     st.markdown("---")
 
@@ -2935,6 +2963,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
