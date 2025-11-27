@@ -2288,34 +2288,6 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     else:
         story.append(Paragraph("Buckling results not available.", N))
     story.append(Spacer(1, 12))
-        # 7.3 Explanations & formulas for buckling checks
-    with st.expander("7.3 Eurocode formulas for member buckling (15–22)", expanded=False):
-
-        st.markdown("### (15–16) Flexural buckling – EN 1993-1-1 §6.3.1.3")
-        st.latex(r"N_{b,Rd} = \chi \frac{A f_y}{\gamma_{M1}}")
-        st.latex(r"\chi = \frac{1}{\phi + \sqrt{\phi^2 - \bar{\lambda}^2}}")
-        st.latex(r"\phi = 0.5[1 + \alpha(\bar{\lambda}-0.2) + \bar{\lambda}^2]")
-
-        st.markdown("### (17) Torsional / torsional-flexural buckling – §6.3.1.4")
-        st.latex(r"N_{b,Rd} = \chi \frac{A f_y}{\gamma_{M1}}")
-
-        st.markdown("### (18) Lateral-torsional buckling – §6.3.2")
-        st.latex(r"M_{b,Rd} = \chi_{LT}\frac{W_{pl,y} f_y}{\gamma_{M1}}")
-        st.latex(r"\bar{\lambda}_{LT} = \sqrt{\frac{W_{pl,y} f_y}{M_{cr}}}")
-
-        st.markdown("### (19–20) Buckling interaction – Annex A (Method 1)")
-        st.latex(r"""
-\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}} +
-k_{yy}\frac{M_{y,Ed}}{\chi_{LT}M_{y,Rk}/\gamma_{M1}} +
-k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}} \le 1.0
-        """)
-
-        st.markdown("### (21–22) Buckling interaction – Annex B (Method 2)")
-        st.latex(r"""
-\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}} +
-k_{yy}^*\frac{M_{y,Ed}}{\chi_{LT}M_{y,Rk}/\gamma_{M1}} +
-k_{yz}^*\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}} \le 1.0
-        """)
 
     # -----------------------
     # 8. Summary of checks
@@ -2991,6 +2963,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
