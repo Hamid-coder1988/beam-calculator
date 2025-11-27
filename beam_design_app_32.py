@@ -2348,9 +2348,13 @@ def render_report_tab():
     df_rows = st.session_state.get("df_rows")
     overall_ok = st.session_state.get("overall_ok", True)
     governing = st.session_state.get("governing", (None, None))
-    extras = st.session_state.get("extras")
+    extras = st.session_state.get("extras") or {}   # ✅ make sure it's a dict, not None
     meta = st.session_state.get("meta")
     material = st.session_state.get("material", "S355")
+
+    # ✅ define these so we can use them later in the Material section
+    sigma_allow = extras.get("sigma_allow_MPa")
+    sigma_eq = extras.get("sigma_eq_MPa")
 
     if sr_display is None or inputs is None or df_rows is None or meta is None:
         st.info("To see the report: select a section, define loads, run the check, then return here.")
@@ -2954,6 +2958,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
