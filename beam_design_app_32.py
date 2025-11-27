@@ -2522,6 +2522,110 @@ def render_report_tab():
         return [color] * len(row)
 
     st.write(df_rows.style.apply(_hl, axis=1))
+        # 6.2 Explanations & formulas for section checks (1–14)
+    with st.expander("6.2 Section checks – Eurocode formulas and references", expanded=False):
+        st.markdown("""
+**(1) Tension – EN 1993-1-1 §6.2.3**
+
+Check that the design tensile force does not exceed the plastic tension resistance of the gross section:
+
+\\[
+N_{Ed} \\le N_{t,Rd} = \\frac{A f_y}{\\gamma_{M0}}
+\\]
+
+For members with holes, a net-section verification with the ultimate strength \\(f_u\\) is also required.
+
+---
+
+**(2) Compression – EN 1993-1-1 §6.2.4**
+
+For a class 1–3 section the compression resistance is:
+
+\\[
+N_{c,Rd} = \\frac{A f_y}{\\gamma_{M0}}, \\qquad N_{Ed} \\le N_{c,Rd}
+\\]
+
+---
+
+**(3) Bending about major axis y-y – EN 1993-1-1 §6.2.5**
+
+For class 1–2:
+
+\\[
+M_{y,Ed} \\le M_{y,Rd} = \\frac{W_{pl,y} f_y}{\\gamma_{M0}}
+\\]
+
+For class 3: use \\(W_{el,y}\\) instead of \\(W_{pl,y}\\).
+
+---
+
+**(4) Bending about minor axis z-z – EN 1993-1-1 §6.2.5**
+
+\\[
+M_{z,Ed} \\le M_{z,Rd} = \\frac{W_{pl,z} f_y}{\\gamma_{M0}}
+\\]
+
+(or \\(W_{el,z}\\) for class 3).
+
+---
+
+**(5) Shear parallel to web (V\_z) – EN 1993-1-1 §6.2.6**
+
+\\[
+V_{z,Ed} \\le V_{z,Rd} = \\frac{A_{v,z} \\, f_y}{\\sqrt{3}\\, \\gamma_{M0}}
+\\]
+
+---
+
+**(6) Shear parallel to flanges (V\_y) – EN 1993-1-1 §6.2.6**
+
+\\[
+V_{y,Ed} \\le V_{y,Rd} = \\frac{A_{v,y} \\, f_y}{\\sqrt{3}\\, \\gamma_{M0}}
+\\]
+
+Shear buckling of the web is checked with:
+
+\\[
+\\frac{h_w}{t_w} \\le \\frac{72\\,\\varepsilon}{\\eta}
+\\]
+
+---
+
+**(7)–(8) Bending with high shear – EN 1993-1-1 §6.2.8**
+
+If the applied shear in one axis exceeds 50% of the corresponding plastic shear resistance,
+
+\\[
+V_{Ed} > 0.5 V_{pl,Rd},
+\\]
+
+the bending resistance about that axis is reduced by the factor \\(\\rho\\) (eqs. (6.29)–(6.31)).  
+In your prototype this is approximated by checking the combined utilisation when shear is high.
+
+---
+
+**(9)–(11) Bending and axial force – EN 1993-1-1 §6.2.9**
+
+For combined axial force and bending, Eurocode uses:
+
+\\[
+\\frac{N_{Ed}}{N_{c,Rd}} + \\frac{M_{y,Ed}}{M_{y,Rd}} \\le 1.0, \\qquad
+\\frac{N_{Ed}}{N_{c,Rd}} + \\frac{M_{z,Ed}}{M_{z,Rd}} \\le 1.0
+\\]
+
+(plus biaxial interaction where both \\(M_y\\) and \\(M_z\\) are present).
+
+---
+
+**(12)–(14) Bending, shear and axial – EN 1993-1-1 §6.2.10**
+
+When both axial force and high shear are present, the reduced moment resistances from §6.2.8
+are used inside the combined formula of §6.2.9.
+
+In this prototype the “Biaxial bending + axial + shear (indicative)” row in the table gives a compact
+utilisation for this group of checks.
+        """)
+
     st.markdown("---")
 
     # 7. Member stability
@@ -2769,6 +2873,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
