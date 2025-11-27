@@ -445,7 +445,7 @@ def ss_central_point_deflection_max(L, P, E, I):
     return P_N * L**3 / (48.0 * E * I)
 
 # ============================
-# CASE 3: SSB-C1
+# CASE 3: SSB-C3
 # Simply supported beam, 2 unequal point loads + partial UDL
 # ============================
 
@@ -554,7 +554,7 @@ def ssb_c1_diagram(L, P1, a1, P2, a2, w, a_udl, b_udl, E=None, I=None, n=801):
     return x, V, M, delta
 
 
-def ssb_c1_case(L, P1, a1, P2, a2, w, a_udl, b_udl):
+def ssb_c3_case(L, P1, a1, P2, a2, w, a_udl, b_udl):
     """
     Case function for SSB-C1 used to prefill Loads tab.
     Returns (N, My, Mz, Vy, Vz) maxima (strong axis).
@@ -667,11 +667,59 @@ def ssb_c4_case(L, a, b, c, w1, w2):
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
     return (0.0, Mmax, 0.0, Vmax, 0.0)
+# ============================
+# CASE 5: SSB-C5
+# Simply supported beam, full-span UDL + central point load
+# Superposition of C1 (UDL) and C2 (central point load)
+# ============================
+
+def ssb_c5_diagram(L, w, P, E=None, I=None, n=400):
+    """
+    Simply supported beam with:
+      - Uniform load w [kN/m] over full span L
+      - Point load P [kN] at midspan (x = L/2)
+
+    We use linear superposition of:
+      - ss_udl_diagram(L, w, ...)
+      - ss_central_point_diagram(L, P, ...)
+
+    Returns:
+        x (m), V (kN), M (kN·m), delta (m or None)
+    """
+    # base diagrams for UDL and central point
+    x1, V_udl, M_udl, delta_udl = ss_udl_diagram(L, w, E=E, I=I, n=n)
+    x2, V_p, M_p, delta_p = ss_central_point_diagram(L, P, E=E, I=I, n=n)
+
+    # x1 and x2 are identical grids (same L, n)
+    x = x1
+
+    # superpose shear and moment
+    V = V_udl + V_p
+    M = M_udl + M_p
+
+    # superpose deflection if EI is given
+    if (delta_udl is not None) and (delta_p is not None):
+        delta = delta_udl + delta_p
+    else:
+        delta = None
+
+    return x, V, M, delta
+
+
+def ssb_c5_case(L, w, P):
+    """
+    Case function for SSB - C5 used to prefill Loads tab.
+    Returns (N, My, Mz, Vy, Vz) based on max |M| and |V|.
+    """
+    x, V, M, _ = ssb_c5_diagram(L, w, P, E=None, I=None, n=400)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    # N, My, Mz, Vy, Vz
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
 
 
 def dummy_case_func(*args, **kwargs):
     return (0.0, 0.0, 0.0, 0.0, 0.0)
-
 
 def make_cases(prefix, n, default_inputs):
     cases = []
@@ -757,7 +805,15 @@ READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["inputs"] = {
 }
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["func"] = ssb_c4_case
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["diagram_func"] = ssb_c4_diagram
-
+# ---- Patch Case 5 of Simply Supported Beams: SSB-C5 (UDL + mid-point load) ----
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["label"] = "SSB - C5"
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["inputs"] = {
+    "L": 6.0,   # span [m]
+    "w": 10.0,  # UDL [kN/m]
+    "P": 20.0,  # midspan point load [kN]
+}
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["func"] = ssb_c5_case
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["diagram_func"] = ssb_c5_diagram
 
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
     cases = READY_CATALOG[chosen_type][chosen_cat]
@@ -3131,6 +3187,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
