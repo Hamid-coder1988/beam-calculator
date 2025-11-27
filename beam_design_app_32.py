@@ -2733,29 +2733,6 @@ def render_report_tab():
     st.markdown("---")
 
     # ----------------------------------------------------
-    # 8. PDF export
-    # ----------------------------------------------------
-    st.markdown("## 8. Export PDF report")
-
-    if not HAS_RL:
-        st.warning("PDF export requires reportlab, which is not available in this environment.")
-        return
-
-    if st.button("Generate PDF report", key="rpt_pdf_btn"):
-        try:
-            pdf_buf = build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
-            if pdf_buf is None:
-                st.error("Could not build PDF (reportlab not available).")
-            else:
-                st.download_button(
-                    label="Download PDF",
-                    data=pdf_buf,
-                    file_name="EngiSnap_beam_report.pdf",
-                    mime="application/pdf",
-                    key="rpt_pdf_dl",
-                )
-        except Exception as e:
-            st.error(f"PDF generation failed: {e}")
 
 # =========================================================
 # APP ENTRY
@@ -2958,6 +2935,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
