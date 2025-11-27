@@ -2522,111 +2522,77 @@ def render_report_tab():
         return [color] * len(row)
 
     st.write(df_rows.style.apply(_hl, axis=1))
-        # 6.2 Explanations & formulas for section checks (1–14)
+            # 6.2 Explanations & formulas for section checks (1–14)
     with st.expander("6.2 Section checks – Eurocode formulas and references", expanded=False):
-        st.markdown("""
-**(1) Tension – EN 1993-1-1 §6.2.3**
 
-Check that the design tensile force does not exceed the plastic tension resistance of the gross section:
-
-\\[
-N_{Ed} \\le N_{t,Rd} = \\frac{A f_y}{\\gamma_{M0}}
-\\]
-
-For members with holes, a net-section verification with the ultimate strength \\(f_u\\) is also required.
-
----
-
-**(2) Compression – EN 1993-1-1 §6.2.4**
-
-For a class 1–3 section the compression resistance is:
-
-\\[
-N_{c,Rd} = \\frac{A f_y}{\\gamma_{M0}}, \\qquad N_{Ed} \\le N_{c,Rd}
-\\]
-
----
-
-**(3) Bending about major axis y-y – EN 1993-1-1 §6.2.5**
-
-For class 1–2:
-
-\\[
-M_{y,Ed} \\le M_{y,Rd} = \\frac{W_{pl,y} f_y}{\\gamma_{M0}}
-\\]
-
-For class 3: use \\(W_{el,y}\\) instead of \\(W_{pl,y}\\).
-
----
-
-**(4) Bending about minor axis z-z – EN 1993-1-1 §6.2.5**
-
-\\[
-M_{z,Ed} \\le M_{z,Rd} = \\frac{W_{pl,z} f_y}{\\gamma_{M0}}
-\\]
-
-(or \\(W_{el,z}\\) for class 3).
-
----
-
-**(5) Shear parallel to web (V\_z) – EN 1993-1-1 §6.2.6**
-
-\\[
-V_{z,Ed} \\le V_{z,Rd} = \\frac{A_{v,z} \\, f_y}{\\sqrt{3}\\, \\gamma_{M0}}
-\\]
-
----
-
-**(6) Shear parallel to flanges (V\_y) – EN 1993-1-1 §6.2.6**
-
-\\[
-V_{y,Ed} \\le V_{y,Rd} = \\frac{A_{v,y} \\, f_y}{\\sqrt{3}\\, \\gamma_{M0}}
-\\]
-
-Shear buckling of the web is checked with:
-
-\\[
-\\frac{h_w}{t_w} \\le \\frac{72\\,\\varepsilon}{\\eta}
-\\]
-
----
-
-**(7)–(8) Bending with high shear – EN 1993-1-1 §6.2.8**
-
-If the applied shear in one axis exceeds 50% of the corresponding plastic shear resistance,
-
-\\[
-V_{Ed} > 0.5 V_{pl,Rd},
-\\]
-
-the bending resistance about that axis is reduced by the factor \\(\\rho\\) (eqs. (6.29)–(6.31)).  
-In your prototype this is approximated by checking the combined utilisation when shear is high.
-
----
-
-**(9)–(11) Bending and axial force – EN 1993-1-1 §6.2.9**
-
-For combined axial force and bending, Eurocode uses:
-
-\\[
-\\frac{N_{Ed}}{N_{c,Rd}} + \\frac{M_{y,Ed}}{M_{y,Rd}} \\le 1.0, \\qquad
-\\frac{N_{Ed}}{N_{c,Rd}} + \\frac{M_{z,Ed}}{M_{z,Rd}} \\le 1.0
-\\]
-
-(plus biaxial interaction where both \\(M_y\\) and \\(M_z\\) are present).
-
----
-
-**(12)–(14) Bending, shear and axial – EN 1993-1-1 §6.2.10**
-
-When both axial force and high shear are present, the reduced moment resistances from §6.2.8
-are used inside the combined formula of §6.2.9.
-
-In this prototype the “Biaxial bending + axial + shear (indicative)” row in the table gives a compact
-utilisation for this group of checks.
+        st.markdown("### (1) Tension – EN 1993-1-1 §6.2.3")
+        st.latex(r"""
+N_{Ed} \le N_{t,Rd} = \frac{A f_y}{\gamma_{M0}}
         """)
 
-    st.markdown("---")
+        st.markdown("---")
+
+        st.markdown("### (2) Compression – EN 1993-1-1 §6.2.4")
+        st.latex(r"""
+N_{Ed} \le N_{c,Rd} = \frac{A f_y}{\gamma_{M0}}
+        """)
+
+        st.markdown("---")
+
+        st.markdown("### (3) Bending about major axis (y–y) – EN 1993-1-1 §6.2.5")
+        st.latex(r"""
+M_{y,Ed} \le M_{y,Rd} = \frac{W_{pl,y} f_y}{\gamma_{M0}}
+        """)
+
+        st.markdown("---")
+
+        st.markdown("### (4) Bending about minor axis (z–z) – EN 1993-1-1 §6.2.5")
+        st.latex(r"""
+M_{z,Ed} \le M_{z,Rd} = \frac{W_{pl,z} f_y}{\gamma_{M0}}
+        """)
+
+        st.markdown("---")
+
+        st.markdown("### (5) Shear in web direction (V\_z) – EN 1993-1-1 §6.2.6")
+        st.latex(r"""
+V_{z,Ed} \le V_{z,Rd} = \frac{A_{v,z} f_y}{\sqrt{3}\,\gamma_{M0}}
+        """)
+
+        st.markdown("---")
+
+        st.markdown("### (6) Shear in flange direction (V\_y) – EN 1993-1-1 §6.2.6")
+        st.latex(r"""
+V_{y,Ed} \le V_{y,Rd} = \frac{A_{v,y} f_y}{\sqrt{3}\,\gamma_{M0}}
+        """)
+
+        st.markdown("---")
+
+        st.markdown("### (7)–(8) Bending with high shear – EN 1993-1-1 §6.2.8")
+        st.latex(r"""
+V_{Ed} > 0.5\, V_{pl,Rd} \quad \Rightarrow \quad
+M_{Rd,\text{reduced}} = \rho\, M_{pl}
+        """)
+
+        st.markdown("---")
+
+        st.markdown("### (9)–(11) Axial force + bending – EN 1993-1-1 §6.2.9")
+        st.latex(r"""
+\frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{y,Ed}}{M_{y,Rd}} \le 1.0
+        """)
+        st.latex(r"""
+\frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{z,Ed}}{M_{z,Rd}} \le 1.0
+        """)
+
+        st.markdown("---")
+
+        st.markdown("### (12)–(14) Axial + shear + bending – EN 1993-1-1 §6.2.10")
+        st.latex(r"""
+M_{Rd,\text{reduced}} = \rho\, M_{pl}
+        """)
+        st.markdown(
+            "Used together with the interaction formulae from §6.2.9 for combined loading."
+        )
+
 
         # 7. Member stability
     st.markdown("## 7. Verification of member stability (ULS buckling)")
@@ -2645,82 +2611,77 @@ utilisation for this group of checks.
     else:
         st.info("Buckling results not available.")
 
-    # 7.2 Explanations & formulas for member checks (15–22)
+       # 7.2 Explanations & formulas for member checks (15–22)
     with st.expander("7.2 Member checks – Eurocode formulas and references", expanded=False):
-        st.markdown("""
-**(15)–(16) Flexural buckling – EN 1993-1-1 §6.3.1.3**
 
-For each principal axis:
-
-\\[
-N_{Ed} \\le N_{b,Rd} = \\chi \\, A f_y / \\gamma_{M1}
-\\]
-
-with reduction factor \\(\\chi\\) from the relevant buckling curve (a, b, c, d) using the non-dimensional
-slenderness \\(\\bar{\\lambda}\\).
-
----
-
-**(17) Torsional and torsional–flexural buckling – EN 1993-1-1 §6.3.1.4**
-
-Elastic critical forces for pure torsion \\(N_{cr,T}\\) and torsional–flexural buckling \\(N_{cr,TF}\\) are based on
-St. Venant torsion constant \\(I_T\\), warping constant \\(I_w\\) and the polar radius of gyration.  
-Design resistance is again:
-
-\\[
-N_{b,Rd} = \\chi \\, A f_y / \\gamma_{M1}
-\\]
-
-using the same reduction procedure as flexural buckling.
-
----
-
-**(18) Lateral–torsional buckling – EN 1993-1-1 §6.3.2**
-
-For major-axis bending of a laterally unrestrained flange:
-
-\\[
-M_{b,Rd} = \\chi_{LT} \\, W_{pl,y} f_y / \\gamma_{M1}
-\\]
-
-where \\(\\chi_{LT}\\) is obtained from the non-dimensional slenderness
-\\(\\bar{\\lambda}_{LT} = (W_{pl,y} f_y / M_{cr})^{1/2}\\) using the LTB buckling curve and the
-elastic critical moment \\(M_{cr}\\).
-
----
-
-**(19)–(20) Buckling interaction – Method 1 (Annex A)**
-
-Combined compression and bending is checked with interaction equations (6.61)–(6.62):
-
-\\[
-\\frac{N_{Ed}}{\\chi_y N_{Rk}/\\gamma_{M1}}
-+ k_{yy} \\frac{M_{y,Ed}}{\\chi_{LT} M_{y,Rk}/\\gamma_{M1}}
-+ k_{yz} \\frac{M_{z,Ed}}{M_{z,Rk}/\\gamma_{M1}} \\le 1.0
-\\]
-
-(similarly about z-z), with interaction factors \\(k_{yy}, k_{yz}, k_{zy}, k_{zz}\\) from Annex A.
-
----
-
-**(21)–(22) Buckling interaction – Method 2 (Annex B)**
-
-Alternative set of interaction factors, depending on slenderness and axial force level, is
-given in Annex B. The format is similar:
-
-\\[
-\\frac{N_{Ed}}{\\chi_y N_{Rk}/\\gamma_{M1}}
-+ k_{yy}^* \\frac{M_{y,Ed}}{\\chi_{LT} M_{y,Rk}/\\gamma_{M1}}
-+ k_{yz}^* \\frac{M_{z,Ed}}{M_{z,Rk}/\\gamma_{M1}} \\le 1.0
-\\]
-
-Your prototype currently reports the governing utilisation from the simplified cross-section check table
-and the separate buckling results above. A full Annex A/B implementation would plug directly into
-these interaction formulae.
+        st.markdown("### (15)–(16) Flexural buckling – EN 1993-1-1 §6.3.1.3")
+        st.latex(r"""
+N_{b,Rd} = \chi \frac{A f_y}{\gamma_{M1}}
+        """)
+        st.latex(r"""
+\chi = \frac{1}{\phi + \sqrt{\phi^2 - \bar{\lambda}^2}}
+        """)
+        st.latex(r"""
+\phi = 0.5 \left[ 1 + \alpha(\bar{\lambda} - 0.2) + \bar{\lambda}^2 \right]
         """)
 
-    st.markdown("---")
+        st.markdown("---")
 
+        st.markdown("### (17) Torsional / torsional-flexural buckling – EN 1993-1-1 §6.3.1.4")
+        st.latex(r"""
+N_{b,Rd} = \chi \frac{A f_y}{\gamma_{M1}}
+        """)
+        st.markdown(
+            "Where the critical load is defined from torsional / torsional–flexural modes depending on "
+            "the St. Venant torsion constant (I_T), warping constant (I_w) and radii of gyration."
+        )
+
+        st.markdown("---")
+
+        st.markdown("### (18) Lateral–torsional buckling – EN 1993-1-1 §6.3.2")
+        st.latex(r"""
+M_{b,Rd} = \chi_{LT}\, \frac{W_{pl,y} f_y}{\gamma_{M1}}
+        """)
+        st.latex(r"""
+\bar{\lambda}_{LT} = \sqrt{\frac{W_{pl,y} f_y}{M_{cr}}}
+        """)
+
+        st.markdown("---")
+
+        st.markdown("### (19)–(20) Buckling interaction – Method 1 (Annex A)")
+        st.latex(r"""
+\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}
++
+k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}
++
+k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
+\le 1.0
+        """)
+        st.latex(r"""
+\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}
++
+k_{zy}\frac{M_{y,Ed}}{M_{y,Rk}/\gamma_{M1}}
++
+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
+\le 1.0
+        """)
+
+        st.markdown("---")
+
+        st.markdown("### (21)–(22) Buckling interaction – Method 2 (Annex B)")
+        st.latex(r"""
+\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}
++
+k_{yy}^* \frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}
++
+k_{yz}^* \frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
+\le 1.0
+        """)
+
+        st.markdown(
+            "Where the starred coefficients (k\*_yy, k\*_yz, etc.) come from Annex B and depend on "
+            "slenderness and load distribution."
+        )
 
     # 8. Summary of checks
     st.markdown("## 8. Summary of checks")
@@ -2949,6 +2910,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
