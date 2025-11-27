@@ -837,9 +837,17 @@ def render_project_data():
         with meta_col3:
             revision = st.text_input("Revision", value="A", key="revision_in")
             run_date = st.date_input("Date", value=date.today(), key="run_date_in")
-    st.markdown("---")
-    return doc_name, project_name, position, requested_by, revision, run_date
 
+        # NEW: same style “box” for notes/comments
+        notes = st.text_area(
+            "Notes / comments",
+            value="",
+            key="notes_in"
+        )
+
+    st.markdown("---")
+    # NEW: return notes as part of meta
+    return doc_name, project_name, position, requested_by, revision, run_date, notes
 
 def render_section_selection():
     st.subheader("Section selection")
@@ -2018,12 +2026,18 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     # Basic data
     # -----------------------
-    if meta:
-        doc_title, project_name, position, requested_by, revision, run_date = meta
+if meta:
+    # support both old (6 items) and new (7 items with notes)
+    if len(meta) == 7:
+        doc_title, project_name, position, requested_by, revision, run_date, notes = meta
     else:
-        doc_title = "Beam check"
-        project_name = position = requested_by = revision = ""
-        run_date = date.today()
+        doc_title, project_name, position, requested_by, revision, run_date = meta
+        notes = "–"
+else:
+    doc_title = "Beam check"
+    project_name = position = requested_by = revision = ""
+    run_date = date.today()
+    notes = "–"
 
     fam = sr_display.get("family", "") if sr_display else ""
     name = sr_display.get("name", "") if sr_display else ""
@@ -2056,7 +2070,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     story.append(Paragraph("App: EngiSnap – Beam design (prototype)", N))
     story.append(Spacer(1, 6))
     story.append(Paragraph("National Annex: (not specified)", N))
-    story.append(Paragraph("Notes / comments: –", N))
+    story.append(Paragraph(f"Notes / comments: {notes}", N))
     story.append(Spacer(1, 12))
 
     # -----------------------
@@ -2343,7 +2357,13 @@ def render_report_tab():
         st.info("To see the report: select a section, define loads, run the check, then return here.")
         return
 
+    # support both old (6) and new (7) meta formats
+    if len(meta) == 7:
+    doc_title, project_name, position, requested_by, revision, run_date, notes = meta
+    else:
     doc_title, project_name, position, requested_by, revision, run_date = meta
+    notes = "–"
+
     fam = sr_display.get("family", "")
     name = sr_display.get("name", "")
     fy = material_to_fy(material)
@@ -2391,7 +2411,7 @@ def render_report_tab():
         st.text_input("App", value="EngiSnap – Beam design (prototype)", disabled=True, key="rpt_app")
 
     st.text_input("National Annex", value="(not specified)", disabled=True, key="rpt_na")
-    st.text_area("Notes / comments", value="–", disabled=True, key="rpt_notes")
+    st.text_area("Notes / comments", value=str(notes), disabled=True, key="rpt_notes")
     st.markdown("---")
 
     st.markdown("## 2. Beam definition & material")
@@ -2778,6 +2798,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
