@@ -2339,25 +2339,16 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     buffer.seek(0)
     return buffer
 
-
 def render_report_tab():
     """
-    ENGISNAP report tab:
-      1. Project information (+ notes)
-      2. Material design values
-      3. Member & section data
-      4. Loading (ULS)
-      5. Serviceability (SLS)
-      6. Cross-section & member checks (from df_rows)
-      7. Overall summary
-      8. PDF export
+    FULL ENGISNAP report in the app, matching the PDF structure.
     """
     sr_display = st.session_state.get("sr_display")
     inputs = st.session_state.get("inputs")
     df_rows = st.session_state.get("df_rows")
     overall_ok = st.session_state.get("overall_ok", True)
     governing = st.session_state.get("governing", (None, None))
-    extras = st.session_state.get("extras", {}) or {}
+    extras = st.session_state.get("extras")
     meta = st.session_state.get("meta")
     material = st.session_state.get("material", "S355")
 
@@ -2365,28 +2356,26 @@ def render_report_tab():
         st.info("To see the report: select a section, define loads, run the check, then return here.")
         return
 
-    # --- unpack meta ---
-    # --- unpack meta (accepts 6 or 7 items) ---
+    # --- support old 6-item meta and new 7-item meta with notes ---
     if len(meta) == 7:
         doc_title, project_name, position, requested_by, revision, run_date, notes = meta
     else:
         doc_title, project_name, position, requested_by, revision, run_date = meta
         notes = ""
+
     fam = sr_display.get("family", "")
     name = sr_display.get("name", "")
     fy = material_to_fy(material)
-    gov_check, gov_util = governing if governing else (None, None)
+    gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
-
-    L = float(inputs.get("L", 0.0) or 0.0)
-    Ky = float(inputs.get("K_y", 1.0) or 1.0)
-    Kz = float(inputs.get("K_z", 1.0) or 1.0)
-    KLT = float(inputs.get("K_LT", 1.0) or 1.0)
+    L = inputs.get("L", 0.0)
+    Ky = inputs.get("K_y", 1.0)
+    Kz = inputs.get("K_z", 1.0)
+    KLT = inputs.get("K_LT", 1.0)
     Leff_y = Ky * L
     Leff_z = Kz * L
     Leff_LT = KLT * L
 
-    # diagrams / SLS info (may be None)
     Vmax = st.session_state.get("diag_Vmax_kN")
     Mmax = st.session_state.get("diag_Mmax_kNm")
     R1 = st.session_state.get("diag_R1_kN")
@@ -2394,60 +2383,41 @@ def render_report_tab():
     x_Mmax = st.session_state.get("diag_x_Mmax_m")
     delta_max_mm = st.session_state.get("diag_delta_max_mm")
 
-    sigma_allow = extras.get("sigma_allow_MPa")
-    sigma_eq = extras.get("sigma_eq_MPa")
+    # ---- PDF download ----
+    if HAS_RL:
+        pdf_buf = build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
+        if pdf_buf:
+            st.download_button(
+                "Download full ENGISNAP report (PDF)",
+                data=pdf_buf,
+                file_name="EngiSnap_Beam_Report.pdf",
+                mime="application/pdf",
+                key="rpt_pdf_btn",
+            )
+    else:
+        st.warning("PDF export not available (reportlab not installed).")
 
-    # ----------------------------------------------------
-    # 0. Header / short status
-    # ----------------------------------------------------
-    st.subheader("ENGISNAP – Beam design report (Eurocode style)")
-
-    st.caption(
-        f"Overall status: **{status_txt}**  |  Governing check: **{gov_check or 'n/a'}**  |  "
-        f"Max utilisation: **{gov_util:.3f}**" if gov_util is not None else
-        f"Overall status: **{status_txt}**"
-    )
-
-    st.markdown("---")
-
-    # ----------------------------------------------------
-    # 1. Project information
-    # ----------------------------------------------------
     st.markdown("## 1. Project information")
-
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.text_input("Document title", value=doc_title, disabled=True, key="rpt_doc_title")
-        st.text_input("Project name", value=project_name, disabled=True, key="rpt_project_name")
+        st.text_input("Project name", value=str(project_name), disabled=True, key="rpt_proj_name")
+        st.text_input("Designer", value=str(requested_by), disabled=True, key="rpt_designer")
     with c2:
-        st.text_input("Position / Beam ID", value=position, disabled=True, key="rpt_position")
-        st.text_input("Requested by", value=requested_by, disabled=True, key="rpt_requested_by")
+        st.text_input("Document title", value=str(doc_title), disabled=True, key="rpt_doc_title")
+        st.text_input("Revision", value=str(revision), disabled=True, key="rpt_revision")
     with c3:
-        st.text_input("Revision", value=revision, disabled=True, key="rpt_revision")
         st.text_input("Date", value=str(run_date), disabled=True, key="rpt_date")
+        st.text_input("App", value="EngiSnap – Beam design (prototype)", disabled=True, key="rpt_app")
 
-    # Notes / comments box (editable, but stored in session)
-    st.markdown(
-        """
-<div style="
-    border-left: 4px solid #4c9aff;
-    background-color: #f7f9ff;
-    padding: 0.75rem 1rem;
-    border-radius: 4px;
-    margin-top: 0.75rem;
-">
-    <strong>Notes / comments</strong>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.text_input("National Annex", value="(not specified)", disabled=True, key="rpt_na")
+
+    # ✅ same format as Tab 1, but READ-ONLY and populated from meta
     st.text_area(
-        "",
-        key="report_notes",
-        height=120,
-        value=st.session_state.get("report_notes", ""),
+        "Notes / comments",
+        value=str(notes or ""),
+        disabled=True,
+        key="rpt_notes",
     )
-
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -2984,5 +2954,6 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
