@@ -2359,10 +2359,10 @@ def render_report_tab():
 
     # support both old (6) and new (7) meta formats
     if len(meta) == 7:
-    doc_title, project_name, position, requested_by, revision, run_date, notes = meta
+        doc_title, project_name, position, requested_by, revision, run_date, notes = meta
     else:
-    doc_title, project_name, position, requested_by, revision, run_date = meta
-    notes = "–"
+        doc_title, project_name, position, requested_by, revision, run_date = meta
+        notes = "–"
 
     fam = sr_display.get("family", "")
     name = sr_display.get("name", "")
@@ -2798,6 +2798,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
