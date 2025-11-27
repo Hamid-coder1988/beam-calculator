@@ -2341,20 +2341,30 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
 
 def render_report_tab():
     """
-    FULL ENGISNAP report in the app, matching the PDF structure.
+    ENGISNAP Report tab — structured as:
+
+    1. Project information
+    2. Material design values
+    3. Member & section data
+    4. Section classification
+    5. Applied actions & internal forces (ULS)
+    6. Verification of cross-section strength (ULS)
+    7. Member stability (buckling)
+    8. References
     """
     sr_display = st.session_state.get("sr_display")
     inputs = st.session_state.get("inputs")
     df_rows = st.session_state.get("df_rows")
     overall_ok = st.session_state.get("overall_ok", True)
     governing = st.session_state.get("governing", (None, None))
-    extras = st.session_state.get("extras") or {}   # ✅ make sure it's a dict, not None
+    extras = st.session_state.get("extras") or {}
     meta = st.session_state.get("meta")
     material = st.session_state.get("material", "S355")
 
-    # ✅ define these so we can use them later in the Material section
+    # from extras (computed in compute_checks)
     sigma_allow = extras.get("sigma_allow_MPa")
     sigma_eq = extras.get("sigma_eq_MPa")
+    buck_results = extras.get("buck_results", [])
 
     if sr_display is None or inputs is None or df_rows is None or meta is None:
         st.info("To see the report: select a section, define loads, run the check, then return here.")
@@ -2372,6 +2382,7 @@ def render_report_tab():
     fy = material_to_fy(material)
     gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
+
     L = inputs.get("L", 0.0)
     Ky = inputs.get("K_y", 1.0)
     Kz = inputs.get("K_z", 1.0)
@@ -2387,20 +2398,28 @@ def render_report_tab():
     x_Mmax = st.session_state.get("diag_x_Mmax_m")
     delta_max_mm = st.session_state.get("diag_delta_max_mm")
 
-    # ---- PDF download ----
+    # ----------------------------------------------------
+    # PDF download (top)
+    # ----------------------------------------------------
+    st.markdown("### Save report")
     if HAS_RL:
         pdf_buf = build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
         if pdf_buf:
             st.download_button(
-                "Download full ENGISNAP report (PDF)",
+                "💾 Save as PDF",
                 data=pdf_buf,
                 file_name="EngiSnap_Beam_Report.pdf",
                 mime="application/pdf",
-                key="rpt_pdf_btn",
+                key="rpt_pdf_btn_top",
             )
     else:
         st.warning("PDF export not available (reportlab not installed).")
 
+    st.markdown("---")
+
+    # ----------------------------------------------------
+    # 1. Project information
+    # ----------------------------------------------------
     st.markdown("## 1. Project information")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -2415,7 +2434,6 @@ def render_report_tab():
 
     st.text_input("National Annex", value="(not specified)", disabled=True, key="rpt_na")
 
-    # ✅ same format as Tab 1, but READ-ONLY and populated from meta
     st.text_area(
         "Notes / comments",
         value=str(notes or ""),
@@ -2425,19 +2443,21 @@ def render_report_tab():
     st.markdown("---")
 
     # ----------------------------------------------------
-    # 2. Material design values  (moved up as you requested)
+    # 2. Material design values (EN 1993-1-1)
     # ----------------------------------------------------
-    st.markdown("## 2. Material design values")
+    st.markdown("## 2. Material design values (EN 1993-1-1)")
 
     eps = (235.0 / fy) ** 0.5 if fy > 0 else None
+    fy_over_gM0 = fy / 1.0 if fy is not None else None
+    fy_over_gM1 = fy / 1.0 if fy is not None else None
 
     m1, m2, m3 = st.columns(3)
     with m1:
         st.text_input("Steel grade", value=material, disabled=True, key="rpt_mat_grade")
         st.text_input("Yield strength f_y [MPa]", value=f"{fy:.1f}", disabled=True, key="rpt_mat_fy")
     with m2:
+        st.text_input("Ultimate strength f_u [MPa]", value="(not specified)", disabled=True, key="rpt_mat_fu")
         st.text_input("Elastic modulus E [MPa]", value="210000", disabled=True, key="rpt_mat_E")
-        st.text_input("Shear modulus G [MPa]", value="81000", disabled=True, key="rpt_mat_G")
     with m3:
         st.text_input("γ_M0", value="1.00", disabled=True, key="rpt_mat_gM0")
         st.text_input("γ_M1", value="1.00", disabled=True, key="rpt_mat_gM1")
@@ -2452,12 +2472,30 @@ def render_report_tab():
         )
     with m5:
         st.text_input(
+            "f_y / γ_M0 [MPa]",
+            value=f"{fy_over_gM0:.1f}" if fy_over_gM0 is not None else "n/a",
+            disabled=True,
+            key="rpt_mat_fy_gM0",
+        )
+    with m6:
+        st.text_input(
+            "f_y / γ_M1 [MPa]",
+            value=f"{fy_over_gM1:.1f}" if fy_over_gM1 is not None else "n/a",
+            disabled=True,
+            key="rpt_mat_fy_gM1",
+        )
+
+    m7, m8, m9 = st.columns(3)
+    with m7:
+        st.text_input("Shear modulus G [MPa]", value="81000", disabled=True, key="rpt_mat_G")
+    with m8:
+        st.text_input(
             "Indicative σ_allow [MPa]",
             value=f"{sigma_allow:.3f}" if sigma_allow is not None else "n/a",
             disabled=True,
             key="rpt_mat_sigma_allow",
         )
-    with m6:
+    with m9:
         st.text_input(
             "Equivalent σ_eq [MPa]",
             value=f"{sigma_eq:.3f}" if sigma_eq is not None else "n/a",
@@ -2472,7 +2510,7 @@ def render_report_tab():
     # ----------------------------------------------------
     st.markdown("## 3. Member & section data")
 
-    # 3.1 Member definition
+    # 3.1 Member inputs
     st.markdown("### 3.1 Member definition")
 
     ready_case = st.session_state.get("ready_selected_case")
@@ -2488,112 +2526,88 @@ def render_report_tab():
         st.number_input("Span length L [m]", value=float(L), disabled=True, key="rpt_L")
     with mc2:
         st.text_input("Support conditions", value=support_txt, disabled=True, key="rpt_support")
-        st.number_input("Buckling length L_y [m]", value=float(Leff_y), disabled=True, key="rpt_Leff_y")
+        st.number_input("Effective length L_y [m]", value=float(Leff_y), disabled=True, key="rpt_Leff_y")
     with mc3:
-        st.number_input("Buckling length L_z [m]", value=float(Leff_z), disabled=True, key="rpt_Leff_z")
+        st.number_input("Effective length L_z [m]", value=float(Leff_z), disabled=True, key="rpt_Leff_z")
         st.number_input("LT buckling length L_LT [m]", value=float(Leff_LT), disabled=True, key="rpt_Leff_LT")
 
-    # 3.2 Cross-section summary + image
-    st.markdown("### 3.2 Cross-section")
+    # 3.2 Section data
+    st.markdown("### 3.2 Section data")
 
     cs1, cs2 = st.columns(2)
     with cs1:
         st.text_input("Section family", value=fam, disabled=True, key="rpt_cs_family")
         st.text_input("Section size", value=name, disabled=True, key="rpt_cs_name")
 
-        # reuse your nice summary cards (6 boxes per line)
+        # Selected section summary — already nice (6 boxes per 2 rows)
         render_section_summary_like_props(material, sr_display, key_prefix="rpt_sum")
 
     with cs2:
         img_path = get_section_image(fam)
         if img_path:
-            st.markdown("Cross-section view")
+            st.markdown("Cross-section schematic")
             st.image(img_path, width=260)
+        else:
+            st.markdown("Cross-section schematic")
+            st.info("No image available for this family.")
 
-    # 3.3 Detailed DB properties (your full list)
+    # full DB section properties
     with st.expander("3.3 Section properties from DB", expanded=False):
         render_section_properties_readonly(sr_display, key_prefix="rpt_props")
 
     st.markdown("---")
 
     # ----------------------------------------------------
-    # 4. Loading (ULS, read-only)
+    # 4. Section classification (EN 1993-1-1 §5.5)
     # ----------------------------------------------------
-    st.markdown("## 4. Loading (ULS)")
+    st.markdown("## 4. Section classification (EN 1993-1-1 §5.5)")
 
-    # Same layout as Loads tab, but read-only
-    st.markdown("### 4.1 Design forces and moments")
-    st.caption("Positive N = compression.")
+    flange_class = sr_display.get("flange_class_db", "n/a")
+    web_class_b = sr_display.get("web_class_bending_db", "n/a")
+    web_class_c = sr_display.get("web_class_compression_db", "n/a")
 
-    r1c1, r1c2, r1c3 = st.columns(3)
-    with r1c1:
-        st.number_input(
-            "Element length L [m]",
-            value=float(inputs.get("L", 0.0)),
-            disabled=True,
-            key="rpt_load_L",
-        )
-    with r1c2:
-        st.number_input(
-            "Axial force N [kN]",
-            value=float(inputs.get("N_kN", 0.0)),
-            disabled=True,
-            key="rpt_load_N",
-        )
-    with r1c3:
-        st.number_input(
-            "Shear V_y [kN]",
-            value=float(inputs.get("Vy_kN", 0.0)),
-            disabled=True,
-            key="rpt_load_Vy",
-        )
+    # Simple 4-row "table" using columns
+    cfl, cwe, cwc = st.columns(3)
+    with cfl:
+        st.text_input("Flange – bending", value=str(flange_class), disabled=True, key="rpt_flange_class")
+    with cwe:
+        st.text_input("Web – bending", value=str(web_class_b), disabled=True, key="rpt_web_class_b")
+    with cwc:
+        st.text_input("Web – uniform compression", value=str(web_class_c), disabled=True, key="rpt_web_class_c")
 
-    r2c1, r2c2, r2c3 = st.columns(3)
-    with r2c1:
-        st.number_input(
-            "Shear V_z [kN]",
-            value=float(inputs.get("Vz_kN", 0.0)),
-            disabled=True,
-            key="rpt_load_Vz",
-        )
-    with r2c2:
-        st.number_input(
-            "Bending M_y [kN·m]",
-            value=float(inputs.get("My_kNm", 0.0)),
-            disabled=True,
-            key="rpt_load_My",
-        )
-    with r2c3:
-        st.number_input(
-            "Bending M_z [kN·m]",
-            value=float(inputs.get("Mz_kNm", 0.0)),
-            disabled=True,
-            key="rpt_load_Mz",
-        )
+    st.text_input(
+        "Governing cross-section class",
+        value="(not explicitly derived yet)",
+        disabled=True,
+        key="rpt_cs_class",
+    )
 
-    st.markdown("### 4.2 Buckling effective length factors K")
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        st.number_input("K_y", value=float(inputs.get("K_y", 1.0)), disabled=True, key="rpt_Ky")
-    with k2:
-        st.number_input("K_z", value=float(inputs.get("K_z", 1.0)), disabled=True, key="rpt_Kz")
-    with k3:
-        st.number_input("K_LT", value=float(inputs.get("K_LT", 1.0)), disabled=True, key="rpt_KLT")
-    with k4:
-        st.number_input("K_T", value=float(inputs.get("K_T", 1.0)), disabled=True, key="rpt_KT")
+    st.markdown("---")
 
-    torsion_supported = supports_torsion_and_warping(fam)
-    if torsion_supported:
-        st.markdown("### 4.3 Torsion (open I/H/U sections)")
-        st.number_input(
-            "Torsion T_x [kN·m]",
-            value=float(inputs.get("Tx_kNm", 0.0)),
-            disabled=True,
-            key="rpt_Tx",
-        )
+    # ----------------------------------------------------
+    # 5. Applied actions & internal forces (ULS)
+    # ----------------------------------------------------
+    st.markdown("## 5. Applied actions & internal forces (ULS)")
 
-    # 4.4 Internal forces summary (from diagrams / ready-case)
-    st.markdown("### 4.4 Internal forces summary from diagrams")
+    # 5.1 Load input (as entered)
+    st.markdown("### 5.1 Load input (ULS)")
+
+    if ready_case:
+        st.write(f"Load case type: **{ready_case.get('key','')} — {ready_case.get('label','')}**")
+    else:
+        st.write("Load case type: **User-defined**")
+
+    st.write(
+        f"N = {inputs.get('N_kN', 0.0):.3f} kN, "
+        f"Vy = {inputs.get('Vy_kN', 0.0):.3f} kN, "
+        f"Vz = {inputs.get('Vz_kN', 0.0):.3f} kN, "
+        f"My = {inputs.get('My_kNm', 0.0):.3f} kNm, "
+        f"Mz = {inputs.get('Mz_kNm', 0.0):.3f} kNm"
+    )
+
+    # 5.2 Internal forces results
+    st.markdown("### 5.2 Internal forces & deflection summary")
+
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.text_input(
@@ -2611,92 +2625,69 @@ def render_report_tab():
         )
     with c3:
         st.text_input(
-            "R1 support [kN]",
+            "R_A support [kN]",
             value=f"{R1:.3f}" if R1 is not None else "n/a",
             disabled=True,
             key="rpt_R1",
         )
     with c4:
         st.text_input(
-            "R2 support [kN]",
+            "R_B support [kN]",
             value=f"{R2:.3f}" if R2 is not None else "n/a",
             disabled=True,
             key="rpt_R2",
         )
 
-    c5, c6 = st.columns(2)
-    with c5:
-        st.text_input(
-            "x(M_max) [m]",
-            value=f"{x_Mmax:.3f}" if x_Mmax is not None else "n/a",
-            disabled=True,
-            key="rpt_xMmax",
-        )
-    with c6:
-        st.text_input(
-            "δ_max from diagram [mm]",
-            value=f"{delta_max_mm:.3f}" if delta_max_mm is not None else "n/a",
-            disabled=True,
-            key="rpt_delta_diag",
-        )
-
-    st.markdown("---")
-
-    # ----------------------------------------------------
-    # 5. Serviceability (SLS)
-    # ----------------------------------------------------
-    st.markdown("## 5. Serviceability (SLS)")
-
-    st.markdown("### 5.1 Deflection limits")
-    if L > 0:
-        Lmm = L * 1000.0
-        limit_300 = Lmm / 300.0
-        limit_600 = Lmm / 600.0
-        limit_900 = Lmm / 900.0
+    d1, d2, d3 = st.columns(3)
+    if L > 0 and delta_max_mm not in (None, 0.0):
+        L_over_w = (L * 1000.0) / abs(delta_max_mm) if delta_max_mm != 0 else None
     else:
-        limit_300 = limit_600 = limit_900 = 0.0
+        L_over_w = None
 
-    dc1, dc2, dc3, dc4 = st.columns(4)
-    with dc1:
+    with d1:
         st.text_input(
             "δ_max [mm]",
             value=f"{delta_max_mm:.3f}" if delta_max_mm is not None else "n/a",
             disabled=True,
             key="rpt_delta_max",
         )
-    with dc2:
+    with d2:
         st.text_input(
-            "L/300 [mm]",
-            value=f"{limit_300:.1f}" if L > 0 else "n/a",
+            "Span L [mm]",
+            value=f"{L*1000.0:.1f}" if L > 0 else "n/a",
             disabled=True,
-            key="rpt_L300",
+            key="rpt_Lmm",
         )
-    with dc3:
+    with d3:
         st.text_input(
-            "L/600 [mm]",
-            value=f"{limit_600:.1f}" if L > 0 else "n/a",
+            "Deflection ratio L / δ_max",
+            value=f"{L_over_w:.1f}" if L_over_w is not None else "n/a",
             disabled=True,
-            key="rpt_L600",
+            key="rpt_L_over_w",
         )
-    with dc4:
-        st.text_input(
-            "L/900 [mm]",
-            value=f"{limit_900:.1f}" if L > 0 else "n/a",
-            disabled=True,
-            key="rpt_L900",
-        )
-
-    st.markdown("### 5.2 Comment")
-    st.info("Deflection check here is indicative only; full SLS combinations are not yet implemented in this prototype.")
 
     st.markdown("---")
 
     # ----------------------------------------------------
-    # 6. Cross-section & member checks (from df_rows)
+    # 6. Verification of cross-section strength (ULS)
     # ----------------------------------------------------
-    st.markdown("## 6. Cross-section & member checks (ULS)")
+    st.markdown("## 6. Verification of cross-section strength (ULS)")
 
-    # Little helper to colour OK / EXCEEDS
+    st.markdown("### 6.1 Summary")
+    s1, s2, s3 = st.columns(3)
+    with s1:
+        st.text_input("Status", value=status_txt, disabled=True, key="rpt_status_txt_cs")
+    with s2:
+        st.text_input("Governing check", value=str(gov_check or "n/a"), disabled=True, key="rpt_gov_check_cs")
+    with s3:
+        st.text_input(
+            "Governing utilisation",
+            value=f"{gov_util:.3f}" if gov_util is not None else "n/a",
+            disabled=True,
+            key="rpt_gov_util_cs",
+        )
+
+    st.markdown("### 6.2 Detailed checks table (1–14)")
     def _hl(row):
         s = row.get("Status", "")
         if s == "OK":
@@ -2707,60 +2698,120 @@ def render_report_tab():
             color = "background-color: #f0f0f0"
         return [color] * len(row)
 
-    st.markdown("### 6.1 Detailed check table")
     st.write(df_rows.style.apply(_hl, axis=1))
-    
-        # 6.3 Explanations & formulas for section checks
-    with st.expander("6.3 Eurocode formulas for cross-section checks (1–14)", expanded=False):
 
+    # 6.3 Explanations & formulas (expander, with LaTeX)
+    with st.expander("6.3 Eurocode formulas for cross-section checks (1–14)", expanded=False):
         st.markdown("### (1) Tension – EN 1993-1-1 §6.2.3")
-        st.latex(r"N_{Ed} \le N_{t,Rd} = \frac{A f_y}{\gamma_{M0}}")
+        st.latex(r"N_{Ed} \leq N_{t,Rd} = \frac{A f_y}{\gamma_{M0}}")
 
         st.markdown("### (2) Compression – EN 1993-1-1 §6.2.4")
-        st.latex(r"N_{Ed} \le N_{c,Rd} = \frac{A f_y}{\gamma_{M0}}")
+        st.latex(r"N_{Ed} \leq N_{c,Rd} = \frac{A f_y}{\gamma_{M0}}")
 
-        st.markdown("### (3) Major-axis bending – EN 1993-1-1 §6.2.5")
-        st.latex(r"M_{y,Ed} \le M_{y,Rd} = \frac{W_{pl,y} f_y}{\gamma_{M0}}")
+        st.markdown("### (3) Bending about major axis y – §6.2.5")
+        st.latex(r"M_{y,Ed} \leq M_{y,Rd} = \frac{W_{pl,y} f_y}{\gamma_{M0}}")
 
-        st.markdown("### (4) Minor-axis blending – EN 1993-1-1 §6.2.5")
-        st.latex(r"M_{z,Ed} \le M_{z,Rd} = \frac{W_{pl,z} f_y}{\gamma_{M0}}")
+        st.markdown("### (4) Bending about minor axis z – §6.2.5")
+        st.latex(r"M_{z,Ed} \leq M_{z,Rd} = \frac{W_{pl,z} f_y}{\gamma_{M0}}")
 
-        st.markdown("### (5–6) Shear – EN 1993-1-1 §6.2.6")
-        st.latex(r"V_{Ed} \le V_{pl,Rd} = \frac{A_v f_y}{\sqrt{3}\,\gamma_{M0}}")
+        st.markdown("### (5–6) Shear – §6.2.6")
+        st.latex(r"V_{Ed} \leq V_{pl,Rd} = \frac{A_v f_y}{\sqrt{3}\,\gamma_{M0}}")
 
-        st.markdown("### (7–8) Bending with high shear – EN 1993-1-1 §6.2.8")
+        st.markdown("### (7–8) Bending with high shear – §6.2.8")
         st.latex(r"V_{Ed} > 0.5\,V_{pl,Rd} \Rightarrow M_{Rd,\text{red}} = \rho\, M_{pl}")
 
-        st.markdown("### (9–11) Axial + bending – EN 1993-1-1 §6.2.9")
-        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{y,Ed}}{M_{y,Rd}} \le 1.0")
-        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{z,Ed}}{M_{z,Rd}} \le 1.0")
+        st.markdown("### (9–11) Axial force + bending – §6.2.9")
+        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{y,Ed}}{M_{y,Rd}} \leq 1.0")
+        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{z,Ed}}{M_{z,Rd}} \leq 1.0")
 
-        st.markdown("### (12–14) Axial + shear + bending – EN 1993-1-1 §6.2.10")
-        st.latex(r"M_{Rd,\text{red}} = \rho\, M_{pl}")
+        st.markdown("### (12–14) Axial + shear + bending – §6.2.10")
+        st.latex(r" M_{Rd,\text{red}} = \rho\, M_{pl} ")
+        st.latex(r" \frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{Ed}}{M_{Rd,\text{red}}} \leq 1.0 ")
 
     st.markdown("---")
 
     # ----------------------------------------------------
-    # 7. Overall summary
+    # 7. Member stability (buckling)
     # ----------------------------------------------------
-    st.markdown("## 7. Overall summary")
+    st.markdown("## 7. Member stability (buckling)")
 
-    sc1, sc2 = st.columns(2)
-    with sc1:
-        st.text_input("Overall status", value=status_txt, disabled=True, key="rpt_status_txt")
-        st.text_input("Governing check", value=str(gov_check or "n/a"), disabled=True, key="rpt_gov_check")
-    with sc2:
-        st.text_input(
-            "Max utilisation",
-            value=f"{gov_util:.3f}" if gov_util is not None else "n/a",
-            disabled=True,
-            key="rpt_gov_util",
+    st.markdown("### 7.1 Buckling summary table")
+    buck_data = []
+    for axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status in buck_results or []:
+        if N_b_Rd_N is None:
+            continue
+        buck_data.append(
+            {
+                "Axis / mode": f"Flexural buckling {axis_label}",
+                "N_cr [kN]": f"{Ncr/1e3:.2f}" if Ncr is not None else "n/a",
+                "λ̄": f"{lambda_bar:.3f}" if lambda_bar is not None else "n/a",
+                "χ": f"{chi:.3f}" if chi is not None else "n/a",
+                "N_b,Rd [kN]": f"{N_b_Rd_N/1e3:.2f}",
+                "Status": status,
+            }
         )
-        st.text_input("Section", value=f"{fam} {name}", disabled=True, key="rpt_summary_section")
+
+    if buck_data:
+        df_buck = pd.DataFrame(buck_data)
+        st.table(df_buck)
+    else:
+        st.info("No buckling results available.")
+
+    st.markdown("### 7.2 Detailed buckling expressions (per axis)")
+    if buck_data:
+        for row in buck_data:
+            st.markdown(f"**Axis / mode:** {row['Axis / mode']}")
+            st.write(
+                f"N_cr = {row['N_cr [kN]']} kN, "
+                f"λ̄ = {row['λ̄']}, "
+                f"χ = {row['χ']}, "
+                f"N_b,Rd = {row['N_b,Rd [kN]']} kN → {row['Status']}"
+            )
+    else:
+        st.write("No detailed values to display.")
+
+    # 7.3 Buckling formulas expander
+    with st.expander("7.3 Eurocode formulas for member buckling", expanded=False):
+        st.markdown("### Flexural buckling – EN 1993-1-1 §6.3.1")
+
+        st.latex(r"N_{cr} = \frac{\pi^2 E I}{L_{eff}^2}")
+        st.latex(r"\bar{\lambda} = \sqrt{\frac{A f_y}{N_{cr}}}")
+
+        st.latex(
+            r"\phi = \frac{1}{2} \left[ 1 + \alpha \left( \bar{\lambda} - 0.2 \right) + \bar{\lambda}^2 \right]"
+        )
+        st.latex(
+            r"\chi = \frac{1}{\phi + \sqrt{\phi^2 - \bar{\lambda}^2}} \leq 1.0"
+        )
+        st.latex(
+            r"N_{b,Rd} = \frac{\chi A f_y}{\gamma_{M1}}"
+        )
+
+        st.markdown("### Lateral–torsional buckling (LTB) – simplified")
+        st.latex(
+            r"k_{yy}^* \frac{M_{y,Ed}}{\chi_{LT} \, M_{y,Rk} / \gamma_{M1}} \leq 1.0"
+        )
+        st.latex(
+            r"M_{b,Rd} = \frac{\chi_{LT} \, M_{y,Rk}}{\gamma_{M1}}"
+        )
 
     st.markdown("---")
 
     # ----------------------------------------------------
+    # 8. References
+    # ----------------------------------------------------
+    st.markdown("## 8. References")
+
+    st.markdown(
+        """
+- EN 1993-1-1: Eurocode 3 – Design of steel structures – Part 1-1  
+- EN 1990: Basis of structural design  
+- EN 1991 series: Actions on structures  
+- National Annex to EN 1993-1-1 (where applicable)  
+- EngiSnap – Standard steel beam design & selection (this prototype)
+"""
+    )
+
 
 # =========================================================
 # APP ENTRY
@@ -2963,6 +3014,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
