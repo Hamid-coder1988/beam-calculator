@@ -790,8 +790,8 @@ READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["inputs"] = {
     "a_udl": 1.5,
     "b_udl": 3.0,
 }
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["func"] = ssb_c1_case
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["diagram_func"] = ssb_c1_diagram
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["func"] = ssb_c3_case
+READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["diagram_func"] = ssb_c3_diagram
 
 # ---- Patch Case 4 of Simply Supported Beams: SSB-C4 (two partial UDLs) ----
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["label"] = "SSB - C4"
@@ -3187,6 +3187,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
