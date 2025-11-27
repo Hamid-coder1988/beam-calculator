@@ -2366,7 +2366,12 @@ def render_report_tab():
         return
 
     # --- unpack meta ---
-    doc_title, project_name, position, requested_by, revision, run_date = meta
+    # --- unpack meta (accepts 6 or 7 items) ---
+    if len(meta) == 7:
+        doc_title, project_name, position, requested_by, revision, run_date, notes = meta
+    else:
+        doc_title, project_name, position, requested_by, revision, run_date = meta
+        notes = ""
     fam = sr_display.get("family", "")
     name = sr_display.get("name", "")
     fy = material_to_fy(material)
@@ -2979,4 +2984,5 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
