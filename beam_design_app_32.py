@@ -3245,7 +3245,9 @@ def render_section_preview_placeholder(title="Cross-section preview", key_prefix
 
 render_sidebar_guidelines()
 
-tab1, tab2, tab3, tab4 = st.tabs(["1) Member & Section", "2) Loads", "3) Results", "4) Report"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["1) Project info", "2) Loads & design", "3) Section", "4) Results", "5) Report"]
+)
 
 with tab1:
     meta = render_project_data()
@@ -3337,6 +3339,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
