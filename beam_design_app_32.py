@@ -1679,14 +1679,15 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
 def render_results(df_rows, overall_ok, governing):
     """
-    Results tab:
-      - summary line
-      - Table 1: Verification of cross-section strength (ULS, checks 1–14)
-      - Table 2: Verification of member stability (buckling, checks 15–20)
-
-    For now Utilization/Status are just placeholders: you can later fill them
-    from your real calculations for all 20 checks.
+    Results tab: EXACT layout requested.
+    Two tables:
+      1) Cross-section strength checks (1–14)
+      2) Buckling checks (15–20)
+    Columns:
+      # | Check | Utilization | Status
+    Tables have identical layout & width.
     """
+
     gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
 
@@ -1705,9 +1706,9 @@ def render_results(df_rows, overall_ok, governing):
 
     st.markdown("---")
 
-    # -----------------------
-    # 1) Verification of cross-section strength (ULS, checks 1–14)
-    # -----------------------
+    # ----------------------------------------------------------
+    # TABLE 1: Cross-section strength checks (1–14)
+    # ----------------------------------------------------------
     st.markdown("### Verification of cross-section strength (ULS, checks 1–14)")
 
     cs_checks = [
@@ -1727,14 +1728,12 @@ def render_results(df_rows, overall_ok, governing):
         "My + Mz + N + V",
     ]
 
-    # placeholders for now – you will later replace "" with real values
-    cs_table = pd.DataFrame(
-        {
-            "Check": cs_checks,
-            "Utilization": ["" for _ in cs_checks],
-            "Status": ["" for _ in cs_checks],
-        }
-    )
+    cs_table = pd.DataFrame({
+        "#": list(range(1, 15)),
+        "Check": cs_checks,
+        "Utilization": ["" for _ in cs_checks],
+        "Status": ["" for _ in cs_checks],
+    })
 
     st.dataframe(
         cs_table,
@@ -1744,27 +1743,26 @@ def render_results(df_rows, overall_ok, governing):
 
     st.markdown("---")
 
-    # -----------------------
-    # 2) Verification of member stability (buckling, checks 15–20)
-    # -----------------------
+    # ----------------------------------------------------------
+    # TABLE 2: Buckling checks (15–20)
+    # ----------------------------------------------------------
     st.markdown("### Verification of member stability (buckling, checks 15–20)")
 
     buck_checks = [
         "Flexural buckling y–y",
         "Flexural buckling z–z",
-        "Torsional / torsional–flexural buckling z",
-        "Lateral–torsional buckling",
+        "Torsional / torsional-flexural buckling z",
+        "Lateral-torsional buckling",
         "Bending + axial compression (Method 1)",
         "Bending + axial compression (Method 2)",
     ]
 
-    buck_table = pd.DataFrame(
-        {
-            "Check": buck_checks,
-            "Utilization": ["" for _ in buck_checks],
-            "Status": ["" for _ in buck_checks],
-        }
-    )
+    buck_table = pd.DataFrame({
+        "#": [15, 16, 17, 18, 19, 20],
+        "Check": buck_checks,
+        "Utilization": ["" for _ in buck_checks],
+        "Status": ["" for _ in buck_checks],
+    })
 
     st.dataframe(
         buck_table,
@@ -1774,9 +1772,9 @@ def render_results(df_rows, overall_ok, governing):
 
     st.markdown("---")
 
-    # -----------------------
-    # Bottom hints / navigation
-    # -----------------------
+    # ----------------------------------------------------------
+    # Bottom hints
+    # ----------------------------------------------------------
     st.caption("See **Report** tab for full formulas & Eurocode clause references.")
     st.caption("See **Diagrams** / ready cases tab for shear, moment and deflection graphs.")
 
@@ -3287,6 +3285,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
