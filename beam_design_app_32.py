@@ -1678,29 +1678,133 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
 
 def render_results(df_rows, overall_ok, governing):
-    st.markdown("### Result summary")
+    """Results tab: summary + grouped cross-section and buckling checks.
+
+    df_rows is a DataFrame indexed by 'Check' with columns:
+      'Applied', 'Resistance', 'Utilization', 'Status'
+    """
+    if df_rows is None or df_rows.empty:
+        st.info("No results available. Run the Loads form first.")
+        return
+
     gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
 
-    st.caption(
-        f"Overall status: **{status_txt}**  |  Governing check: **{gov_check or 'n/a'}**  |  Max util: **{gov_util:.3f}**"
-        if gov_util else f"Overall status: **{status_txt}**"
-    )
+    # ----------------------------------------------------
+    # Top summary
+    # ----------------------------------------------------
+    st.markdown("## Results summary")
+    if gov_util is not None:
+        st.caption(
+            f"Overall status: **{status_txt}**  |  "
+            f"Governing check: **{gov_check or 'n/a'}**  |  "
+            f"Max utilization: **{gov_util:.3f}**"
+        )
+    else:
+        st.caption(f"Overall status: **{status_txt}**")
 
     st.markdown("---")
-    st.markdown("### Detailed checks")
 
-    def highlight_row(row):
-        s = row["Status"]
-        if s == "OK":
-            color = "background-color: #e6f7e6"
-        elif s == "EXCEEDS":
-            color = "background-color: #fde6e6"
-        else:
-            color = "background-color: #f0f0f0"
-        return [color] * len(row)
+    # ----------------------------------------------------
+    # Build a light-weight view from df_rows
+    # ----------------------------------------------------
+    df_light = df_rows.copy()
+    df_light = df_light.reset_index()  # bring 'Check' out of index
 
-    st.write(df_rows.style.apply(highlight_row, axis=1))
+    # keep only columns we need for the overview
+    cols_present = [c for c in ["Check", "Utilization", "Status"] if c in df_light.columns]
+    df_light = df_light[cols_present]
+
+    # convert Utilization to numeric for formatting
+    if "Utilization" in df_light.columns:
+        df_light["Utilization_num"] = pd.to_numeric(df_light["Utilization"], errors="coerce")
+    else:
+        df_light["Utilization_num"] = None
+
+    # split into cross-section vs buckling (by check name)
+    is_buckling = df_light["Check"].str.contains("buckling", case=False, na=False)
+    df_cs = df_light[~is_buckling].copy()
+    df_buck = df_light[is_buckling].copy()
+
+    # running numbers inside each group
+    df_cs.insert(0, "#", range(1, len(df_cs) + 1))
+    df_buck.insert(0, "#", range(1, len(df_buck) + 1))
+
+    # pretty formatting for Utilization
+    def _fmt_util(u):
+        if pd.isna(u):
+            return "n/a"
+        try:
+            return f"{float(u):.3f}"
+        except Exception:
+            return str(u)
+
+    if "Utilization" in df_cs.columns:
+        df_cs["Utilization"] = df_cs["Utilization_num"].apply(_fmt_util)
+    if "Utilization" in df_buck.columns:
+        df_buck["Utilization"] = df_buck["Utilization_num"].apply(_fmt_util)
+
+    # ----------------------------------------------------
+    # 6. Verification of cross-section strength (ULS)
+    # ----------------------------------------------------
+    st.markdown("### Verification of cross-section strength (ULS)")
+    if not df_cs.empty:
+        cs_view = df_cs[["#", "Check", "Utilization", "Status"]].copy()
+
+        def _hl_cs(row):
+            s = row["Status"]
+            if s == "OK":
+                color = "background-color: #e6f7e6"
+            elif s == "EXCEEDS":
+                color = "background-color: #fde6e6"
+            else:
+                color = "background-color: #f0f0f0"
+            return [color] * len(row)
+
+        st.write(cs_view.style.apply(_hl_cs, axis=1))
+    else:
+        st.info("No cross-section checks available.")
+
+    # ----------------------------------------------------
+    # 7. Verification of member stability (buckling)
+    # ----------------------------------------------------
+    st.markdown("### Verification of member stability (buckling)")
+    if not df_buck.empty:
+        buck_view = df_buck[["#", "Check", "Utilization", "Status"]].copy()
+
+        def _hl_buck(row):
+            s = row["Status"]
+            if s == "OK":
+                color = "background-color: #e6f7e6"
+            elif s == "EXCEEDS":
+                color = "background-color: #fde6e6"
+            else:
+                color = "background-color: #f0f0f0"
+            return [color] * len(row)
+
+        st.write(buck_view.style.apply(_hl_buck, axis=1))
+    else:
+        st.info("No buckling checks available.")
+
+    st.markdown("---")
+
+    # ----------------------------------------------------
+    # Detailed table (all checks) in expander
+    # ----------------------------------------------------
+    st.markdown("### Detailed results table (all checks)")
+    with st.expander("Show full detail (Applied / Resistance / etc.)", expanded=False):
+
+        def highlight_row(row):
+            s = row.get("Status", "")
+            if s == "OK":
+                color = "background-color: #e6f7e6"
+            elif s == "EXCEEDS":
+                color = "background-color: #fde6e6"
+            else:
+                color = "background-color: #f0f0f0"
+            return [color] * len(row)
+
+        st.write(df_rows.style.apply(highlight_row, axis=1))
 
 # =========================================================
 # DIAGRAM GENERATION (Beam only for now)
@@ -3209,6 +3313,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
