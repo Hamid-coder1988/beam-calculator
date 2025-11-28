@@ -3113,10 +3113,6 @@ with tab1:
                 key_prefix=f"tab1_db_{prefix_id}"
             )
 
-        # --- Warnings for DB parsing ---
-        if bad_fields:
-            st.warning("Some DB fields could not be parsed. See debug in Results tab.")
-
     else:
         st.info("Select a section to continue.")
 
@@ -3158,6 +3154,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
