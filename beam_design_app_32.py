@@ -3265,40 +3265,83 @@ with tab1:
     meta = render_project_data()
     st.session_state["meta"] = meta
 
-
 with tab2:
     st.subheader("Loads & design settings")
 
-    # --- Design settings (γ_F etc.) — keep your existing block ---
-    # (not repeating here, you already have it)
+    # --- 1) Design settings (ULS) ---
+    with st.expander("Design settings (ULS)", expanded=True):
+        gamma_choice = st.radio(
+            "Load factor γ_F",
+            ["1.35 (static)", "1.50 (dynamic)", "Custom"],
+            key="gammaF_choice",
+        )
 
-    # --- Effective lengths (L_y, L_z, L_LT) — keep existing block ---
+        if gamma_choice == "Custom":
+            gamma_F = st.number_input(
+                "γ_F (custom)",
+                min_value=0.0,
+                value=float(st.session_state.get("gamma_F", 1.50)),
+                key="gammaF_custom",
+            )
+        elif gamma_choice == "1.35 (static)":
+            gamma_F = 1.35
+        else:
+            gamma_F = 1.50
 
-    # --- Determine family for torsion (if any section already chosen) ---
-    sr_display_for_loads = st.session_state.get("sr_display", None)
+        st.session_state["gamma_F"] = gamma_F
+
+        manual_forces_type = st.radio(
+            "Manual internal forces are",
+            ["Characteristic", "Design values (N_Ed, M_Ed, …)"],
+            key="manual_forces_type",
+        )
+        # no need to write back to session_state; Streamlit does that via the key
+
+    # --- 2) Effective lengths for instability ---
+    with st.expander("Effective lengths for instability", expanded=False):
+        L_y = st.number_input(
+            "Effective length L_y (m)",
+            min_value=0.0,
+            value=float(st.session_state.get("L_y", 6.0)),
+            key="L_y",
+        )
+        L_z = st.number_input(
+            "Effective length L_z (m)",
+            min_value=0.0,
+            value=float(st.session_state.get("L_z", 6.0)),
+            key="L_z",
+        )
+        L_LT = st.number_input(
+            "Effective lateral-torsional length L_LT (m)",
+            min_value=0.0,
+            value=float(st.session_state.get("L_LT", 6.0)),
+            key="L_LT",
+        )
+
+    # --- 3) Determine section family for torsion (if already chosen in Section tab) ---
+    sr_display_for_loads = st.session_state.get("sr_display")
     if isinstance(sr_display_for_loads, dict):
         family_for_torsion = sr_display_for_loads.get("family", "")
     else:
         family_for_torsion = ""
 
-    # --- Mode selector: ready beam case vs manual loads ---
+    # --- 4) Mode selector: ready beam case vs manual loads ---
     load_mode = st.radio(
         "How do you want to define loading for this member?",
         ["Use ready beam case", "Enter loads manually"],
         horizontal=True,
-        key="load_mode_choice"
+        key="load_mode_choice",
     )
 
     # If ready beam case: show the gallery
     if load_mode == "Use ready beam case":
         render_ready_cases_panel()
     else:
-        st.info("Manual loads mode: use the form below to enter design forces directly.")
+        st.info("Manual loads mode selected: use the form below to enter forces and moments directly.")
 
-    # Loads form is always shown (it is where we actually store N, V, M)
+    # --- 5) Loads form (always shown) ---
     # When a ready case is applied, it just PREFILLS this form via session_state.
     render_loads_form(family_for_torsion)
-
 
 with tab3:
     material, family, selected_name, selected_row, detected_table = render_section_selection()
@@ -3375,6 +3418,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
