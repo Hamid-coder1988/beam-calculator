@@ -1679,11 +1679,9 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
 def render_results(df_rows, overall_ok, governing):
     """
-    Results tab: two aligned tables with color coding, bold governing row,
-    hover highlight and borders.
+    Results tab: two aligned tables with color coding and bold governing row.
 
-    For now, Utilization/Status can be filled later. This function already
-    supports coloring if you set Status to "OK" / "EXCEEDS".
+    Columns: # | Check | Utilization | Status
     """
 
     gov_check, gov_util = governing
@@ -1732,114 +1730,57 @@ def render_results(df_rows, overall_ok, governing):
         "Bending + axial compression (Method 2)",        # 20
     ]
 
-    # --- placeholders for now; later you can fill these lists
+    # For now: placeholders (you'll later replace with real values)
     cs_util = ["" for _ in cs_checks]
     cs_status = ["" for _ in cs_checks]
     buck_util = ["" for _ in buck_checks]
     buck_status = ["" for _ in buck_checks]
 
     # -------------------------------------------------
-    # CSS for both tables (same widths, colors, hover)
+    # Helper to build one table HTML
     # -------------------------------------------------
-    css = """
-    <style>
-    .custom-table {
-        width: 100%;
-        margin-bottom: 0.5rem;
-    }
-    .custom-table table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.9rem;
-    }
-    .custom-table th {
-        border: 1px solid #ddd;
-        padding: 6px;
-        background-color: #f5f5f5;
-        text-align: center;
-        font-weight: 600;
-    }
-    .custom-table td {
-        border: 1px solid #ddd;
-        padding: 6px;
-        text-align: center;
-    }
-    .custom-table td.check-cell {
-        text-align: left;
-    }
-    .custom-row-ok {
-        background-color: #e6f7e6;
-    }
-    .custom-row-exceeds {
-        background-color: #fde6e6;
-    }
-    .custom-row-neutral {
-        background-color: #ffffff;
-    }
-    .custom-table tr:hover {
-        background-color: #fff7cc;
-    }
-    .custom-row-gov td {
-        font-weight: 700;
-    }
-    </style>
-    """
-    st.markdown(css, unsafe_allow_html=True)
-
-    # helper: build one HTML table
     def build_table_html(start_no, names, utils, statuses):
-        rows_html = ""
-
+        # table + header row with fixed widths
+        html = """
+<table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+  <tr>
+    <th style="width:8%;  border:1px solid #ddd; padding:6px; text-align:center;">#</th>
+    <th style="width:54%; border:1px solid #ddd; padding:6px; text-align:center;">Check</th>
+    <th style="width:19%; border:1px solid #ddd; padding:6px; text-align:center;">Utilization</th>
+    <th style="width:19%; border:1px solid #ddd; padding:6px; text-align:center;">Status</th>
+  </tr>
+"""
         for offset, (name, util, status) in enumerate(zip(names, utils, statuses)):
             number = start_no + offset
 
-            # decide row class based on status
+            # background color based on status
             status_upper = (status or "").strip().upper()
             if status_upper == "OK":
-                row_class = "custom-row-ok"
+                bg = "#e6f7e6"
             elif status_upper == "EXCEEDS":
-                row_class = "custom-row-exceeds"
+                bg = "#fde6e6"
             else:
-                row_class = "custom-row-neutral"
+                bg = "#ffffff"
 
-            # governing row? (compare gov_check either to number or text)
+            # bold if governing
             is_gov = False
             if gov_check is not None:
                 if str(gov_check).strip() == str(number):
                     is_gov = True
                 elif str(gov_check).strip().lower() == str(name).strip().lower():
                     is_gov = True
+            fw = "700" if is_gov else "400"
 
-            if is_gov:
-                row_class += " custom-row-gov"
-
-            rows_html += f"""
-                <tr class="{row_class}">
-                    <td>{number}</td>
-                    <td class="check-cell">{name}</td>
-                    <td>{util}</td>
-                    <td>{status}</td>
-                </tr>
-            """
-
-        table_html = f"""
-        <div class="custom-table">
-        <table>
-            <thead>
-                <tr>
-                    <th style="width:8%;">#</th>
-                    <th style="width:54%;">Check</th>
-                    <th style="width:19%;">Utilization</th>
-                    <th style="width:19%;">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rows_html}
-            </tbody>
-        </table>
-        </div>
-        """
-        return table_html
+            html += f"""
+  <tr style="background-color:{bg};">
+    <td style="border:1px solid #ddd; padding:6px; text-align:center; font-weight:{fw};">{number}</td>
+    <td style="border:1px solid #ddd; padding:6px; text-align:left;   font-weight:{fw};">{name}</td>
+    <td style="border:1px solid #ddd; padding:6px; text-align:center; font-weight:{fw};">{util}</td>
+    <td style="border:1px solid #ddd; padding:6px; text-align:center; font-weight:{fw};">{status}</td>
+  </tr>
+"""
+        html += "</table>"
+        return html
 
     # -------------------------------------------------
     # TABLE 1: Cross-section strength
@@ -1864,6 +1805,7 @@ def render_results(df_rows, overall_ok, governing):
     # -------------------------------------------------
     st.caption("See **Report** tab for full formulas & Eurocode clause references.")
     st.caption("See **Diagrams** / ready cases tab for shear, moment and deflection graphs.")
+
 
 # =========================================================
 # DIAGRAM GENERATION (Beam only for now)
@@ -3372,6 +3314,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
