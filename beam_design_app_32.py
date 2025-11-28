@@ -1683,12 +1683,10 @@ def render_results(df_rows, overall_ok, governing):
       - summary line
       - Table 1: Verification of cross-section strength (ULS, checks 1–14)
       - Table 2: Verification of member stability (buckling, checks 15–20)
-    Only columns: Check | Utilization | Status, no index / row numbers.
-    """
-    if df_rows is None or df_rows.empty:
-        st.info("No results available. Run the Loads form first.")
-        return
 
+    For now Utilization/Status are just placeholders: you can later fill them
+    from your real calculations for all 20 checks.
+    """
     gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
 
@@ -1708,62 +1706,71 @@ def render_results(df_rows, overall_ok, governing):
     st.markdown("---")
 
     # -----------------------
-    # Prepare compact view: Check | Utilization | Status
-    # -----------------------
-    df_view = df_rows.reset_index()  # 'Check' out of index
-
-    # keep only the relevant columns if they exist
-    keep_cols = [c for c in ["Check", "Utilization", "Status"] if c in df_view.columns]
-    df_view = df_view[keep_cols].copy()
-
-    # format utilisation nicely
-    if "Utilization" in df_view.columns:
-        util_num = pd.to_numeric(df_view["Utilization"], errors="coerce")
-
-        def fmt_util(x):
-            if pd.isna(x):
-                return "n/a"
-            try:
-                return f"{float(x):.3f}"
-            except Exception:
-                return str(x)
-
-        df_view["Utilization"] = util_num.apply(fmt_util)
-
-    # split cross-section vs buckling by word "buckling" in the check name
-    is_buckling = df_view["Check"].str.contains("buckling", case=False, na=False)
-    df_cs = df_view[~is_buckling].copy()
-    df_buck = df_view[is_buckling].copy()
-
-    # -----------------------
-    # 1) Cross-section strength (checks 1–14)
+    # 1) Verification of cross-section strength (ULS, checks 1–14)
     # -----------------------
     st.markdown("### Verification of cross-section strength (ULS, checks 1–14)")
-    if not df_cs.empty:
-        cs_table = df_cs[["Check", "Utilization", "Status"]]
-        st.dataframe(
-            cs_table,
-            use_container_width=True,
-            hide_index=True,
-        )
-    else:
-        st.info("No cross-section strength checks available.")
+
+    cs_checks = [
+        "N (tension)",
+        "N (compression)",
+        "My",
+        "Mz",
+        "Vy",
+        "Vz",
+        "My + Vy",
+        "Mz + Vz",
+        "My + N",
+        "Mz + N",
+        "My + Mz + N",
+        "My + N + V",
+        "Mz + N + V",
+        "My + Mz + N + V",
+    ]
+
+    # placeholders for now – you will later replace "" with real values
+    cs_table = pd.DataFrame(
+        {
+            "Check": cs_checks,
+            "Utilization": ["" for _ in cs_checks],
+            "Status": ["" for _ in cs_checks],
+        }
+    )
+
+    st.dataframe(
+        cs_table,
+        use_container_width=True,
+        hide_index=True,
+    )
 
     st.markdown("---")
 
     # -----------------------
-    # 2) Member stability (buckling, checks 15–20)
+    # 2) Verification of member stability (buckling, checks 15–20)
     # -----------------------
     st.markdown("### Verification of member stability (buckling, checks 15–20)")
-    if not df_buck.empty:
-        buck_table = df_buck[["Check", "Utilization", "Status"]]
-        st.dataframe(
-            buck_table,
-            use_container_width=True,
-            hide_index=True,
-        )
-    else:
-        st.info("No buckling checks available.")
+
+    buck_checks = [
+        "Flexural buckling y–y",
+        "Flexural buckling z–z",
+        "Torsional / torsional–flexural buckling z",
+        "Lateral–torsional buckling",
+        "Bending + axial compression (Method 1)",
+        "Bending + axial compression (Method 2)",
+    ]
+
+    buck_table = pd.DataFrame(
+        {
+            "Check": buck_checks,
+            "Utilization": ["" for _ in buck_checks],
+            "Status": ["" for _ in buck_checks],
+        }
+    )
+
+    st.dataframe(
+        buck_table,
+        use_container_width=True,
+        hide_index=True,
+    )
 
     st.markdown("---")
 
@@ -3280,6 +3287,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
