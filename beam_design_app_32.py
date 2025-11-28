@@ -3254,13 +3254,66 @@ with tab1:
     st.session_state["meta"] = meta
 
 with tab2:
-    sr_display = st.session_state.get("sr_display", None)
-    if sr_display is None:
-        st.warning("Go to Member & Section tab first and select a section.")
-    else:
-        render_ready_cases_panel()  # diagrams are inside now
-        render_loads_form(sr_display.get("family", ""))
+    st.subheader("Loads & design settings")
 
+    # --- Global design settings (ULS) ---
+    with st.expander("Design settings (ULS)", expanded=False):
+        gamma_choice = st.radio(
+            "Load factor γ_F",
+            ["1.35 (static)", "1.50 (dynamic)", "Custom"],
+            key="gammaF_choice"
+        )
+        if gamma_choice == "Custom":
+            gamma_F = st.number_input(
+                "γ_F (custom)",
+                min_value=0.0,
+                value=float(st.session_state.get("gamma_F", 1.50)),
+                key="gammaF_custom"
+            )
+        elif gamma_choice == "1.35 (static)":
+            gamma_F = 1.35
+        else:
+            gamma_F = 1.50
+        st.session_state["gamma_F"] = gamma_F
+
+        manual_forces_type = st.radio(
+            "Manual internal forces are",
+            ["Characteristic", "Design values (N_Ed, M_Ed, …)"],
+            key="manual_forces_type"
+        )
+        st.session_state["manual_forces_type"] = manual_forces_type
+
+    # --- Effective lengths for instability ---
+    with st.expander("Effective lengths for instability", expanded=False):
+        L_y = st.number_input(
+            "Effective length L_y (m)",
+            min_value=0.0,
+            value=float(st.session_state.get("L_y", 6.0)),
+            key="L_y"
+        )
+        L_z = st.number_input(
+            "Effective length L_z (m)",
+            min_value=0.0,
+            value=float(st.session_state.get("L_z", 6.0)),
+            key="L_z"
+        )
+        L_LT = st.number_input(
+            "Effective lateral-torsional length L_LT (m)",
+            min_value=0.0,
+            value=float(st.session_state.get("L_LT", 6.0)),
+            key="L_LT"
+        )
+
+    # Determine family for torsion (if section selected)
+    sr_display_for_loads = st.session_state.get("sr_display", None)
+    if isinstance(sr_display_for_loads, dict):
+        family_for_torsion = sr_display_for_loads.get("family", "")
+    else:
+        family_for_torsion = ""
+
+    # --- Ready cases + Loads form (existing workflow) ---
+    render_ready_cases_panel()
+    render_loads_form(family_for_torsion)
 
 with tab3:
     sr_display = st.session_state.get("sr_display", None)
@@ -3291,6 +3344,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
