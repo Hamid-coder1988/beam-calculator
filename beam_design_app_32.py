@@ -1053,27 +1053,33 @@ DB sections are read-only.
 """)
 
 def render_project_data():
-    with st.expander("Project data", expanded=False):
-        meta_col1, meta_col2, meta_col3 = st.columns([1, 1, 1])
-        with meta_col1:
-            doc_name = st.text_input("Document title", value="Beam check", key="doc_title_in")
-            project_name = st.text_input("Project name", value="", key="project_name_in")
-        with meta_col2:
-            position = st.text_input("Position / Location (Beam ID)", value="", key="position_in")
-            requested_by = st.text_input("Requested by", value="", key="requested_by_in")
-        with meta_col3:
-            revision = st.text_input("Revision", value="A", key="revision_in")
-            run_date = st.date_input("Date", value=date.today(), key="run_date_in")
+    """Project data at top of Tab 1 – no expander."""
+    st.markdown("### Project data")
 
-        # NEW: same style “box” for notes/comments
-        notes = st.text_area(
-            "Notes / comments",
-            value="",
-            key="notes_in"
-        )
+    meta_col1, meta_col2, meta_col3 = st.columns([1, 1, 1])
+
+    with meta_col1:
+        doc_name = st.text_input("Document title", value="Beam check", key="doc_title_in")
+        project_name = st.text_input("Project name", value="", key="project_name_in")
+
+    with meta_col2:
+        position = st.text_input("Position / Location (Beam ID)", value="", key="position_in")
+        requested_by = st.text_input("Requested by", value="", key="requested_by_in")
+
+    with meta_col3:
+        revision = st.text_input("Revision", value="A", key="revision_in")
+        run_date = st.date_input("Date", value=date.today(), key="run_date_in")
+
+    # Notes / comments block (same as before, just not inside expander)
+    notes = st.text_area(
+        "Notes / comments",
+        value="",
+        key="notes_in"
+    )
 
     st.markdown("---")
-    # NEW: return notes as part of meta
+
+    # Return same 7-tuple as before (report logic still works)
     return doc_name, project_name, position, requested_by, revision, run_date, notes
 
 def render_section_selection():
@@ -3390,6 +3396,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
