@@ -3251,55 +3251,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(
 
 with tab1:
     meta = render_project_data()
-    material, family, selected_name, selected_row, detected_table = render_section_selection()
-    st.session_state["material"] = material
     st.session_state["meta"] = meta
-
-    if selected_row is not None:
-        sr_display, bad_fields = build_section_display(selected_row)
-        st.session_state["sr_display"] = sr_display
-
-        # dynamic key so UI refreshes when section changes
-        prefix_id = f"{family}_{selected_name}".replace(" ", "_")
-
-        # --- Selected section summary ---
-        render_section_summary_like_props(
-            material,
-            sr_display,
-            key_prefix=f"sum_tab1_{prefix_id}"
-        )
-
-        # --- Cross-section preview (centered, with image if available) ---
-        st.markdown("### Cross-section preview")
-
-        img_path = get_section_image(sr_display.get("family", ""))
-
-        # Perfect centering: middle column wider than sides
-        left, center, right = st.columns([3, 4, 3])
-
-        with center:
-            if img_path:
-                st.image(
-                    img_path,
-                    width=320,           # adjust size here
-                    use_container_width=False
-                )
-            else:
-                render_section_preview_placeholder(
-                    title=f"{sr_display.get('family','')} {sr_display.get('name','')}",
-                    key_prefix=f"tab1_prev_{prefix_id}"
-                )
-
-
-        # --- DB properties ---
-        with st.expander("Section properties", expanded=False):
-            render_section_properties_readonly(
-                sr_display,
-                key_prefix=f"tab1_db_{prefix_id}"
-            )
-
-    else:
-        st.info("Select a section to continue.")
 
 with tab2:
     sr_display = st.session_state.get("sr_display", None)
@@ -3339,6 +3291,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
