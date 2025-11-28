@@ -1353,30 +1353,68 @@ def render_section_properties_readonly(sr_display, key_prefix="db"):
     c6.empty()
 
 
-def render_loads_form(family_for_torsion: str):
+def render_loads_form(family_for_torsion: str, read_only: bool = False):
     prefill = st.session_state.get("prefill_from_case", False)
     defval = lambda key, fallback: float(st.session_state.get(key, fallback)) if prefill else fallback
     torsion_supported = supports_torsion_and_warping(family_for_torsion)
 
     with st.form("loads_form", clear_on_submit=False):
-        st.subheader("Design forces and moments (ULS) — INPUT")
-        st.caption("Positive N = compression.")
+        if read_only:
+            st.subheader("Design forces and moments (ULS) — from ready case")
+            st.caption(
+                "Values come from the selected ready beam case. "
+                "You can still adjust K-factors (buckling) below."
+            )
+        else:
+            st.subheader("Design forces and moments (ULS) — INPUT")
+            st.caption("Positive N = compression. Enter characteristic or design forces based on Tab 2 settings.")
 
         r1c1, r1c2, r1c3 = st.columns(3)
         with r1c1:
-            L = st.number_input("Element length L (m)", value=defval("case_L", 6.0), min_value=0.0, key="L_in")
+            L = st.number_input(
+                "Element length L (m)",
+                value=defval("case_L", 6.0),
+                min_value=0.0,
+                key="L_in",
+                disabled=read_only,
+            )
         with r1c2:
-            N_kN = st.number_input("Axial force N (kN)", value=defval("prefill_N_kN", 0.0), key="N_in")
+            N_kN = st.number_input(
+                "Axial force N (kN)",
+                value=defval("prefill_N_kN", 0.0),
+                key="N_in",
+                disabled=read_only,
+            )
         with r1c3:
-            Vy_kN = st.number_input("Shear V_y (kN)", value=defval("prefill_Vy_kN", 0.0), key="Vy_in")
+            Vy_kN = st.number_input(
+                "Shear V_y (kN)",
+                value=defval("prefill_Vy_kN", 0.0),
+                key="Vy_in",
+                disabled=read_only,
+            )
 
         r2c1, r2c2, r2c3 = st.columns(3)
         with r2c1:
-            Vz_kN = st.number_input("Shear V_z (kN)", value=defval("prefill_Vz_kN", 0.0), key="Vz_in")
+            Vz_kN = st.number_input(
+                "Shear V_z (kN)",
+                value=defval("prefill_Vz_kN", 0.0),
+                key="Vz_in",
+                disabled=read_only,
+            )
         with r2c2:
-            My_kNm = st.number_input("Bending M_y (kN·m) about y", value=defval("prefill_My_kNm", 0.0), key="My_in")
+            My_kNm = st.number_input(
+                "Bending M_y (kN·m) about y",
+                value=defval("prefill_My_kNm", 0.0),
+                key="My_in",
+                disabled=read_only,
+            )
         with r2c3:
-            Mz_kNm = st.number_input("Bending M_z (kN·m) about z", value=defval("prefill_Mz_kNm", 0.0), key="Mz_in")
+            Mz_kNm = st.number_input(
+                "Bending M_z (kN·m) about z",
+                value=defval("prefill_Mz_kNm", 0.0),
+                key="Mz_in",
+                disabled=read_only,
+            )
 
         st.markdown("### Buckling effective length factors (K)")
         k1, k2, k3, k4 = st.columns(4)
@@ -1392,7 +1430,12 @@ def render_loads_form(family_for_torsion: str):
         Tx_kNm = 0.0
         if torsion_supported:
             st.markdown("### Torsion (only for open I/H/U sections)")
-            Tx_kNm = st.number_input("Torsion T_x (kN·m)", value=0.0, key="Tx_in")
+            Tx_kNm = st.number_input(
+                "Torsion T_x (kN·m)",
+                value=0.0,
+                key="Tx_in",
+                disabled=read_only,
+            )
 
         run_btn = st.form_submit_button("Run check")
         if run_btn:
@@ -1414,7 +1457,6 @@ def render_loads_form(family_for_torsion: str):
             Mz_design_kNm = Mz_kNm * factor
             Tx_design_kNm = Tx_kNm * factor
 
-            # Store design values into inputs used by compute_checks
             st.session_state["run_clicked"] = True
             st.session_state["inputs"] = dict(
                 L=L,
@@ -3439,6 +3481,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
