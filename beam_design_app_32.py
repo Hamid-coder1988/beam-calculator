@@ -3361,7 +3361,8 @@ with tab2:
 
     # --- 5) Loads form (always shown) ---
     # When a ready case is applied, it just PREFILLS this form via session_state.
-    render_loads_form(family_for_torsion)
+    # In ready-case mode the inputs are read-only; in manual mode they are editable.
+    render_loads_form(family_for_torsion, read_only=(load_mode == "Use ready beam case"))
 
 with tab3:
     material, family, selected_name, selected_row, detected_table = render_section_selection()
@@ -3438,6 +3439,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
