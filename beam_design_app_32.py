@@ -1679,20 +1679,19 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
 def render_results(df_rows, overall_ok, governing):
     """
-    Results tab: two clean tables with same layout.
+    Results tab: two aligned tables with color coding, bold governing row,
+    hover highlight and borders.
 
-    Table 1: Verification of cross-section strength (ULS, checks 1–14)
-    Table 2: Verification of member stability (buckling, checks 15–20)
-
-    Columns (visually):
-        # | Check | Utilization | Status
+    For now, Utilization/Status can be filled later. This function already
+    supports coloring if you set Status to "OK" / "EXCEEDS".
     """
+
     gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
 
-    # -----------------------
+    # -------------------------------------------------
     # Top summary
-    # -----------------------
+    # -------------------------------------------------
     st.markdown("### Result summary")
     if gov_util is not None:
         st.caption(
@@ -1705,73 +1704,164 @@ def render_results(df_rows, overall_ok, governing):
 
     st.markdown("---")
 
-    # -----------------------
-    # 1) Cross-section strength (ULS, 1–14)
-    # -----------------------
-    st.markdown("### Verification of cross-section strength (ULS, checks 1–14)")
-
+    # -------------------------------------------------
+    # Data for the two tables
+    # -------------------------------------------------
     cs_checks = [
-        "N (tension)",
-        "N (compression)",
-        "My",
-        "Mz",
-        "Vy",
-        "Vz",
-        "My + Vy",
-        "Mz + Vz",
-        "My + N",
-        "Mz + N",
-        "My + Mz + N",
-        "My + N + V",
-        "Mz + N + V",
-        "My + Mz + N + V",
+        "N (tension)",                  # 1
+        "N (compression)",              # 2
+        "My",                           # 3
+        "Mz",                           # 4
+        "Vy",                           # 5
+        "Vz",                           # 6
+        "My + Vy",                      # 7
+        "Mz + Vz",                      # 8
+        "My + N",                       # 9
+        "Mz + N",                       # 10
+        "My + Mz + N",                  # 11
+        "My + N + V",                   # 12
+        "Mz + N + V",                   # 13
+        "My + Mz + N + V",              # 14
     ]
-
-    cs_df = pd.DataFrame(
-        {
-            "Check": cs_checks,
-            "Utilization": ["" for _ in cs_checks],  # fill later with real values
-            "Status": ["" for _ in cs_checks],       # fill later with real values
-        },
-        index=list(range(1, 15)),  # this becomes the first column (#)
-    )
-    cs_df.index.name = "#"
-
-    st.table(cs_df)
-
-    st.markdown("---")
-
-    # -----------------------
-    # 2) Member stability (buckling, 15–20)
-    # -----------------------
-    st.markdown("### Verification of member stability (buckling, checks 15–20)")
-
     buck_checks = [
-        "Flexural buckling y–y",
-        "Flexural buckling z–z",
-        "Torsional / torsional-flexural buckling z",
-        "Lateral-torsional buckling",
-        "Bending + axial compression (Method 1)",
-        "Bending + axial compression (Method 2)",
+        "Flexural buckling y–y",                         # 15
+        "Flexural buckling z–z",                         # 16
+        "Torsional / torsional-flexural buckling z",     # 17
+        "Lateral-torsional buckling",                    # 18
+        "Bending + axial compression (Method 1)",        # 19
+        "Bending + axial compression (Method 2)",        # 20
     ]
 
-    buck_df = pd.DataFrame(
-        {
-            "Check": buck_checks,
-            "Utilization": ["" for _ in buck_checks],
-            "Status": ["" for _ in buck_checks],
-        },
-        index=[15, 16, 17, 18, 19, 20],
-    )
-    buck_df.index.name = "#"
+    # --- placeholders for now; later you can fill these lists
+    cs_util = ["" for _ in cs_checks]
+    cs_status = ["" for _ in cs_checks]
+    buck_util = ["" for _ in buck_checks]
+    buck_status = ["" for _ in buck_checks]
 
-    st.table(buck_df)
+    # -------------------------------------------------
+    # CSS for both tables (same widths, colors, hover)
+    # -------------------------------------------------
+    css = """
+    <style>
+    .custom-table {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    .custom-table table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    .custom-table th {
+        border: 1px solid #ddd;
+        padding: 6px;
+        background-color: #f5f5f5;
+        text-align: center;
+        font-weight: 600;
+    }
+    .custom-table td {
+        border: 1px solid #ddd;
+        padding: 6px;
+        text-align: center;
+    }
+    .custom-table td.check-cell {
+        text-align: left;
+    }
+    .custom-row-ok {
+        background-color: #e6f7e6;
+    }
+    .custom-row-exceeds {
+        background-color: #fde6e6;
+    }
+    .custom-row-neutral {
+        background-color: #ffffff;
+    }
+    .custom-table tr:hover {
+        background-color: #fff7cc;
+    }
+    .custom-row-gov td {
+        font-weight: 700;
+    }
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
+    # helper: build one HTML table
+    def build_table_html(start_no, names, utils, statuses):
+        rows_html = ""
+
+        for offset, (name, util, status) in enumerate(zip(names, utils, statuses)):
+            number = start_no + offset
+
+            # decide row class based on status
+            status_upper = (status or "").strip().upper()
+            if status_upper == "OK":
+                row_class = "custom-row-ok"
+            elif status_upper == "EXCEEDS":
+                row_class = "custom-row-exceeds"
+            else:
+                row_class = "custom-row-neutral"
+
+            # governing row? (compare gov_check either to number or text)
+            is_gov = False
+            if gov_check is not None:
+                if str(gov_check).strip() == str(number):
+                    is_gov = True
+                elif str(gov_check).strip().lower() == str(name).strip().lower():
+                    is_gov = True
+
+            if is_gov:
+                row_class += " custom-row-gov"
+
+            rows_html += f"""
+                <tr class="{row_class}">
+                    <td>{number}</td>
+                    <td class="check-cell">{name}</td>
+                    <td>{util}</td>
+                    <td>{status}</td>
+                </tr>
+            """
+
+        table_html = f"""
+        <div class="custom-table">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:8%;">#</th>
+                    <th style="width:54%;">Check</th>
+                    <th style="width:19%;">Utilization</th>
+                    <th style="width:19%;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+        </div>
+        """
+        return table_html
+
+    # -------------------------------------------------
+    # TABLE 1: Cross-section strength
+    # -------------------------------------------------
+    st.markdown("### Verification of cross-section strength (ULS, checks 1–14)")
+    cs_html = build_table_html(1, cs_checks, cs_util, cs_status)
+    st.markdown(cs_html, unsafe_allow_html=True)
 
     st.markdown("---")
 
-    # -----------------------
+    # -------------------------------------------------
+    # TABLE 2: Buckling
+    # -------------------------------------------------
+    st.markdown("### Verification of member stability (buckling, checks 15–20)")
+    buck_html = build_table_html(15, buck_checks, buck_util, buck_status)
+    st.markdown(buck_html, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # -------------------------------------------------
     # Bottom hints
-    # -----------------------
+    # -------------------------------------------------
     st.caption("See **Report** tab for full formulas & Eurocode clause references.")
     st.caption("See **Diagrams** / ready cases tab for shear, moment and deflection graphs.")
 
@@ -3282,6 +3372,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
