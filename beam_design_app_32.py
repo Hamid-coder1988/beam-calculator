@@ -1679,14 +1679,20 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
 def render_results(df_rows, overall_ok, governing):
     """
-    Two tables (cross-section & buckling) with identical column widths.
-    # | Check | Utilization | Status
-    """
+    Results tab: two clean tables with same layout.
 
+    Table 1: Verification of cross-section strength (ULS, checks 1–14)
+    Table 2: Verification of member stability (buckling, checks 15–20)
+
+    Columns (visually):
+        # | Check | Utilization | Status
+    """
     gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
 
-    # --------------- HEADER ---------------
+    # -----------------------
+    # Top summary
+    # -----------------------
     st.markdown("### Result summary")
     if gov_util is not None:
         st.caption(
@@ -1699,70 +1705,73 @@ def render_results(df_rows, overall_ok, governing):
 
     st.markdown("---")
 
-    # --------------- DATA ---------------
-    cs_names = [
-        "N (tension)", "N (compression)", "My", "Mz", "Vy", "Vz",
-        "My + Vy", "Mz + Vz", "My + N", "Mz + N", "My + Mz + N",
-        "My + N + V", "Mz + N + V", "My + Mz + N + V"
+    # -----------------------
+    # 1) Cross-section strength (ULS, 1–14)
+    # -----------------------
+    st.markdown("### Verification of cross-section strength (ULS, checks 1–14)")
+
+    cs_checks = [
+        "N (tension)",
+        "N (compression)",
+        "My",
+        "Mz",
+        "Vy",
+        "Vz",
+        "My + Vy",
+        "Mz + Vz",
+        "My + N",
+        "Mz + N",
+        "My + Mz + N",
+        "My + N + V",
+        "Mz + N + V",
+        "My + Mz + N + V",
     ]
 
-    buck_names = [
+    cs_df = pd.DataFrame(
+        {
+            "Check": cs_checks,
+            "Utilization": ["" for _ in cs_checks],  # fill later with real values
+            "Status": ["" for _ in cs_checks],       # fill later with real values
+        },
+        index=list(range(1, 15)),  # this becomes the first column (#)
+    )
+    cs_df.index.name = "#"
+
+    st.table(cs_df)
+
+    st.markdown("---")
+
+    # -----------------------
+    # 2) Member stability (buckling, 15–20)
+    # -----------------------
+    st.markdown("### Verification of member stability (buckling, checks 15–20)")
+
+    buck_checks = [
         "Flexural buckling y–y",
         "Flexural buckling z–z",
         "Torsional / torsional-flexural buckling z",
-        "Lateral–torsional buckling",
+        "Lateral-torsional buckling",
         "Bending + axial compression (Method 1)",
         "Bending + axial compression (Method 2)",
     ]
 
-    # empty placeholders for now
-    cs_util = ["" for _ in cs_names]
-    cs_status = ["" for _ in cs_names]
-    buck_util = ["" for _ in buck_names]
-    buck_status = ["" for _ in buck_names]
+    buck_df = pd.DataFrame(
+        {
+            "Check": buck_checks,
+            "Utilization": ["" for _ in buck_checks],
+            "Status": ["" for _ in buck_checks],
+        },
+        index=[15, 16, 17, 18, 19, 20],
+    )
+    buck_df.index.name = "#"
 
-    # --------------- TABLE TEMPLATE (HTML) ---------------
-
-    def make_table(numbers, names, util, status):
-        html = """
-        <table style='width:100%; border-collapse:collapse;'>
-            <thead>
-                <tr>
-                    <th style='width:8%; border:1px solid #ddd; padding:6px;'>#</th>
-                    <th style='width:54%; border:1px solid #ddd; padding:6px;'>Check</th>
-                    <th style='width:19%; border:1px solid #ddd; padding:6px;'>Utilization</th>
-                    <th style='width:19%; border:1px solid #ddd; padding:6px;'>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-        for n, c, u, s in zip(numbers, names, util, status):
-            html += f"""
-                <tr>
-                    <td style='border:1px solid #ddd; padding:6px; text-align:center;'>{n}</td>
-                    <td style='border:1px solid #ddd; padding:6px;'>{c}</td>
-                    <td style='border:1px solid #ddd; padding:6px; text-align:center;'>{u}</td>
-                    <td style='border:1px solid #ddd; padding:6px; text-align:center;'>{s}</td>
-                </tr>
-            """
-        html += "</tbody></table>"
-        return html
-
-    # --------------- TABLE 1 ---------------
-    st.markdown("### Verification of cross-section strength (ULS, checks 1–14)")
-    table1 = make_table(range(1, 15), cs_names, cs_util, cs_status)
-    st.markdown(table1, unsafe_allow_html=True)
+    st.table(buck_df)
 
     st.markdown("---")
 
-    # --------------- TABLE 2 ---------------
-    st.markdown("### Verification of member stability (buckling, checks 15–20)")
-    table2 = make_table(range(15, 21), buck_names, buck_util, buck_status)
-    st.markdown(table2, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # --------------- FOOTER ---------------
+    # -----------------------
+    # Bottom hints
+    # -----------------------
     st.caption("See **Report** tab for full formulas & Eurocode clause references.")
     st.caption("See **Diagrams** / ready cases tab for shear, moment and deflection graphs.")
 
@@ -3273,6 +3282,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
