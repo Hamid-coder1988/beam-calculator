@@ -1679,9 +1679,8 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
 def render_results(df_rows, overall_ok, governing):
     """
-    Results tab: two aligned tables with color coding and bold governing row.
-
-    Columns: # | Check | Utilization | Status
+    Results tab: two aligned tables with color coding and bold governing row,
+    nicer card-style formatting.
     """
 
     gov_check, gov_util = governing
@@ -1737,21 +1736,35 @@ def render_results(df_rows, overall_ok, governing):
     buck_status = ["" for _ in buck_checks]
 
     # -------------------------------------------------
-    # Helper to build one table HTML
+    # Helper to build one nice looking table
     # -------------------------------------------------
-    def build_table_html(start_no, names, utils, statuses):
-        # table + header row with fixed widths
-        html = """
+    def build_table_html(title, start_no, names, utils, statuses):
+        card_open = """
+<div style="
+    border:1px solid #d7d7d7;
+    border-radius:8px;
+    padding:8px 10px 10px 10px;
+    background-color:#fafafa;
+    box-shadow:0 1px 2px rgba(0,0,0,0.05);
+    margin-bottom:10px;">
+"""
+        card_close = "</div>"
+
+        html = card_open
+        html += f"<div style='font-weight:600; margin-bottom:6px;'>{title}</div>"
+
+        html += """
 <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-  <tr>
-    <th style="width:8%;  border:1px solid #ddd; padding:6px; text-align:center;">#</th>
-    <th style="width:54%; border:1px solid #ddd; padding:6px; text-align:center;">Check</th>
-    <th style="width:19%; border:1px solid #ddd; padding:6px; text-align:center;">Utilization</th>
-    <th style="width:19%; border:1px solid #ddd; padding:6px; text-align:center;">Status</th>
+  <tr style="background-color:#f2f2f2;">
+    <th style="width:8%;  border-bottom:1px solid #ccc; padding:6px; text-align:center;">#</th>
+    <th style="width:54%; border-bottom:1px solid #ccc; padding:6px; text-align:left;">Check</th>
+    <th style="width:19%; border-bottom:1px solid #ccc; padding:6px; text-align:center;">Utilization</th>
+    <th style="width:19%; border-bottom:1px solid #ccc; padding:6px; text-align:center;">Status</th>
   </tr>
 """
-        for offset, (name, util, status) in enumerate(zip(names, utils, statuses)):
-            number = start_no + offset
+
+        for i, (name, util, status) in enumerate(zip(names, utils, statuses)):
+            number = start_no + i
 
             # background color based on status
             status_upper = (status or "").strip().upper()
@@ -1760,7 +1773,8 @@ def render_results(df_rows, overall_ok, governing):
             elif status_upper == "EXCEEDS":
                 bg = "#fde6e6"
             else:
-                bg = "#ffffff"
+                # subtle striping for neutral rows
+                bg = "#ffffff" if (i % 2 == 0) else "#f9f9f9"
 
             # bold if governing
             is_gov = False
@@ -1773,20 +1787,25 @@ def render_results(df_rows, overall_ok, governing):
 
             html += f"""
   <tr style="background-color:{bg};">
-    <td style="border:1px solid #ddd; padding:6px; text-align:center; font-weight:{fw};">{number}</td>
-    <td style="border:1px solid #ddd; padding:6px; text-align:left;   font-weight:{fw};">{name}</td>
-    <td style="border:1px solid #ddd; padding:6px; text-align:center; font-weight:{fw};">{util}</td>
-    <td style="border:1px solid #ddd; padding:6px; text-align:center; font-weight:{fw};">{status}</td>
+    <td style="border-top:1px solid #e0e0e0; padding:5px; text-align:center; font-weight:{fw};">{number}</td>
+    <td style="border-top:1px solid #e0e0e0; padding:5px; text-align:left;   font-weight:{fw};">{name}</td>
+    <td style="border-top:1px solid #e0e0e0; padding:5px; text-align:center; font-weight:{fw};">{util}</td>
+    <td style="border-top:1px solid #e0e0e0; padding:5px; text-align:center; font-weight:{fw};">{status}</td>
   </tr>
 """
-        html += "</table>"
+        html += "</table>" + card_close
         return html
 
     # -------------------------------------------------
     # TABLE 1: Cross-section strength
     # -------------------------------------------------
-    st.markdown("### Verification of cross-section strength (ULS, checks 1–14)")
-    cs_html = build_table_html(1, cs_checks, cs_util, cs_status)
+    cs_html = build_table_html(
+        "Verification of cross-section strength (ULS, checks 1–14)",
+        1,
+        cs_checks,
+        cs_util,
+        cs_status,
+    )
     st.markdown(cs_html, unsafe_allow_html=True)
 
     st.markdown("---")
@@ -1794,8 +1813,13 @@ def render_results(df_rows, overall_ok, governing):
     # -------------------------------------------------
     # TABLE 2: Buckling
     # -------------------------------------------------
-    st.markdown("### Verification of member stability (buckling, checks 15–20)")
-    buck_html = build_table_html(15, buck_checks, buck_util, buck_status)
+    buck_html = build_table_html(
+        "Verification of member stability (buckling, checks 15–20)",
+        15,
+        buck_checks,
+        buck_util,
+        buck_status,
+    )
     st.markdown(buck_html, unsafe_allow_html=True)
 
     st.markdown("---")
@@ -1805,7 +1829,6 @@ def render_results(df_rows, overall_ok, governing):
     # -------------------------------------------------
     st.caption("See **Report** tab for full formulas & Eurocode clause references.")
     st.caption("See **Diagrams** / ready cases tab for shear, moment and deflection graphs.")
-
 
 # =========================================================
 # DIAGRAM GENERATION (Beam only for now)
@@ -3314,6 +3337,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
