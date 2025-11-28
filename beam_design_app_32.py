@@ -1395,13 +1395,43 @@ def render_loads_form(family_for_torsion: str):
             Tx_kNm = st.number_input("Torsion T_x (kN·m)", value=0.0, key="Tx_in")
 
         run_btn = st.form_submit_button("Run check")
+        run_btn = st.form_submit_button("Run check")
         if run_btn:
+            # --- Read design settings from Tab 2 ---
+            gamma_F = st.session_state.get("gamma_F", 1.50)
+            manual_forces_type = st.session_state.get("manual_forces_type", "Characteristic")
+
+            # Characteristic → multiply by γ_F, Design → factor = 1.0
+            if str(manual_forces_type).startswith("Characteristic"):
+                factor = gamma_F
+            else:
+                factor = 1.0
+
+            # Apply factor to get DESIGN forces (N_Ed, V_Ed, M_Ed)
+            N_design_kN   = N_kN   * factor
+            Vy_design_kN  = Vy_kN  * factor
+            Vz_design_kN  = Vz_kN  * factor
+            My_design_kNm = My_kNm * factor
+            Mz_design_kNm = Mz_kNm * factor
+            Tx_design_kNm = Tx_kNm * factor  # if you want torsion also factored
+
+            # Store design values into inputs used by compute_checks
             st.session_state["run_clicked"] = True
             st.session_state["inputs"] = dict(
-                L=L, N_kN=N_kN, Vy_kN=Vy_kN, Vz_kN=Vz_kN,
-                My_kNm=My_kNm, Mz_kNm=Mz_kNm, Tx_kNm=Tx_kNm,
-                K_y=K_y, K_z=K_z, K_LT=K_LT, K_T=K_T
+                L=L,
+                N_kN=N_design_kN,
+                Vy_kN=Vy_design_kN,
+                Vz_kN=Vz_design_kN,
+                My_kNm=My_design_kNm,
+                Mz_kNm=Mz_design_kNm,
+                Tx_kNm=Tx_design_kNm,
+                K_y=K_y,
+                K_z=K_z,
+                K_LT=K_LT,
+                K_T=K_T,
             )
+            st.success("Design forces stored (ULS). Go to Results tab to see checks.")
+
 
     return torsion_supported
 
@@ -3347,6 +3377,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
