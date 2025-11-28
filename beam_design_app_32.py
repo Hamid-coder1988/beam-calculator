@@ -1395,7 +1395,6 @@ def render_loads_form(family_for_torsion: str):
             Tx_kNm = st.number_input("Torsion T_x (kN·m)", value=0.0, key="Tx_in")
 
         run_btn = st.form_submit_button("Run check")
-        run_btn = st.form_submit_button("Run check")
         if run_btn:
             # --- Read design settings from Tab 2 ---
             gamma_F = st.session_state.get("gamma_F", 1.50)
@@ -1413,7 +1412,7 @@ def render_loads_form(family_for_torsion: str):
             Vz_design_kN  = Vz_kN  * factor
             My_design_kNm = My_kNm * factor
             Mz_design_kNm = Mz_kNm * factor
-            Tx_design_kNm = Tx_kNm * factor  # if you want torsion also factored
+            Tx_design_kNm = Tx_kNm * factor
 
             # Store design values into inputs used by compute_checks
             st.session_state["run_clicked"] = True
@@ -1431,7 +1430,6 @@ def render_loads_form(family_for_torsion: str):
                 K_T=K_T,
             )
             st.success("Design forces stored (ULS). Go to Results tab to see checks.")
-
 
     return torsion_supported
 
@@ -3377,6 +3375,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
