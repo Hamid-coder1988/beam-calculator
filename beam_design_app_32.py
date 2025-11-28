@@ -3250,8 +3250,10 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(
 )
 
 with tab1:
+    st.subheader("Project information")
     meta = render_project_data()
     st.session_state["meta"] = meta
+
 
 with tab2:
     st.subheader("Loads & design settings")
@@ -3389,6 +3391,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
