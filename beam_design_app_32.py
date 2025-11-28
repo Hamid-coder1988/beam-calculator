@@ -3281,7 +3281,6 @@ with tab2:
             ["Characteristic", "Design values (N_Ed, M_Ed, …)"],
             key="manual_forces_type"
         )
-        st.session_state["manual_forces_type"] = manual_forces_type
 
     # --- Effective lengths for instability ---
     with st.expander("Effective lengths for instability", expanded=False):
@@ -3390,6 +3389,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
