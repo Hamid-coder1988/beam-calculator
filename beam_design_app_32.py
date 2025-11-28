@@ -1680,9 +1680,10 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 def render_results(df_rows, overall_ok, governing):
     """
     Results tab:
-      - Summary line
-      - Table 1: Verification of cross-section strength (ULS)
-      - Table 2: Verification of member stability (buckling)
+      - summary line
+      - Table 1: Verification of cross-section strength (ULS, checks 1–14)
+      - Table 2: Verification of member stability (buckling, checks 15–20)
+    Only columns: Check | Utilization | Status, no index / row numbers.
     """
     if df_rows is None or df_rows.empty:
         st.info("No results available. Run the Loads form first.")
@@ -1706,59 +1707,61 @@ def render_results(df_rows, overall_ok, governing):
 
     st.markdown("---")
 
-    # We want only: Check | Utilization | Status
-    df_view = df_rows.reset_index()  # bring 'Check' out of index
-    # normalise column names
-    cols_keep = []
-    for col in ["Check", "Utilization", "Status"]:
-        if col in df_view.columns:
-            cols_keep.append(col)
-    df_view = df_view[cols_keep].copy()
+    # -----------------------
+    # Prepare compact view: Check | Utilization | Status
+    # -----------------------
+    df_view = df_rows.reset_index()  # 'Check' out of index
 
-    # numeric utilisation for formatting
+    # keep only the relevant columns if they exist
+    keep_cols = [c for c in ["Check", "Utilization", "Status"] if c in df_view.columns]
+    df_view = df_view[keep_cols].copy()
+
+    # format utilisation nicely
     if "Utilization" in df_view.columns:
-        df_view["Utilization_num"] = pd.to_numeric(
-            df_view["Utilization"], errors="coerce"
-        )
-        df_view["Utilization"] = df_view["Utilization_num"].apply(
-            lambda u: "n/a" if pd.isna(u) else f"{u:.3f}"
-        )
+        util_num = pd.to_numeric(df_view["Utilization"], errors="coerce")
 
-    # split into cross-section vs buckling:
-    # buckling rows detected by word "buckling" in Check text
+        def fmt_util(x):
+            if pd.isna(x):
+                return "n/a"
+            try:
+                return f"{float(x):.3f}"
+            except Exception:
+                return str(x)
+
+        df_view["Utilization"] = util_num.apply(fmt_util)
+
+    # split cross-section vs buckling by word "buckling" in the check name
     is_buckling = df_view["Check"].str.contains("buckling", case=False, na=False)
     df_cs = df_view[~is_buckling].copy()
     df_buck = df_view[is_buckling].copy()
 
-    def _highlight(row):
-        s = row.get("Status", "")
-        if s == "OK":
-            color = "background-color: #e6f7e6"
-        elif s == "EXCEEDS":
-            color = "background-color: #fde6e6"
-        else:
-            color = "background-color: #f0f0f0"
-        return [color] * len(row)
-
     # -----------------------
-    # 1) Cross-section strength ULS (checks 1–14)
+    # 1) Cross-section strength (checks 1–14)
     # -----------------------
     st.markdown("### Verification of cross-section strength (ULS, checks 1–14)")
     if not df_cs.empty:
         cs_table = df_cs[["Check", "Utilization", "Status"]]
-        st.write(cs_table.style.apply(_highlight, axis=1))
+        st.dataframe(
+            cs_table,
+            use_container_width=True,
+            hide_index=True,
+        )
     else:
         st.info("No cross-section strength checks available.")
 
     st.markdown("---")
 
     # -----------------------
-    # 2) Member stability (buckling) – checks 15–20
+    # 2) Member stability (buckling, checks 15–20)
     # -----------------------
     st.markdown("### Verification of member stability (buckling, checks 15–20)")
     if not df_buck.empty:
         buck_table = df_buck[["Check", "Utilization", "Status"]]
-        st.write(buck_table.style.apply(_highlight, axis=1))
+        st.dataframe(
+            buck_table,
+            use_container_width=True,
+            hide_index=True,
+        )
     else:
         st.info("No buckling checks available.")
 
@@ -3277,6 +3280,7 @@ with tab3:
 
 with tab4:
     render_report_tab()
+
 
 
 
