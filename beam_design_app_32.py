@@ -3298,25 +3298,45 @@ with tab2:
         # no need to write back to session_state; Streamlit does that via the key
 
     # --- 2) Effective lengths for instability ---
-    with st.expander("Effective lengths for instability", expanded=False):
-        L_y = st.number_input(
-            "Effective length L_y (m)",
-            min_value=0.0,
-            value=float(st.session_state.get("L_y", 6.0)),
-            key="L_y",
-        )
-        L_z = st.number_input(
-            "Effective length L_z (m)",
-            min_value=0.0,
-            value=float(st.session_state.get("L_z", 6.0)),
-            key="L_z",
-        )
-        L_LT = st.number_input(
-            "Effective lateral-torsional length L_LT (m)",
-            min_value=0.0,
-            value=float(st.session_state.get("L_LT", 6.0)),
-            key="L_LT",
-        )
+        # --- 2) Instability length ratios (relative to span L) ---
+    with st.expander("Instability length ratios (relative to span L)", expanded=False):
+        c1, c2, c3, c4 = st.columns(4)
+
+        with c1:
+            Lcr_y_over_L = st.number_input(
+                "Lcr,y / L  (flexural y-y)",
+                min_value=0.1,
+                value=float(st.session_state.get("Lcr_y_over_L", 1.0)),
+                step=0.05,
+                key="Lcr_y_over_L",
+            )
+
+        with c2:
+            Lcr_z_over_L = st.number_input(
+                "Lcr,z / L  (flexural z-z)",
+                min_value=0.1,
+                value=float(st.session_state.get("Lcr_z_over_L", 1.0)),
+                step=0.05,
+                key="Lcr_z_over_L",
+            )
+
+        with c3:
+            L_LT_over_L = st.number_input(
+                "L_LT / L  (lateral–torsional)",
+                min_value=0.1,
+                value=float(st.session_state.get("L_LT_over_L", 1.0)),
+                step=0.05,
+                key="L_LT_over_L",
+            )
+
+        with c4:
+            L_TF_over_L = st.number_input(
+                "L_TF / L  (torsional / flexural–torsional)",
+                min_value=0.1,
+                value=float(st.session_state.get("L_TF_over_L", 1.0)),
+                step=0.05,
+                key="L_TF_over_L",
+            )
 
     # --- 3) Determine section family for torsion (if already chosen in Section tab) ---
     sr_display_for_loads = st.session_state.get("sr_display")
@@ -3418,6 +3438,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
