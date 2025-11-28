@@ -1052,7 +1052,6 @@ def render_sidebar_guidelines():
 DB sections are read-only.
 """)
 
-
 def render_project_data():
     with st.expander("Project data", expanded=False):
         meta_col1, meta_col2, meta_col3 = st.columns([1, 1, 1])
@@ -3391,6 +3390,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
