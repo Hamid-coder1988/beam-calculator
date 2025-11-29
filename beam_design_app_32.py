@@ -1358,7 +1358,7 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
     defval = lambda key, fallback: float(st.session_state.get(key, fallback)) if prefill else fallback
     torsion_supported = supports_torsion_and_warping(family_for_torsion)
 
-    with st.form("loads_form", clear_on_submit=False):
+    with st.container():
         if read_only:
             st.subheader("Design forces and moments (ULS) — from ready case")
             st.caption(
@@ -3455,5 +3455,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
