@@ -3299,7 +3299,7 @@ def render_section_preview_placeholder(title="Cross-section preview", key_prefix
 render_sidebar_guidelines()
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["1) Project info", "2) Loads & design", "3) Section", "4) Results", "5) Report"]
+    ["1) Project info", "2) Loads", "3) Section", "4) Results", "5) Report"]
 )
 
 with tab1:
@@ -3308,7 +3308,7 @@ with tab1:
     st.session_state["meta"] = meta
 
 with tab2:
-    st.subheader("Loads & design settings")
+    st.subheader("Loads settings")
 
     # --- 1) Design settings (ULS) ---
     with st.expander("Design settings (ULS)", expanded=True):
@@ -3481,6 +3481,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
