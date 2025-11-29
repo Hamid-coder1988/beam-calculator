@@ -2072,92 +2072,7 @@ def render_beam_diagrams_panel():
     # Store diagram summary for use in Report tab
     st.session_state["diag_summary"] = summary
 
-    # =====================================================
-    # SUMMARY BLOCKS ABOVE DIAGRAMS (box style like inputs)
-    # =====================================================
-    st.markdown("### Diagram-based summary")
-
-    # ---- Deflection summary ----
-        # ---- Deflection summary ----
-    if summary.get("defl_available"):
-        # First line: ONLY maximum deflection (same box style)
-        r1c1, r1c2, r1c3 = st.columns(3)
-        with r1c1:
-            st.number_input(
-                "Maximum deflection δ_max (mm)",
-                value=float(summary["w_max_mm"]),
-                disabled=True,
-                key="diag_dmax"
-            )
-        with r1c2:
-            st.empty()
-        with r1c3:
-            st.empty()
-
-        # Second line: L/300, L/600, L/900 (mm)
-        r2c1, r2c2, r2c3 = st.columns(3)
-        with r2c1:
-            st.number_input(
-                "Limit L/300 (mm)",
-                value=float(summary["limit_L300"]) if summary.get("limit_L300") else 0.0,
-                disabled=True,
-                key="diag_L300"
-            )
-        with r2c2:
-            st.number_input(
-                "Limit L/600 (mm)",
-                value=float(summary["limit_L600"]) if summary.get("limit_L600") else 0.0,
-                disabled=True,
-                key="diag_L600"
-            )
-        with r2c3:
-            st.number_input(
-                "Limit L/900 (mm)",
-                value=float(summary["limit_L900"]) if summary.get("limit_L900") else 0.0,
-                disabled=True,
-                key="diag_L900"
-            )
-    else:
-        st.info("Deflection summary not available: missing section inertia or deflection formula.")
-
-    # ---- Internal forces summary ----
-    st.markdown(
-    "<div style='font-size:0.9rem;font-weight:600;margin-top:0.3rem;'>"
-    "Internal forces summary (from diagrams)"
-    "</div>",
-    unsafe_allow_html=True
-)
-
-    f1, f2, f3, f4 = st.columns(4)
-
-    with f1:
-        st.number_input(
-            "Max bending moment M_max (kN·m)",
-            value=float(summary["M_max"]) if summary.get("M_max") is not None else 0.0,
-            disabled=True,
-            key="diag_Mmax"
-        )
-    with f2:
-        st.number_input(
-            "Shear at M_max, V(x_Mmax) (kN)",
-            value=float(summary["V_at_Mmax"]) if summary.get("V_at_Mmax") is not None else 0.0,
-            disabled=True,
-            key="diag_VatMmax"
-        )
-    with f3:
-        st.number_input(
-            "Left reaction R_A (kN)",
-            value=float(summary["R_left"]) if summary.get("R_left") is not None else 0.0,
-            disabled=True,
-            key="diag_Rleft"
-        )
-    with f4:
-        st.number_input(
-            "Right reaction R_B (kN)",
-            value=float(summary["R_right"]) if summary.get("R_right") is not None else 0.0,
-            disabled=True,
-            key="diag_Rright"
-        )
+   
 
     # =====================================================
     # DIAGRAMS (labels with smaller font)
@@ -3481,6 +3396,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
