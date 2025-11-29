@@ -2070,10 +2070,6 @@ def render_beam_diagrams_panel():
     sr_display = st.session_state.get("sr_display")
     chosen_type = st.session_state.get("ready_type_gallery", "Beam")
 
-    if chosen_type != "Beam":
-        st.info("Diagrams for frames will be added later.")
-        return
-
     if not selected_case or not input_vals:
         return
 
@@ -3445,6 +3441,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
