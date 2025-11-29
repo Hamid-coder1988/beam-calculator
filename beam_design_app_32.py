@@ -1416,17 +1416,6 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
                 disabled=read_only,
             )
 
-        st.markdown("### Buckling effective length factors (K)")
-        k1, k2, k3, k4 = st.columns(4)
-        with k1:
-            K_y = st.number_input("K_y", value=1.0, min_value=0.1, step=0.05, key="Ky_in")
-        with k2:
-            K_z = st.number_input("K_z", value=1.0, min_value=0.1, step=0.05, key="Kz_in")
-        with k3:
-            K_LT = st.number_input("K_LT", value=1.0, min_value=0.1, step=0.05, key="KLT_in")
-        with k4:
-            K_T = st.number_input("K_T", value=1.0, min_value=0.1, step=0.05, key="KT_in")
-
         Tx_kNm = 0.0
         if torsion_supported:
             st.markdown("### Torsion (only for open I/H/U sections)")
@@ -3466,4 +3455,5 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
