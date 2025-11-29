@@ -805,16 +805,6 @@ READY_CATALOG = {
         # Category 8: 1 case
         "Continuous Beams — Four Spans / Five Supports (1 case)": make_cases("CS4", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "L4": 4.0, "w": 10.0}),
     },
-    "Frame": {
-        "Three Member Frames (Pin / Roller) (8 cases)": make_cases("FR3PR", 8, {"L": 4.0, "H": 3.0, "P": 10.0}),
-        "Three Member Frames (Pin / Pin) (5 cases)": make_cases("FR3PP", 5, {"L": 4.0, "H": 3.0, "P": 10.0}),
-        "Three Member Frames (Fixed / Fixed) (3 cases)": make_cases("FR3FF", 3, {"L": 4.0, "H": 3.0, "P": 10.0}),
-        "Three Member Frames (Fixed / Free) (5 cases)": make_cases("FR3FFr", 5, {"L": 4.0, "H": 3.0, "P": 10.0}),
-        "Two Member Frames (Pin / Pin) (2 cases)": make_cases("FR2PP", 2, {"L": 4.0, "H": 3.0, "P": 10.0}),
-        "Two Member Frames (Fixed / Fixed) (2 cases)": make_cases("FR2FF", 2, {"L": 4.0, "H": 3.0, "P": 10.0}),
-        "Two Member Frames (Fixed / Pin) (4 cases)": make_cases("FR2FP", 4, {"L": 4.0, "H": 3.0, "P": 10.0}),
-        "Two Member Frames (Fixed / Free) (4 cases)": make_cases("FR2FFr", 4, {"L": 4.0, "H": 3.0, "P": 10.0}),
-    }
 }
 
 
@@ -3455,6 +3445,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
