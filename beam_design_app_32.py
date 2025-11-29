@@ -1437,43 +1437,59 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
                 disabled=read_only,
             )
 
-        run_btn = st.form_submit_button("Run check")
-        if run_btn:
-            # --- Read design settings from Tab 2 ---
-            gamma_F = st.session_state.get("gamma_F", 1.50)
-            manual_forces_type = st.session_state.get("manual_forces_type", "Characteristic")
+            return torsion_supported
 
-            # Characteristic → multiply by γ_F, Design → factor = 1.0
-            if str(manual_forces_type).startswith("Characteristic"):
-                factor = gamma_F
-            else:
-                factor = 1.0
 
-            # Apply factor to get DESIGN forces (N_Ed, V_Ed, M_Ed)
-            N_design_kN   = N_kN   * factor
-            Vy_design_kN  = Vy_kN  * factor
-            Vz_design_kN  = Vz_kN  * factor
-            My_design_kNm = My_kNm * factor
-            Mz_design_kNm = Mz_kNm * factor
-            Tx_design_kNm = Tx_kNm * factor
+def store_design_forces_from_state():
+    """Compute design ULS forces from current Loads inputs in session_state
+    and store them into st.session_state['inputs']. This replaces the old
+    Run button inside the Loads tab; it is now triggered from the Results tab.
+    """
+    # Raw inputs from Loads form
+    L = float(st.session_state.get("L_in", 0.0))
+    N_kN = float(st.session_state.get("N_in", 0.0))
+    Vy_kN = float(st.session_state.get("Vy_in", 0.0))
+    Vz_kN = float(st.session_state.get("Vz_in", 0.0))
+    My_kNm = float(st.session_state.get("My_in", 0.0))
+    Mz_kNm = float(st.session_state.get("Mz_in", 0.0))
+    Tx_kNm = float(st.session_state.get("Tx_in", 0.0)) if "Tx_in" in st.session_state else 0.0
 
-            st.session_state["run_clicked"] = True
-            st.session_state["inputs"] = dict(
-                L=L,
-                N_kN=N_design_kN,
-                Vy_kN=Vy_design_kN,
-                Vz_kN=Vz_design_kN,
-                My_kNm=My_design_kNm,
-                Mz_kNm=Mz_design_kNm,
-                Tx_kNm=Tx_design_kNm,
-                K_y=K_y,
-                K_z=K_z,
-                K_LT=K_LT,
-                K_T=K_T,
-            )
-            st.success("Design forces stored (ULS). Go to Results tab to see checks.")
+    K_y  = float(st.session_state.get("Ky_in", 1.0))
+    K_z  = float(st.session_state.get("Kz_in", 1.0))
+    K_LT = float(st.session_state.get("KLT_in", 1.0))
+    K_T  = float(st.session_state.get("KT_in", 1.0))
 
-    return torsion_supported
+    # Design settings from Tab 2
+    gamma_F = st.session_state.get("gamma_F", 1.50)
+    manual_forces_type = st.session_state.get("manual_forces_type", "Characteristic")
+
+    if str(manual_forces_type).startswith("Characteristic"):
+        factor = gamma_F
+    else:
+        factor = 1.0
+
+    # Apply factor to get DESIGN forces (N_Ed, V_Ed, M_Ed)
+    N_design_kN   = N_kN   * factor
+    Vy_design_kN  = Vy_kN  * factor
+    Vz_design_kN  = Vz_kN  * factor
+    My_design_kNm = My_kNm * factor
+    Mz_design_kNm = Mz_kNm * factor
+    Tx_design_kNm = Tx_kNm * factor
+
+    st.session_state["run_clicked"] = True
+    st.session_state["inputs"] = dict(
+        L=L,
+        N_kN=N_design_kN,
+        Vy_kN=Vy_design_kN,
+        Vz_kN=Vz_design_kN,
+        My_kNm=My_design_kNm,
+        Mz_kNm=Mz_design_kNm,
+        Tx_kNm=Tx_design_kNm,
+        K_y=K_y,
+        K_z=K_z,
+        K_LT=K_LT,
+        K_T=K_T,
+    )
 
 def render_loads_readonly(inputs: dict, torsion_supported: bool, key_prefix="rpt_load"):
     """
@@ -1752,9 +1768,53 @@ def render_results(df_rows, overall_ok, governing):
     else:
         st.caption(f"Overall status: **{status_txt}**")
 
+    # -------------------------------------------------
+    # Deflection summary (from diagrams)
+    # -------------------------------------------------
+    diag_summary = st.session_state.get("diag_summary")
+    if diag_summary and diag_summary.get("defl_available"):
+        w_max_mm = diag_summary.get("w_max_mm")
+        limit_L300 = diag_summary.get("limit_L300")
+        limit_L600 = diag_summary.get("limit_L600")
+        limit_L900 = diag_summary.get("limit_L900")
+
+        st.markdown("#### Deflection (serviceability)")
+        d1, d2, d3, d4 = st.columns(4)
+        with d1:
+            st.text_input(
+                "δ_max [mm]",
+                value=f"{w_max_mm:.3f}" if w_max_mm is not None else "n/a",
+                disabled=True,
+                key="res_delta_max_mm",
+            )
+        with d2:
+            st.text_input(
+                "Limit L/300 [mm]",
+                value=f"{limit_L300:.3f}" if limit_L300 is not None else "n/a",
+                disabled=True,
+                key="res_L300_mm",
+            )
+        with d3:
+            st.text_input(
+                "Limit L/600 [mm]",
+                value=f"{limit_L600:.3f}" if limit_L600 is not None else "n/a",
+                disabled=True,
+                key="res_L600_mm",
+            )
+        with d4:
+            st.text_input(
+                "Limit L/900 [mm]",
+                value=f"{limit_L900:.3f}" if limit_L900 is not None else "n/a",
+                disabled=True,
+                key="res_L900_mm",
+            )
+    else:
+        st.caption("Deflection summary (δ_max, L/300, L/600, L/900) will appear here after running the diagrams in the Loads tab.")
+
     st.markdown("---")
 
     # -------------------------------------------------
+    # -----------------------------------
     # Data for the two tables
     # -------------------------------------------------
     cs_checks = [
@@ -3375,11 +3435,21 @@ with tab4:
     material = st.session_state.get("material", "S355")
     fy = material_to_fy(material)
 
+    # Run button moved here from Loads tab
+    run_col, _ = st.columns([1, 3])
+    with run_col:
+        if st.button("Run check", key="run_check_results"):
+            try:
+                store_design_forces_from_state()
+            except Exception as e:
+                st.error(f"Error reading Loads inputs: {e}")
+
     if not st.session_state.get("run_clicked", False):
-        st.info("Run the Loads form first, then come back here.")
+        st.info("Set up Loads in Tab 2 and then press **Run check** here.")
     elif sr_display is None:
         st.warning("No section data found. Select a section first.")
     else:
+
         inputs = st.session_state.get("inputs", {})
         torsion_supported = supports_torsion_and_warping(sr_display.get("family", ""))
 
@@ -3396,48 +3466,4 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
