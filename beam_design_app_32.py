@@ -807,6 +807,20 @@ READY_CATALOG = {
     },
 }
 
+# Image mapping for ready beam cases (only cases 1 and 2 for now)
+CASE_IMAGE_MAP = {
+    "SS-01": "beam_case_img/SSB-C1.png",
+    "SS-02": "beam_case_img/SSB-C2.png",
+    # SS-03, SS-04, SS-05 will use placeholder
+}
+
+# Apply image paths to cases
+if "Beam" in READY_CATALOG:
+    for category, cases in READY_CATALOG["Beam"].items():
+        for case in cases:
+            key = case.get("key")
+            if key in CASE_IMAGE_MAP:
+                case["img_path"] = CASE_IMAGE_MAP[key]
 
 # ---- Patch Case 1 of Simply Supported Beams to real UDL formulas ----
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["label"] = "SSB -  C1"
@@ -3441,6 +3455,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
