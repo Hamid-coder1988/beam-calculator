@@ -822,6 +822,7 @@ if "Beam" in READY_CATALOG:
             if key in CASE_IMAGE_MAP:
                 case["img_path"] = CASE_IMAGE_MAP[key]
 
+
 # ---- Patch Case 1 of Simply Supported Beams to real UDL formulas ----
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["label"] = "SSB -  C1"
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["inputs"] = {"L": 6.0, "w": 10.0}
@@ -3455,6 +3456,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
