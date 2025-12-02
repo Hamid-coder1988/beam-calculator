@@ -994,33 +994,32 @@ def render_ready_cases_panel():
         # Show diagrams for the chosen beam case
         render_beam_diagrams_panel()
 
-        # Step 5 – apply case to Loads form
-        if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
-            func = selected_case.get("func", None)
-            if func is None:
-                st.warning("This case does not yet have a 'func' defined.")
-                return
-
-            try:
-                # Most of your funcs are def func(L, w, P, ...) → N, My, Mz, Vy, Vz
-                N, My, Mz, Vy, Vz = func(**input_vals)
-            except TypeError:
-                # fallback: positional
-                N, My, Mz, Vy, Vz = func(*input_vals.values())
-            except Exception as e:
-                st.error(f"Error computing case prefill: {e}")
-                return
-
-            # Store prefill for Loads form
+            # Store prefill for Loads form (legacy keys still used by defval)
             st.session_state["prefill_from_case"] = True
             st.session_state["case_L"] = float(input_vals.get("L", 6.0))
             st.session_state["prefill_N_kN"] = float(N)
-            st.session_state["prefill_My_kNm"] = float(My)
-            st.session_state["prefill_Mz_kNm"] = float(Mz)
             st.session_state["prefill_Vy_kN"] = float(Vy)
             st.session_state["prefill_Vz_kN"] = float(Vz)
+            st.session_state["prefill_My_kNm"] = float(My)
+            st.session_state["prefill_Mz_kNm"] = float(Mz)
 
-            st.success("Beam case applied. Check the Loads form below.")
+            # NEW: push values directly into the Loads tab widgets (editable)
+            st.session_state["L_in"] = float(input_vals.get("L", 6.0))
+            st.session_state["N_in"] = float(N)
+            st.session_state["Vy_in"] = float(Vy)
+            st.session_state["Vz_in"] = float(Vz)
+
+            # Map bending moment to chosen axis so user sees something sensible
+            if axis_choice.startswith("Strong"):
+                # strong axis → My
+                st.session_state["My_in"] = float(My)
+                st.session_state["Mz_in"] = 0.0
+            else:
+                # weak axis → Mz
+                st.session_state["My_in"] = 0.0
+                st.session_state["Mz_in"] = float(My)
+
+            st.success("Beam case applied to Loads. You can edit the forces if needed.")
 
 # =========================================================
 # UI RENDERERS
@@ -3371,7 +3370,7 @@ with tab2:
     # --- 5) Loads form (always shown) ---
     # When a ready case is applied, it just PREFILLS this form via session_state.
     # In ready-case mode the inputs are read-only; in manual mode they are editable.
-    render_loads_form(family_for_torsion, read_only=(load_mode == "Use ready beam case"))
+    render_loads_form(family_for_torsion, read_only=False)
 
 with tab3:
     material, family, selected_name, selected_row, detected_table = render_section_selection()
@@ -3458,6 +3457,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
