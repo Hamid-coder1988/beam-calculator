@@ -992,7 +992,7 @@ def render_ready_cases_panel():
         st.session_state["ready_input_vals"] = input_vals
 
         # Show diagrams for the chosen beam case
-# Step 5 – apply case to Loads
+         # Step 5 – apply case to Loads
 if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
 
     # Compute loads from case function
@@ -3470,6 +3470,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
