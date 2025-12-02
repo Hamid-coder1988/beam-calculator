@@ -992,34 +992,47 @@ def render_ready_cases_panel():
         st.session_state["ready_input_vals"] = input_vals
 
         # Show diagrams for the chosen beam case
-        render_beam_diagrams_panel()
+# Step 5 – apply case to Loads
+if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
 
-            # Store prefill for Loads form (legacy keys still used by defval)
-            st.session_state["prefill_from_case"] = True
-            st.session_state["case_L"] = float(input_vals.get("L", 6.0))
-            st.session_state["prefill_N_kN"] = float(N)
-            st.session_state["prefill_Vy_kN"] = float(Vy)
-            st.session_state["prefill_Vz_kN"] = float(Vz)
-            st.session_state["prefill_My_kNm"] = float(My)
-            st.session_state["prefill_Mz_kNm"] = float(Mz)
+    # Compute loads from case function
+    func = selected_case.get("func")
+    if func is None:
+        st.warning("This case has no calculation function.")
+        return
 
-            # NEW: push values directly into the Loads tab widgets (editable)
-            st.session_state["L_in"] = float(input_vals.get("L", 6.0))
-            st.session_state["N_in"] = float(N)
-            st.session_state["Vy_in"] = float(Vy)
-            st.session_state["Vz_in"] = float(Vz)
+    try:
+        N, My, Mz, Vy, Vz = func(**input_vals)
+    except Exception as e:
+        st.error(f"Error computing case: {e}")
+        return
 
-            # Map bending moment to chosen axis so user sees something sensible
-            if axis_choice.startswith("Strong"):
-                # strong axis → My
-                st.session_state["My_in"] = float(My)
-                st.session_state["Mz_in"] = 0.0
-            else:
-                # weak axis → Mz
-                st.session_state["My_in"] = 0.0
-                st.session_state["Mz_in"] = float(My)
+    # Legacy prefill keys (used by defval)
+    st.session_state["prefill_from_case"] = True
+    st.session_state["case_L"] = float(input_vals.get("L", 6.0))
+    st.session_state["prefill_N_kN"] = float(N)
+    st.session_state["prefill_Vy_kN"] = float(Vy)
+    st.session_state["prefill_Vz_kN"] = float(Vz)
+    st.session_state["prefill_My_kNm"] = float(My)
+    st.session_state["prefill_Mz_kNm"] = float(Mz)
 
-            st.success("Beam case applied to Loads. You can edit the forces if needed.")
+    # Push values into editable Loads-tab fields
+    st.session_state["L_in"] = float(input_vals.get("L", 6.0))
+    st.session_state["N_in"] = float(N)
+    st.session_state["Vy_in"] = float(Vy)
+    st.session_state["Vz_in"] = float(Vz)
+
+    # Bending axis logic
+    axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
+    if axis_choice.startswith("Strong"):
+        st.session_state["My_in"] = float(My)
+        st.session_state["Mz_in"] = 0.0
+    else:
+        st.session_state["My_in"] = 0.0
+        st.session_state["Mz_in"] = float(My)
+
+    st.success("Ready case applied to Loads — you can now edit the forces.")
+
 
 # =========================================================
 # UI RENDERERS
@@ -3457,6 +3470,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
