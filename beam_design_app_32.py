@@ -811,7 +811,9 @@ READY_CATALOG = {
 CASE_IMAGE_MAP = {
     "SS-01": "beam_case_img/SSB-C1.png",
     "SS-02": "beam_case_img/SSB-C2.png",
-    # SS-03, SS-04, SS-05 will use placeholder
+    "SS-03": "beam_case_img/SSB-C3.png",
+    "SS-04": "beam_case_img/SSB-C4.png",
+    "SS-05": "beam_case_img/SSB-C5.png",
 }
 
 # Apply image paths to cases
@@ -3456,6 +3458,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
