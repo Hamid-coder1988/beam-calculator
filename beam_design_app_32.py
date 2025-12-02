@@ -968,7 +968,6 @@ def render_ready_cases_panel():
             horizontal=True,
             key=f"axis_choice_{case_key}"
         )
-        # (we're not yet wiring axis_choice into calculations, that's a later step)
 
         # Step 4 – enter case parameters
         input_vals = {}
@@ -991,48 +990,49 @@ def render_ready_cases_panel():
         st.session_state["ready_selected_case"] = selected_case
         st.session_state["ready_input_vals"] = input_vals
 
-        # Show diagrams for the chosen beam case
-         # Step 5 – apply case to Loads
-if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
+        # 🔹 STEP 5 – APPLY CASE TO LOADS (PUT THIS HERE, INDENTED 8 SPACES)
+        if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
 
-    # Compute loads from case function
-    func = selected_case.get("func")
-    if func is None:
-        st.warning("This case has no calculation function.")
-        return
+            # Compute loads from case function
+            func = selected_case.get("func")
+            if func is None:
+                st.warning("This case has no calculation function.")
+                return
 
-    try:
-        N, My, Mz, Vy, Vz = func(**input_vals)
-    except Exception as e:
-        st.error(f"Error computing case: {e}")
-        return
+            try:
+                N, My, Mz, Vy, Vz = func(**input_vals)
+            except Exception as e:
+                st.error(f"Error computing case: {e}")
+                return
 
-    # Legacy prefill keys (used by defval)
-    st.session_state["prefill_from_case"] = True
-    st.session_state["case_L"] = float(input_vals.get("L", 6.0))
-    st.session_state["prefill_N_kN"] = float(N)
-    st.session_state["prefill_Vy_kN"] = float(Vy)
-    st.session_state["prefill_Vz_kN"] = float(Vz)
-    st.session_state["prefill_My_kNm"] = float(My)
-    st.session_state["prefill_Mz_kNm"] = float(Mz)
+            # Legacy prefill keys (used by defval)
+            st.session_state["prefill_from_case"] = True
+            st.session_state["case_L"] = float(input_vals.get("L", 6.0))
+            st.session_state["prefill_N_kN"] = float(N)
+            st.session_state["prefill_Vy_kN"] = float(Vy)
+            st.session_state["prefill_Vz_kN"] = float(Vz)
+            st.session_state["prefill_My_kNm"] = float(My)
+            st.session_state["prefill_Mz_kNm"] = float(Mz)
 
-    # Push values into editable Loads-tab fields
-    st.session_state["L_in"] = float(input_vals.get("L", 6.0))
-    st.session_state["N_in"] = float(N)
-    st.session_state["Vy_in"] = float(Vy)
-    st.session_state["Vz_in"] = float(Vz)
+            # Push values into editable Loads-tab fields
+            st.session_state["L_in"] = float(input_vals.get("L", 6.0))
+            st.session_state["N_in"] = float(N)
+            st.session_state["Vy_in"] = float(Vy)
+            st.session_state["Vz_in"] = float(Vz)
 
-    # Bending axis logic
-    axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
-    if axis_choice.startswith("Strong"):
-        st.session_state["My_in"] = float(My)
-        st.session_state["Mz_in"] = 0.0
-    else:
-        st.session_state["My_in"] = 0.0
-        st.session_state["Mz_in"] = float(My)
+            # Bending axis logic
+            axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
+            if axis_choice.startswith("Strong"):
+                st.session_state["My_in"] = float(My)
+                st.session_state["Mz_in"] = 0.0
+            else:
+                st.session_state["My_in"] = 0.0
+                st.session_state["Mz_in"] = float(My)
 
-    st.success("Ready case applied to Loads — you can now edit the forces.")
+            st.success("Ready case applied to Loads — you can now edit the forces.")
 
+        # Step 6 – diagrams
+        render_beam_diagrams_panel()
 
 # =========================================================
 # UI RENDERERS
@@ -3470,6 +3470,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
