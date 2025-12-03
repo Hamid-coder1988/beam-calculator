@@ -1021,6 +1021,13 @@ def render_ready_cases_panel():
 # =========================================================
 # UI RENDERERS
 # =========================================================
+
+def small_title(text):
+    st.markdown(
+        f"<div style='font-weight:600; margin-bottom:6px; font-size:0.95rem;'>{text}</div>",
+        unsafe_allow_html=True
+    )
+
 def render_sidebar_guidelines():
     with st.sidebar:
         st.markdown("## Workflow")
@@ -2186,7 +2193,7 @@ def render_beam_diagrams_panel():
     colV, colM = st.columns(2)
 
     with colV:
-        st.markdown("#### Shear force diagram V(x)")
+        small_title("Shear force diagram V(x)")
         fig1, ax1 = plt.subplots()
         ax1.plot(x, V)
         ax1.axhline(0, linewidth=1)
@@ -2203,7 +2210,12 @@ def render_beam_diagrams_panel():
         st.pyplot(fig1)
 
     with colM:
-        st.markdown("#### Bending moment diagram M(x)")
+        st.markdown(
+            "<div style='font-weight:600; margin-bottom:6px; font-size:0.95rem;'>"
+            "Bending moment diagram M(x)"
+            "</div>",
+            unsafe_allow_html=True
+        )
         fig2, ax2 = plt.subplots()
         ax2.plot(x, M)
         ax2.axhline(0, linewidth=1)
@@ -3511,6 +3523,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
