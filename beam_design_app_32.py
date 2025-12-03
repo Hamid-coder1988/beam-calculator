@@ -1391,21 +1391,24 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
         else:
             st.subheader("Design forces and moments (ULS) — INPUT")
             st.caption("Positive N = compression. Enter characteristic or design forces based on Tab 2 settings.")
-            r1c1, r1c2, r1c3 = st.columns(3) 
-                    
-            # Decide which shear component is "the" shear based on bending axis
-            axis_choice = st.session_state.get("bending_axis_choice", "Strong axis (y)") 
+            r1c1, r1c2, r1c3 = st.columns(3)
             
-            if axis_choice.startswith("Strong"):   # bending M_y → shear is V_z
-                shear_label = "Shear V_z (kN)"
-                shear_key   = "Vz_in"
-                bend_label  = "Bending M_y (kN·m)"
-                bend_key    = "My_in"
-            else:                                   # bending M_z → shear is V_y
-                shear_label = "Shear V_y (kN)"
-                shear_key   = "Vy_in"
-                bend_label  = "Bending M_z (kN·m)"
-                bend_key    = "Mz_in"
+            # Decide which components are governing based on bending axis
+            axis_choice = st.session_state.get("bending_axis_choice", "Strong axis (y)")
+            
+            shear_y_label = "Shear V_y (kN)"
+            shear_z_label = "Shear V_z (kN)"
+            My_label      = "Bending M_y (kN·m) about y"
+            Mz_label      = "Bending M_z (kN·m) about z"
+            
+            if axis_choice.startswith("Strong"):
+                # Strong axis = bending about y, shear mainly in z
+                shear_z_label += "  (governing)"
+                My_label      += "  (governing)"
+            elif axis_choice.startswith("Weak"):
+                # Weak axis = bending about z, shear mainly in y
+                shear_y_label += "  (governing)"
+                Mz_label      += "  (governing)"
             
             with r1c1:
                 L = st.number_input(
@@ -1414,7 +1417,7 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
                     key="L_in",
                     disabled=read_only,
                 )
-                
+            
             with r1c2:
                 N_kN = st.number_input(
                     "Axial force N (kN)",
@@ -1423,28 +1426,35 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
                 )
             
             with r1c3:
-                shear_val = st.number_input(
-                    shear_label,
-                    key=shear_key,
+                Vy_kN = st.number_input(
+                    shear_y_label,
+                    key="Vy_in",
                     disabled=read_only,
                 )
             
             r2c1, r2c2, r2c3 = st.columns(3)
             
             with r2c1:
-                # EMPTY COLUMN — used to keep layout aligned
-                st.write("")
+                Vz_kN = st.number_input(
+                    shear_z_label,
+                    key="Vz_in",
+                    disabled=read_only,
+                )
             
             with r2c2:
-                bending_val = st.number_input(
-                    bend_label,
-                    key=bend_key,
+                My_kNm = st.number_input(
+                    My_label,
+                    key="My_in",
                     disabled=read_only,
                 )
             
             with r2c3:
-                # EMPTY COLUMN — used to align layout
-                st.write("")
+                Mz_kNm = st.number_input(
+                    Mz_label,
+                    key="Mz_in",
+                    disabled=read_only,
+                )
+            
 
 def store_design_forces_from_state():
     """Compute design ULS forces from current Loads inputs in session_state
@@ -3468,6 +3478,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
