@@ -908,11 +908,15 @@ def render_ready_cases_panel():
     Ready design cases — BEAM ONLY gallery.
     """
     with st.expander("Ready design cases (Beam) — Gallery", expanded=True):
-        
+
         # --- Step 1 ---
         chosen_type = "Beam"
         categories = list(READY_CATALOG[chosen_type].keys())
-        chosen_cat = st.selectbox("Step 1 — Beam category", categories, key="ready_cat_gallery")
+        chosen_cat = st.selectbox(
+            "Step 1 — Beam category",
+            categories,
+            key="ready_cat_gallery",
+        )
 
         last_cat = st.session_state.get("_ready_last_cat")
         if last_cat != chosen_cat:
@@ -944,20 +948,15 @@ def render_ready_cases_panel():
         selected_case = next(c for c in current_cases if c["key"] == case_key)
         st.markdown(f"**Selected:** {selected_case['key']} — {selected_case['label']}")
 
-        # --- Step 3 ---
+        # --- Step 3: bending axis ---
         axis_choice = st.radio(
             "Step 3 — Bending axis for this case",
             ["Strong axis (y)", "Weak axis (z)"],
             horizontal=True,
             key=f"axis_choice_{case_key}",
         )
-        # Map UI choice to simple flag used by diagrams/deflection
-        if axis_choice.startswith("Strong"):
-            st.session_state["bending_axis"] = "y"
-        else:
-            st.session_state["bending_axis"] = "z"
 
-        # Keep a simple flag for diagrams / deflection
+        # Map UI choice → simple flag for diagrams/deflection
         if axis_choice.startswith("Strong"):
             st.session_state["bending_axis"] = "y"
         else:
@@ -970,7 +969,7 @@ def render_ready_cases_panel():
 
         for i in range(0, len(keys), 3):
             cols = st.columns(3)
-            for col, k in zip(cols, keys[i:i+3]):
+            for col, k in zip(cols, keys[i : i + 3]):
                 with col:
                     input_vals[k] = st.number_input(
                         k,
@@ -984,7 +983,6 @@ def render_ready_cases_panel():
         # --- Step 5: Apply case to Loads ---
         if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
 
-            # Compute loads
             func = selected_case.get("func")
             if func is None:
                 st.warning("Case has no calculation function.")
@@ -996,12 +994,19 @@ def render_ready_cases_panel():
                 st.error(f"Error computing case: {e}")
                 return
 
-            # ---- MAP VALUES HERE ----
-            # (Your mapping code goes here, correctly indented)
+            # Basic mapping
             st.session_state["L_in"] = float(input_vals.get("L", 6.0))
             st.session_state["N_in"] = float(N)
 
-            axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
+            # Get axis choice again (same key as above)
+            axis_choice = st.session_state.get(
+                f"axis_choice_{case_key}", "Strong axis (y)"
+            )
+            # Make sure bending_axis is in sync
+            if axis_choice.startswith("Strong"):
+                st.session_state["bending_axis"] = "y"
+            else:
+                st.session_state["bending_axis"] = "z"
 
             # Moments
             if axis_choice.startswith("Strong"):
@@ -1011,7 +1016,7 @@ def render_ready_cases_panel():
                 st.session_state["My_in"] = 0.0
                 st.session_state["Mz_in"] = float(My)
 
-            # Shear
+            # Shear (same magnitude, swapped axis)
             V_case = Vy
             if axis_choice.startswith("Strong"):
                 st.session_state["Vy_in"] = 0.0
@@ -1022,9 +1027,8 @@ def render_ready_cases_panel():
 
             st.success("Ready case applied to Loads — you can edit the forces.")
 
-        # --- Step 6: Show diagrams ---
+        # --- Step 6: Show diagrams (always uses current bending_axis) ---
         render_beam_diagrams_panel()
-
 
 # =========================================================
 # UI RENDERERS
@@ -3490,6 +3494,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
