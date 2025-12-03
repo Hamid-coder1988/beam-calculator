@@ -1028,6 +1028,10 @@ def render_ready_cases_panel():
             else:
                 st.session_state["My_in"] = 0.0
                 st.session_state["Mz_in"] = float(My)
+                
+                # store globally for Loads tab UI
+                st.session_state["bending_axis_choice"] = axis_choice
+
 
             st.success("Ready case applied to Loads — you can now edit the forces.")
 
@@ -1387,65 +1391,60 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
         else:
             st.subheader("Design forces and moments (ULS) — INPUT")
             st.caption("Positive N = compression. Enter characteristic or design forces based on Tab 2 settings.")
-
-        r1c1, r1c2, r1c3 = st.columns(3)
-        with r1c1:
-            L = st.number_input(
-                "Element length L (m)",
-                min_value=0.0,
-                key="L_in",
-                disabled=read_only,
-           )
+            r1c1, r1c2, r1c3 = st.columns(3) 
+                    
+            # Decide which shear component is "the" shear based on bending axis
+            axis_choice = st.session_state.get("bending_axis_choice", "Strong axis (y)") 
             
-        with r1c2:
-            N_kN = st.number_input(
-                "Axial force N (kN)",
-                key="N_in",
-                disabled=read_only,
-            )
-        with r1c3:
-            Vy_kN = st.number_input(
-                "Shear V_y (kN)",
-                value=defval("prefill_Vy_kN", 0.0),
-                key="Vy_in",
-                disabled=read_only,
-            )
-
-        r2c1, r2c2, r2c3 = st.columns(3)
-        with r2c1:
-            Vz_kN = st.number_input(
-                "Shear V_z (kN)",
-                value=defval("prefill_Vz_kN", 0.0),
-                key="Vz_in",
-                disabled=read_only,
-            )
-        with r2c2:
-            My_kNm = st.number_input(
-                "Bending M_y (kN·m) about y",
-                value=defval("prefill_My_kNm", 0.0),
-                key="My_in",
-                disabled=read_only,
-            )
-        with r2c3:
-            Mz_kNm = st.number_input(
-                "Bending M_z (kN·m) about z",
-                value=defval("prefill_Mz_kNm", 0.0),
-                key="Mz_in",
-                disabled=read_only,
-            )
-
-        Tx_kNm = 0.0
-        if torsion_supported:
-            st.markdown("### Torsion (only for open I/H/U sections)")
-            Tx_kNm = st.number_input(
-                "Torsion T_x (kN·m)",
-                value=0.0,
-                key="Tx_in",
-                disabled=read_only,
-            )
-
-            return torsion_supported
-
+            if axis_choice.startswith("Strong"):   # bending M_y → shear is V_z
+                shear_label = "Shear V_z (kN)"
+                shear_key   = "Vz_in"
+                bend_label  = "Bending M_y (kN·m)"
+                bend_key    = "My_in"
+            else:                                   # bending M_z → shear is V_y
+                shear_label = "Shear V_y (kN)"
+                shear_key   = "Vy_in"
+                bend_label  = "Bending M_z (kN·m)"
+                bend_key    = "Mz_in"
+            
+            with r1c1:
+                L = st.number_input(
+                    "Element length L (m)",
+                    min_value=0.0,
+                    key="L_in",
+                    disabled=read_only,
+                )
+                
+            with r1c2:
+                N_kN = st.number_input(
+                    "Axial force N (kN)",
+                    key="N_in",
+                    disabled=read_only,
+                )
+            
+            with r1c3:
+                shear_val = st.number_input(
+                    shear_label,
+                    key=shear_key,
+                    disabled=read_only,
+                )
+            
+            r2c1, r2c2, r2c3 = st.columns(3)
+            
+            with r2c1:
+                # EMPTY COLUMN — used to keep layout aligned
+                st.write("")
+            
+            with r2c2:
+                bending_val = st.number_input(
+                    bend_label,
+                    key=bend_key,
+                    disabled=read_only,
+                )
+            
+            with r2c3:
+                # EMPTY COLUMN — used to align layout
+                st.write("")
 
 def store_design_forces_from_state():
     """Compute design ULS forces from current Loads inputs in session_state
@@ -3469,6 +3468,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
