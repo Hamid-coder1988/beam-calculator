@@ -1813,17 +1813,30 @@ def render_results(df_rows, overall_ok, governing):
     else:
         st.caption(f"Overall status: **{status_txt}**")
 
+
     # -------------------------------------------------
     # Deflection summary (from diagrams)
     # -------------------------------------------------
     diag_summary = st.session_state.get("diag_summary")
     if diag_summary and diag_summary.get("defl_available"):
-        w_max_mm = diag_summary.get("w_max_mm")
+        w_max_mm   = diag_summary.get("w_max_mm")
         limit_L300 = diag_summary.get("limit_L300")
         limit_L600 = diag_summary.get("limit_L600")
         limit_L900 = diag_summary.get("limit_L900")
 
+        bending_axis = diag_summary.get("bending_axis", "y")
+
+        if bending_axis == "y":
+            main_dir_label   = "Global z (from My / Vz, using Iy)"
+            other_dir_label  = "Global y (from Mz / Vy, using Iz)"
+        else:
+            main_dir_label   = "Global y (from Mz / Vy, using Iz)"
+            other_dir_label  = "Global z (from My / Vz, using Iy)"
+
+        # Title in same style as ULS tables
         small_title("Deflection (serviceability)")
+        st.caption(f"Analysed direction: **{main_dir_label}**")
+
         d1, d2, d3, d4 = st.columns(4)
         with d1:
             st.text_input(
@@ -1853,10 +1866,19 @@ def render_results(df_rows, overall_ok, governing):
                 disabled=True,
                 key="res_L900_mm",
             )
-    else:
-        st.caption("Deflection summary (δ_max, L/300, L/600, L/900) will appear here after running the diagrams in the Loads tab.")
 
-    st.markdown("---")
+        # Second line: other axis shown explicitly as not analysed
+        st.text_input(
+            f"δ_max (other axis) [mm] — {other_dir_label}",
+            value="n/a (no diagrams / deflection calculated for this axis)",
+            disabled=True,
+            key="res_delta_other_axis",
+        )
+    else:
+        st.caption(
+            "Deflection summary (δ_max, L/300, L/600, L/900) will appear here "
+            "after running the diagrams in the Loads tab."
+        )
 
     # -------------------------------------------------
     # -----------------------------------
@@ -2170,11 +2192,11 @@ def render_beam_diagrams_panel():
 
     # ---- Summary from diagrams (δ_max, M_max, shear, reactions) ----
     summary = get_beam_summary_for_diagrams(x, V, M, delta, L_val)
-    # Store diagram summary for use in Report tab
+    # store which bending axis the diagrams/deflection correspond to
+    summary["bending_axis"] = bending_axis
     st.session_state["diag_summary"] = summary
 
    
-
     # =====================================================
     # DIAGRAMS (labels with smaller font)
     # =====================================================
@@ -3478,6 +3500,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
