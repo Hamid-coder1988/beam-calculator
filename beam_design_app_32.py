@@ -2144,13 +2144,13 @@ def get_beam_summary_for_diagrams(x, V, M, delta, L):
 def render_beam_diagrams_panel():
     """
     Draw V(x) and M(x) diagrams.
-    Show deflection and internal force summaries ABOVE the diagrams
-    in the same 'box' style as other inputs.
+    Use current ready-case inputs and the bending-axis radio
+    to pick Iy or Iz for deflection. Store summary in
+    st.session_state["diag_summary"].
     """
     selected_case = st.session_state.get("ready_selected_case")
     input_vals    = st.session_state.get("ready_input_vals")
     sr_display    = st.session_state.get("sr_display")
-    chosen_type   = st.session_state.get("ready_type_gallery", "Beam")
 
     if not selected_case or not input_vals:
         return
@@ -2160,18 +2160,25 @@ def render_beam_diagrams_panel():
         st.info("No diagrams yet for this case.")
         return
 
-    # ---- Determine bending axis directly from the current radio ----
+    # --------------------------------------
+    # 1) Determine bending axis from radio
+    # --------------------------------------
     case_key = st.session_state.get("ready_case_key")
-    axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
-    if axis_choice.startswith("Strong"):
-        bending_axis = "y"
-    else:
-        bending_axis = "z"
+    axis_choice = st.session_state.get(
+        f"axis_choice_{case_key}", "Strong axis (y)"
+    )
 
-    # keep it in session_state for other places that want it
+    if axis_choice.startswith("Weak"):
+        bending_axis = "z"
+    else:
+        bending_axis = "y"
+
+    # also store it for other places if needed
     st.session_state["bending_axis"] = bending_axis
 
-    # ---- Section stiffness for deflection ----
+    # --------------------------------------
+    # 2) Section stiffness for deflection
+    # --------------------------------------
     E = 210e9  # Pa
 
     I_y_m4 = float(sr_display.get("I_y_cm4", 0.0)) * 1e-8 if sr_display else 0.0
@@ -2185,24 +2192,27 @@ def render_beam_diagrams_panel():
     if I_m4 <= 0:
         I_m4 = None  # allow V/M but disable deflection if no inertia
 
-    # arguments in the same order as selected_case["inputs"]
+    # --------------------------------------
+    # 3) Call diagram function
+    # --------------------------------------
     args = [input_vals[k] for k in selected_case["inputs"].keys()]
     x, V, M, delta = diag_func(*args, E=E, I=I_m4)
 
-    # extract L from inputs (fallback to x-range)
+    # span length
     L_val = float(input_vals.get("L", 0.0))
     if (not L_val or L_val <= 0.0) and x is not None and len(x) > 1:
         L_val = float(x[-1] - x[0])
 
-    # ---- Summary from diagrams (δ_max, M_max, shear, reactions) ----
+    # --------------------------------------
+    # 4) Summary for deflection & forces
+    # --------------------------------------
     summary = get_beam_summary_for_diagrams(x, V, M, delta, L_val)
     summary["bending_axis"] = bending_axis
     st.session_state["diag_summary"] = summary
-   
-    # =====================================================
-    # DIAGRAMS (labels with smaller font)
-    # =====================================================
-        # ---- V(x) and M(x) side-by-side ----
+
+    # --------------------------------------
+    # 5) Diagrams (V & M, same style as before)
+    # --------------------------------------
     colV, colM = st.columns(2)
 
     with colV:
@@ -2237,6 +2247,38 @@ def render_beam_diagrams_panel():
         st.session_state["diag_M_png"] = buf_m.getvalue()
 
         st.pyplot(fig2)
+
+    # Optional deflection diagram (unchanged logic)
+    show_defl = st.checkbox(
+        "Show deflection diagram δ(x)", value=False, key="show_defl_diag"
+    )
+
+    if show_defl:
+        if delta is None or I_m4 is None:
+            st.warning("Deflection diagram not available: missing Iy/Iz or formula.")
+            return
+
+        colD, colEmpty = st.columns(2)
+
+        with colD:
+            small_title("Deflection diagram δ(x)")
+            fig3, ax3 = plt.subplots(figsize=(6, 3.5))
+            ax3.plot(x, delta * 1000.0)  # mm
+            ax3.axhline(0, linewidth=1)
+            ax3.set_xlabel("x (m)")
+            ax3.set_ylabel("δ (mm)")
+            ax3.grid(True)
+
+            buf_d = io.BytesIO()
+            fig3.savefig(buf_d, format="png", dpi=200, bbox_inches="tight")
+            buf_d.seek(0)
+            st.session_state["diag_D_png"] = buf_d.getvalue()
+
+            st.pyplot(fig3)
+
+        with colEmpty:
+            st.empty()
+
 
 # =========================================================
 # REPORT TAB & PDF HELPERS — ENGISNAP FULL REPORT
@@ -3502,6 +3544,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
