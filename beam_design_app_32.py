@@ -3513,12 +3513,20 @@ with tab4:
     material = st.session_state.get("material", "S355")
     fy = material_to_fy(material)
 
-    # Run button moved here from Loads tab
     run_col, _ = st.columns([1, 3])
     with run_col:
         if st.button("Run check", key="run_check_results"):
             try:
+                # 1) Update design ULS forces
                 store_design_forces_from_state()
+
+                # 2) Recompute diagrams & deflection with current section + axis
+                if (
+                    st.session_state.get("ready_selected_case")
+                    and st.session_state.get("ready_input_vals")
+                ):
+                    render_beam_diagrams_panel()
+
             except Exception as e:
                 st.error(f"Error reading Loads inputs: {e}")
 
@@ -3544,6 +3552,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
