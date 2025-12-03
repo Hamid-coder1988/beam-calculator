@@ -1796,7 +1796,12 @@ def render_results(df_rows, overall_ok, governing):
     # -------------------------------------------------
     # Top summary
     # -------------------------------------------------
-    st.markdown("### Result summary")
+    st.markdown(
+        "<div style='font-weight:600; margin-bottom:6px; font-size:0.95rem;'>"
+        "Result summary"
+        "</div>",
+        unsafe_allow_html=True
+    )
     if gov_util is not None:
         st.caption(
             f"Overall status: **{status_txt}**  |  "
@@ -3506,6 +3511,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
