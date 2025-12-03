@@ -1400,7 +1400,6 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
         with r1c2:
             N_kN = st.number_input(
                 "Axial force N (kN)",
-                value=defval("prefill_N_kN", 0.0),
                 key="N_in",
                 disabled=read_only,
             )
@@ -3470,6 +3469,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
