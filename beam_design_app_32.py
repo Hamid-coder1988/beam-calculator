@@ -906,33 +906,20 @@ def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
 def render_ready_cases_panel():
     """
     Ready design cases — BEAM ONLY gallery.
-    No frame cases in the UI anymore.
     """
-    # Make it open by default so diagrams are visible immediately
     with st.expander("Ready design cases (Beam) — Gallery", expanded=True):
-        st.write(
-            "Pick a beam case visually, then enter its parameters. "
-            "Diagrams update instantly for implemented cases."
-        )
-
-        # We only use BEAM cases in the UI
+        
+        # --- Step 1 ---
         chosen_type = "Beam"
-
-        # Step 1 – choose category within Beam
         categories = list(READY_CATALOG[chosen_type].keys())
-        chosen_cat = st.selectbox(
-            "Step 1 — Beam category",
-            categories,
-            key="ready_cat_gallery"
-        )
+        chosen_cat = st.selectbox("Step 1 — Beam category", categories, key="ready_cat_gallery")
 
-        # Reset selection if category changes
         last_cat = st.session_state.get("_ready_last_cat")
         if last_cat != chosen_cat:
             st.session_state["ready_case_key"] = None
             st.session_state["_ready_last_cat"] = chosen_cat
 
-        # Step 2 – choose a specific case
+        # --- Step 2 ---
         st.markdown("Step 2 — Choose a case:")
         clicked_key = render_case_gallery(chosen_type, chosen_cat, n_per_row=5)
 
@@ -942,8 +929,7 @@ def render_ready_cases_panel():
         case_key = st.session_state.get("ready_case_key")
 
         if not case_key:
-            st.info("Select a case above to enter its parameters and see diagrams.")
-            # Clear diagram state
+            st.info("Select a case above to see parameters and diagrams.")
             st.session_state["ready_selected_case"] = None
             st.session_state["ready_input_vals"] = None
             return
@@ -952,108 +938,85 @@ def render_ready_cases_panel():
         current_keys = {c["key"] for c in current_cases}
         if case_key not in current_keys:
             st.session_state["ready_case_key"] = None
-            st.info("Selected case was from another category. Please pick a case again.")
-            st.session_state["ready_selected_case"] = None
-            st.session_state["ready_input_vals"] = None
+            st.info("Selected case was from another category. Pick again.")
             return
 
         selected_case = next(c for c in current_cases if c["key"] == case_key)
-
         st.markdown(f"**Selected:** {selected_case['key']} — {selected_case['label']}")
 
-        # Step 3 – bending axis choice (beam only)
+        # --- Step 3 ---
         axis_choice = st.radio(
             "Step 3 — Bending axis for this case",
             ["Strong axis (y)", "Weak axis (z)"],
             horizontal=True,
-            key=f"axis_choice_{case_key}"
+            key=f"axis_choice_{case_key}",
         )
 
-        # Step 4 – enter case parameters
+        # --- Step 4: Case inputs ---
         input_vals = {}
         inputs_dict = selected_case.get("inputs", {})
         keys = list(inputs_dict.keys())
 
         for i in range(0, len(keys), 3):
-            row_keys = keys[i:i+3]
             cols = st.columns(3)
-            for col, k in zip(cols, row_keys):
+            for col, k in zip(cols, keys[i:i+3]):
                 with col:
-                    v = inputs_dict[k]
                     input_vals[k] = st.number_input(
                         k,
-                        value=float(float(v)),
-                        key=f"ready_param_{case_key}_{k}"
+                        value=float(inputs_dict[k]),
+                        key=f"ready_param_{case_key}_{k}",
                     )
 
-        # Store selection + inputs for diagrams
         st.session_state["ready_selected_case"] = selected_case
         st.session_state["ready_input_vals"] = input_vals
 
-        # 🔹 STEP 5 – APPLY CASE TO LOADS (PUT THIS HERE, INDENTED 8 SPACES)
+        # --- Step 5: Apply case to Loads ---
         if st.button("Apply case to Loads", key=f"apply_case_{case_key}"):
-        
-            # Compute loads from case function
+
+            # Compute loads
             func = selected_case.get("func")
             if func is None:
-                st.warning("This case has no calculation function.")
+                st.warning("Case has no calculation function.")
                 return
-        
+
             try:
                 N, My, Mz, Vy, Vz = func(**input_vals)
             except Exception as e:
                 st.error(f"Error computing case: {e}")
                 return
-        
-            # ---- Map results to Loads tab inputs ----
-        
-            # Basic stuff
+
+            # ---- MAP VALUES HERE ----
+            # (Your mapping code goes here, correctly indented)
             st.session_state["L_in"] = float(input_vals.get("L", 6.0))
             st.session_state["N_in"] = float(N)
-        
-            # Which axis did the user choose?
+
             axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
-        
-            # --- Map bending moment to correct axis ---
+
+            # Moments
             if axis_choice.startswith("Strong"):
-                # Strong axis → bending about y
                 st.session_state["My_in"] = float(My)
                 st.session_state["Mz_in"] = 0.0
             else:
-                # Weak axis → bending about z
                 st.session_state["My_in"] = 0.0
                 st.session_state["Mz_in"] = float(My)
-        
-            # --- Map shear to correct axis ---
-            # Assume the case function returns the main shear as Vy
+
+            # Shear
             V_case = Vy
-        
             if axis_choice.startswith("Strong"):
-                # Strong axis → shear in z, zero V_y
                 st.session_state["Vy_in"] = 0.0
                 st.session_state["Vz_in"] = float(V_case)
             else:
-                # Weak axis → shear in y, zero V_z
                 st.session_state["Vy_in"] = float(V_case)
                 st.session_state["Vz_in"] = 0.0
 
-    # Optional legacy prefill keys (if defval still uses them)
-    st.session_state["prefill_from_case"] = True
-    st.session_state["case_L"] = float(input_vals.get("L", 6.0))
-    st.session_state["prefill_N_kN"] = float(N)
-    st.session_state["prefill_Vy_kN"] = float(st.session_state["Vy_in"])
-    st.session_state["prefill_Vz_kN"] = float(st.session_state["Vz_in"])
-    st.session_state["prefill_My_kNm"] = float(st.session_state["My_in"])
-    st.session_state["prefill_Mz_kNm"] = float(st.session_state["Mz_in"])
+            # Save axis
+            st.session_state["bending_axis_choice"] = axis_choice
 
-    # Store axis globally for other tabs if needed
-    st.session_state["bending_axis_choice"] = axis_choice
+            st.success("Ready case applied to Loads — you can edit the forces.")
 
-    st.success("Ready case applied to Loads — you can now edit the forces.")
+        # --- Step 6: Show diagrams ---
+        render_beam_diagrams_panel()
 
-
-     # Step 6 – diagrams
-     render_beam_diagrams_panel()
 
 # =========================================================
 # UI RENDERERS
@@ -3479,6 +3442,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
