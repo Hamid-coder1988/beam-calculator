@@ -1000,38 +1000,49 @@ def render_ready_cases_panel():
                 return
 
             try:
-                N, My, Mz, Vy, Vz = func(**input_vals)
-            except Exception as e:
-                st.error(f"Error computing case: {e}")
-                return
+            # ---- Map results to Loads tab inputs ----
 
-            # Legacy prefill keys (used by defval)
-            st.session_state["prefill_from_case"] = True
-            st.session_state["case_L"] = float(input_vals.get("L", 6.0))
-            st.session_state["prefill_N_kN"] = float(N)
-            st.session_state["prefill_Vy_kN"] = float(Vy)
-            st.session_state["prefill_Vz_kN"] = float(Vz)
-            st.session_state["prefill_My_kNm"] = float(My)
-            st.session_state["prefill_Mz_kNm"] = float(Mz)
-
-            # Push values into editable Loads-tab fields
+            # Basic stuff
             st.session_state["L_in"] = float(input_vals.get("L", 6.0))
             st.session_state["N_in"] = float(N)
-            st.session_state["Vy_in"] = float(Vy)
-            st.session_state["Vz_in"] = float(Vz)
 
-            # Bending axis logic
+            # Which axis did the user choose?
             axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
+
+            # --- Map bending moment to correct axis ---
             if axis_choice.startswith("Strong"):
+                # Strong axis → bending about y
                 st.session_state["My_in"] = float(My)
                 st.session_state["Mz_in"] = 0.0
             else:
+                # Weak axis → bending about z
                 st.session_state["My_in"] = 0.0
                 st.session_state["Mz_in"] = float(My)
-                
-                # store globally for Loads tab UI
-                st.session_state["bending_axis_choice"] = axis_choice
 
+            # --- Map shear to correct axis ---
+            # Assume the case function returns the main shear as Vy
+            V_case = Vy
+
+            if axis_choice.startswith("Strong"):
+                # Strong axis → shear in z, zero V_y
+                st.session_state["Vy_in"] = 0.0
+                st.session_state["Vz_in"] = float(V_case)
+            else:
+                # Weak axis → shear in y, zero V_z
+                st.session_state["Vy_in"] = float(V_case)
+                st.session_state["Vz_in"] = 0.0
+
+            # Optional legacy prefill keys (if defval still uses them)
+            st.session_state["prefill_from_case"] = True
+            st.session_state["case_L"] = float(input_vals.get("L", 6.0))
+            st.session_state["prefill_N_kN"] = float(N)
+            st.session_state["prefill_Vy_kN"] = float(st.session_state["Vy_in"])
+            st.session_state["prefill_Vz_kN"] = float(st.session_state["Vz_in"])
+            st.session_state["prefill_My_kNm"] = float(st.session_state["My_in"])
+            st.session_state["prefill_Mz_kNm"] = float(st.session_state["Mz_in"])
+
+            # Store axis globally for other tabs if needed
+            st.session_state["bending_axis_choice"] = axis_choice
 
             st.success("Ready case applied to Loads — you can now edit the forces.")
 
@@ -1393,23 +1404,6 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
             st.caption("Positive N = compression. Enter characteristic or design forces based on Tab 2 settings.")
             r1c1, r1c2, r1c3 = st.columns(3)
             
-            # Decide which components are governing based on bending axis
-            axis_choice = st.session_state.get("bending_axis_choice", "Strong axis (y)")
-            
-            shear_y_label = "Shear V_y (kN)"
-            shear_z_label = "Shear V_z (kN)"
-            My_label      = "Bending M_y (kN·m) about y"
-            Mz_label      = "Bending M_z (kN·m) about z"
-            
-            if axis_choice.startswith("Strong"):
-                # Strong axis = bending about y, shear mainly in z
-                shear_z_label += "  (governing)"
-                My_label      += "  (governing)"
-            elif axis_choice.startswith("Weak"):
-                # Weak axis = bending about z, shear mainly in y
-                shear_y_label += "  (governing)"
-                Mz_label      += "  (governing)"
-            
             with r1c1:
                 L = st.number_input(
                     "Element length L (m)",
@@ -1427,7 +1421,7 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
             
             with r1c3:
                 Vy_kN = st.number_input(
-                    shear_y_label,
+                    "Shear V_y (kN)",
                     key="Vy_in",
                     disabled=read_only,
                 )
@@ -1436,24 +1430,25 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
             
             with r2c1:
                 Vz_kN = st.number_input(
-                    shear_z_label,
+                    "Shear V_z (kN)",
                     key="Vz_in",
                     disabled=read_only,
                 )
             
             with r2c2:
                 My_kNm = st.number_input(
-                    My_label,
+                    "Bending M_y (kN·m) about y",
                     key="My_in",
                     disabled=read_only,
                 )
             
             with r2c3:
                 Mz_kNm = st.number_input(
-                    Mz_label,
+                    "Bending M_z (kN·m) about z",
                     key="Mz_in",
                     disabled=read_only,
                 )
+
             
 
 def store_design_forces_from_state():
@@ -3478,6 +3473,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
