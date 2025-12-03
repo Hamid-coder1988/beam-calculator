@@ -2229,6 +2229,95 @@ def render_beam_diagrams_panel():
         st.session_state["diag_M_png"] = buf_m.getvalue()
 
         st.pyplot(fig2)
+        
+def render_beam_diagrams_panel():
+    """
+    Draw V(x) and M(x) diagrams.
+    Use the current bending-axis radio to pick Iy or Iz for deflection.
+    Store summary in st.session_state['diag_summary'].
+    """
+    selected_case = st.session_state.get("ready_selected_case")
+    input_vals = st.session_state.get("ready_input_vals")
+    sr_display   = st.session_state.get("sr_display")
+
+    if not selected_case or not input_vals:
+        return
+
+    diag_func = selected_case.get("diagram_func")
+    if not diag_func:
+        st.info("No diagrams yet for this case.")
+        return
+
+    # ---- Section stiffness for deflection ----
+    E = 210e9  # Pa
+
+    I_y_m4 = float(sr_display.get("I_y_cm4", 0.0)) * 1e-8 if sr_display else 0.0
+    I_z_m4 = float(sr_display.get("I_z_cm4", 0.0)) * 1e-8 if sr_display else 0.0
+
+    # Read the bending-axis choice for THIS case directly from the radio
+    case_key = selected_case.get("key", "")
+    axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
+
+    if axis_choice.startswith("Weak"):
+        I_m4 = I_z_m4
+        bending_axis = "z"
+    else:
+        I_m4 = I_y_m4
+        bending_axis = "y"
+
+    if I_m4 <= 0:
+        I_m4 = None  # allow V/M but disable deflection if no inertia
+
+    # arguments in the same order as selected_case["inputs"]
+    args = [input_vals[k] for k in selected_case["inputs"].keys()]
+    x, V, M, delta = diag_func(*args, E=E, I=I_m4)
+
+    # extract L from inputs (fallback to x-range)
+    L_val = float(input_vals.get("L", 0.0))
+    if (not L_val or L_val <= 0.0) and x is not None and len(x) > 1:
+        L_val = float(x[-1] - x[0])
+
+    # ---- Summary from diagrams (δ_max, M_max, shear, reactions) ----
+    summary = get_beam_summary_for_diagrams(x, V, M, delta, L_val)
+    summary["bending_axis"] = bending_axis          # store which axis δ belongs to
+    st.session_state["diag_summary"] = summary
+
+    # =====================================================
+    # DIAGRAMS (labels with smaller font)
+    # =====================================================
+    colV, colM = st.columns(2)
+
+    with colV:
+        small_title("Shear force diagram V(x)")
+        fig1, ax1 = plt.subplots()
+        ax1.plot(x, V)
+        ax1.axhline(0, linewidth=1)
+        ax1.set_xlabel("x (m)")
+        ax1.set_ylabel("V (kN)")
+        ax1.grid(True)
+
+        buf_v = io.BytesIO()
+        fig1.savefig(buf_v, format="png", dpi=200, bbox_inches="tight")
+        buf_v.seek(0)
+        st.session_state["diag_V_png"] = buf_v.getvalue()
+
+        st.pyplot(fig1)
+
+    with colM:
+        small_title("Bending moment diagram M(x)")
+        fig2, ax2 = plt.subplots()
+        ax2.plot(x, M)
+        ax2.axhline(0, linewidth=1)
+        ax2.set_xlabel("x (m)")
+        ax2.set_ylabel("M (kN·m)")
+        ax2.grid(True)
+
+        buf_m = io.BytesIO()
+        fig2.savefig(buf_m, format="png", dpi=200, bbox_inches="tight")
+        buf_m.seek(0)
+        st.session_state["diag_M_png"] = buf_m.getvalue()
+
+        st.pyplot(fig2)
 
 # =========================================================
 # REPORT TAB & PDF HELPERS — ENGISNAP FULL REPORT
@@ -3494,6 +3583,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
