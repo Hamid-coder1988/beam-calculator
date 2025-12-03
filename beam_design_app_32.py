@@ -1052,8 +1052,8 @@ def render_ready_cases_panel():
     st.success("Ready case applied to Loads — you can now edit the forces.")
 
 
-        # Step 6 – diagrams
-        render_beam_diagrams_panel()
+ # Step 6 – diagrams
+ render_beam_diagrams_panel()
 
 # =========================================================
 # UI RENDERERS
@@ -3479,6 +3479,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
