@@ -951,6 +951,12 @@ def render_ready_cases_panel():
             horizontal=True,
             key=f"axis_choice_{case_key}",
         )
+        # Map UI choice to simple flag used by diagrams/deflection
+        if axis_choice.startswith("Strong"):
+            st.session_state["bending_axis"] = "y"
+        else:
+            st.session_state["bending_axis"] = "z"
+
         # Keep a simple flag for diagrams / deflection
         if axis_choice.startswith("Strong"):
             st.session_state["bending_axis"] = "y"
@@ -3484,6 +3490,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
