@@ -1803,12 +1803,7 @@ def render_results(df_rows, overall_ok, governing):
     # -------------------------------------------------
     # Top summary
     # -------------------------------------------------
-    st.markdown(
-        "<div style='font-weight:600; margin-bottom:6px; font-size:0.95rem;'>"
-        "Result summary"
-        "</div>",
-        unsafe_allow_html=True
-    )
+    small_title("Result summary")
     if gov_util is not None:
         st.caption(
             f"Overall status: **{status_txt}**  |  "
@@ -1828,13 +1823,7 @@ def render_results(df_rows, overall_ok, governing):
         limit_L600 = diag_summary.get("limit_L600")
         limit_L900 = diag_summary.get("limit_L900")
 
-        st.markdown(
-            "<div style='font-weight:600; margin-bottom:6px; font-size:0.95rem;'>"
-            "Deflection (serviceability)"
-            "</div>",
-            unsafe_allow_html=True
-        )
-
+        small_title("Deflection (serviceability)")
         d1, d2, d3, d4 = st.columns(4)
         with d1:
             st.text_input(
@@ -2210,12 +2199,7 @@ def render_beam_diagrams_panel():
         st.pyplot(fig1)
 
     with colM:
-        st.markdown(
-            "<div style='font-weight:600; margin-bottom:6px; font-size:0.95rem;'>"
-            "Bending moment diagram M(x)"
-            "</div>",
-            unsafe_allow_html=True
-        )
+        small_title("Bending moment diagram M(x)")
         fig2, ax2 = plt.subplots()
         ax2.plot(x, M)
         ax2.axhline(0, linewidth=1)
@@ -2229,35 +2213,6 @@ def render_beam_diagrams_panel():
         st.session_state["diag_M_png"] = buf_m.getvalue()
 
         st.pyplot(fig2)
-
-    # ---- Optional deflection diagram ----
-    show_defl = st.checkbox("Show deflection diagram δ(x)", value=False, key="show_defl_diag")
-
-    if show_defl:
-        if delta is None or I_m4 is None:
-            st.warning("Deflection diagram not available: missing Iy or case deflection formula.")
-            return
-
-        colD, colEmpty = st.columns(2)
-
-        with colD:
-            st.markdown("#### Deflection diagram δ(x)")
-            fig3, ax3 = plt.subplots(figsize=(6, 3.5))
-            ax3.plot(x, delta * 1000.0)  # mm
-            ax3.axhline(0, linewidth=1)
-            ax3.set_xlabel("x (m)")
-            ax3.set_ylabel("δ (mm)")
-            ax3.grid(True)
-
-            buf_d = io.BytesIO()
-            fig3.savefig(buf_d, format="png", dpi=200, bbox_inches="tight")
-            buf_d.seek(0)
-            st.session_state["diag_D_png"] = buf_d.getvalue()
-
-            st.pyplot(fig3)
-
-        with colEmpty:
-            st.empty()
 
 # =========================================================
 # REPORT TAB & PDF HELPERS — ENGISNAP FULL REPORT
@@ -3523,6 +3478,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
