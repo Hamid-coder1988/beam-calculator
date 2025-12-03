@@ -1022,16 +1022,74 @@ def render_ready_cases_panel():
 # UI RENDERERS
 # =========================================================
 def render_sidebar_guidelines():
-    st.sidebar.title("Guidelines")
-    st.sidebar.markdown("""
-1) Member & Section  
-2) Loads (or Ready Case)  
-3) Run check  
-4) Results  
-5) Report  
+    with st.sidebar:
+        st.markdown("## Workflow")
 
-DB sections are read-only.
-""")
+        st.markdown(
+            """
+1. **Project info** – fill basic data  
+2. **Loads** – choose γ_F, instability length ratios and define loading  
+3. **Section** – pick material and DB section  
+4. **Results** – press **Run check** and review utilisations  
+5. **Report** – review full report and export PDF
+            """
+        )
+
+        st.markdown("---")
+        st.markdown("## Current setup")
+
+        # --- Material & section ---
+        material = st.session_state.get("material", "–")
+        sr = st.session_state.get("sr_display")
+        if isinstance(sr, dict):
+            sec_txt = f"{sr.get('family', '–')} {sr.get('name', '')}".strip()
+        else:
+            sec_txt = "No section selected"
+
+        st.write(f"**Material:** {material}")
+        st.write(f"**Section:** {sec_txt}")
+
+        # --- Loads / ready case ---
+        load_mode = st.session_state.get("load_mode_choice", "Use ready beam case")
+        gamma_F = float(st.session_state.get("gamma_F", 1.50))
+        manual_type = st.session_state.get("manual_forces_type", "Characteristic")
+
+        st.write(f"**Load mode:** {load_mode}")
+        if load_mode.startswith("Use ready"):
+            rc = st.session_state.get("ready_selected_case")
+            if rc:
+                rc_txt = f"{rc.get('key','')} — {rc.get('label','')}"
+            else:
+                rc_txt = "No ready case selected"
+            st.write(f"**Ready case:** {rc_txt}")
+
+        st.write(f"**γ_F:** {gamma_F:.2f}")
+        st.write(f"**Forces as:** {manual_type}")
+
+        # --- Quick check status ---
+        st.markdown("---")
+        run_done = st.session_state.get("run_clicked", False)
+        overall_ok = st.session_state.get("overall_ok", None)
+
+        if run_done and overall_ok is not None:
+            emoji = "✅" if overall_ok else "⚠️"
+            status_txt = "OK" if overall_ok else "NOT OK"
+            st.markdown(f"**Design status:** {emoji} {status_txt}")
+        else:
+            st.markdown("**Design status:** ⏳ Not run yet")
+
+        # --- Quick tips ---
+        st.markdown("---")
+        st.markdown("## Quick tips")
+        st.markdown(
+            """
+- Positive **N** = compression  
+- **M_y** = bending about strong axis (y)  
+- **M_z** = bending about weak axis (z)  
+- DB section properties are **read-only**  
+- Use *ready beam cases* to auto-fill loads & diagrams
+            """
+        )
 
 def render_project_data():
     """Project data at top of Tab 1 – no expander."""
@@ -3442,6 +3500,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
