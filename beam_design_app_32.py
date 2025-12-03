@@ -1824,18 +1824,8 @@ def render_results(df_rows, overall_ok, governing):
         limit_L600 = diag_summary.get("limit_L600")
         limit_L900 = diag_summary.get("limit_L900")
 
-        bending_axis = diag_summary.get("bending_axis", "y")
-
-        if bending_axis == "y":
-            main_dir_label   = "Global z (from My / Vz, using Iy)"
-            other_dir_label  = "Global y (from Mz / Vy, using Iz)"
-        else:
-            main_dir_label   = "Global y (from Mz / Vy, using Iz)"
-            other_dir_label  = "Global z (from My / Vz, using Iy)"
-
-        # Title in same style as ULS tables
+        # Small, consistent title (assuming small_title() exists)
         small_title("Deflection (serviceability)")
-        st.caption(f"Analysed direction: **{main_dir_label}**")
 
         d1, d2, d3, d4 = st.columns(4)
         with d1:
@@ -3492,6 +3482,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
