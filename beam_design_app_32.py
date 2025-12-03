@@ -1866,14 +1866,6 @@ def render_results(df_rows, overall_ok, governing):
                 disabled=True,
                 key="res_L900_mm",
             )
-
-        # Second line: other axis shown explicitly as not analysed
-        st.text_input(
-            f"δ_max (other axis) [mm] — {other_dir_label}",
-            value="n/a (no diagrams / deflection calculated for this axis)",
-            disabled=True,
-            key="res_delta_other_axis",
-        )
     else:
         st.caption(
             "Deflection summary (δ_max, L/300, L/600, L/900) will appear here "
@@ -3500,6 +3492,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
