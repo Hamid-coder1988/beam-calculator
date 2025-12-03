@@ -1000,51 +1000,51 @@ def render_ready_cases_panel():
                 return
 
             try:
-            # ---- Map results to Loads tab inputs ----
-
-            # Basic stuff
-            st.session_state["L_in"] = float(input_vals.get("L", 6.0))
-            st.session_state["N_in"] = float(N)
-
-            # Which axis did the user choose?
-            axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
-
-            # --- Map bending moment to correct axis ---
-            if axis_choice.startswith("Strong"):
-                # Strong axis → bending about y
-                st.session_state["My_in"] = float(My)
-                st.session_state["Mz_in"] = 0.0
-            else:
-                # Weak axis → bending about z
-                st.session_state["My_in"] = 0.0
-                st.session_state["Mz_in"] = float(My)
-
-            # --- Map shear to correct axis ---
-            # Assume the case function returns the main shear as Vy
-            V_case = Vy
-
-            if axis_choice.startswith("Strong"):
-                # Strong axis → shear in z, zero V_y
-                st.session_state["Vy_in"] = 0.0
-                st.session_state["Vz_in"] = float(V_case)
-            else:
-                # Weak axis → shear in y, zero V_z
-                st.session_state["Vy_in"] = float(V_case)
-                st.session_state["Vz_in"] = 0.0
-
-            # Optional legacy prefill keys (if defval still uses them)
-            st.session_state["prefill_from_case"] = True
-            st.session_state["case_L"] = float(input_vals.get("L", 6.0))
-            st.session_state["prefill_N_kN"] = float(N)
-            st.session_state["prefill_Vy_kN"] = float(st.session_state["Vy_in"])
-            st.session_state["prefill_Vz_kN"] = float(st.session_state["Vz_in"])
-            st.session_state["prefill_My_kNm"] = float(st.session_state["My_in"])
-            st.session_state["prefill_Mz_kNm"] = float(st.session_state["Mz_in"])
-
-            # Store axis globally for other tabs if needed
-            st.session_state["bending_axis_choice"] = axis_choice
-
-            st.success("Ready case applied to Loads — you can now edit the forces.")
+                # ---- Map results to Loads tab inputs ----
+    
+                # Basic stuff
+                st.session_state["L_in"] = float(input_vals.get("L", 6.0))
+                st.session_state["N_in"] = float(N)
+    
+                # Which axis did the user choose?
+                axis_choice = st.session_state.get(f"axis_choice_{case_key}", "Strong axis (y)")
+    
+                # --- Map bending moment to correct axis ---
+                if axis_choice.startswith("Strong"):
+                    # Strong axis → bending about y
+                    st.session_state["My_in"] = float(My)
+                    st.session_state["Mz_in"] = 0.0
+                else:
+                    # Weak axis → bending about z
+                    st.session_state["My_in"] = 0.0
+                    st.session_state["Mz_in"] = float(My)
+    
+                # --- Map shear to correct axis ---
+                # Assume the case function returns the main shear as Vy
+                V_case = Vy
+    
+                if axis_choice.startswith("Strong"):
+                    # Strong axis → shear in z, zero V_y
+                    st.session_state["Vy_in"] = 0.0
+                    st.session_state["Vz_in"] = float(V_case)
+                else:
+                    # Weak axis → shear in y, zero V_z
+                    st.session_state["Vy_in"] = float(V_case)
+                    st.session_state["Vz_in"] = 0.0
+    
+                # Optional legacy prefill keys (if defval still uses them)
+                st.session_state["prefill_from_case"] = True
+                st.session_state["case_L"] = float(input_vals.get("L", 6.0))
+                st.session_state["prefill_N_kN"] = float(N)
+                st.session_state["prefill_Vy_kN"] = float(st.session_state["Vy_in"])
+                st.session_state["prefill_Vz_kN"] = float(st.session_state["Vz_in"])
+                st.session_state["prefill_My_kNm"] = float(st.session_state["My_in"])
+                st.session_state["prefill_Mz_kNm"] = float(st.session_state["Mz_in"])
+    
+                # Store axis globally for other tabs if needed
+                st.session_state["bending_axis_choice"] = axis_choice
+    
+                st.success("Ready case applied to Loads — you can now edit the forces.")
 
         # Step 6 – diagrams
         render_beam_diagrams_panel()
@@ -3473,6 +3473,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
