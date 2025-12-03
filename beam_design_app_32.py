@@ -1816,7 +1816,13 @@ def render_results(df_rows, overall_ok, governing):
         limit_L600 = diag_summary.get("limit_L600")
         limit_L900 = diag_summary.get("limit_L900")
 
-        st.markdown("#### Deflection (serviceability)")
+        st.markdown(
+            "<div style='font-weight:600; margin-bottom:6px; font-size:0.95rem;'>"
+            "Deflection (serviceability)"
+            "</div>",
+            unsafe_allow_html=True
+        )
+
         d1, d2, d3, d4 = st.columns(4)
         with d1:
             st.text_input(
@@ -3500,6 +3506,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
