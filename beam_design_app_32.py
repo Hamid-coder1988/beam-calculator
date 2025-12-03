@@ -951,6 +951,11 @@ def render_ready_cases_panel():
             horizontal=True,
             key=f"axis_choice_{case_key}",
         )
+        # Keep a simple flag for diagrams / deflection
+        if axis_choice.startswith("Strong"):
+            st.session_state["bending_axis"] = "y"
+        else:
+            st.session_state["bending_axis"] = "z"
 
         # --- Step 4: Case inputs ---
         input_vals = {}
@@ -1008,9 +1013,6 @@ def render_ready_cases_panel():
             else:
                 st.session_state["Vy_in"] = float(V_case)
                 st.session_state["Vz_in"] = 0.0
-
-            # Save axis
-            st.session_state["bending_axis_choice"] = axis_choice
 
             st.success("Ready case applied to Loads — you can edit the forces.")
 
@@ -3482,6 +3484,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
