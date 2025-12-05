@@ -2160,6 +2160,18 @@ def render_beam_diagrams_panel():
     to pick Iy or Iz for deflection. Store summary in
     st.session_state["diag_summary"].
     """
+        # Make important values available for other tabs (e.g. Report)
+    try:
+        st.session_state["diag_Mmax_kNm"]     = float(summary.get("M_max", 0.0))
+        st.session_state["diag_x_Mmax_m"]     = float(summary.get("x_M_max", 0.0))
+        st.session_state["diag_V_at_Mmax_kN"] = float(summary.get("V_at_Mmax", 0.0))
+        st.session_state["diag_R1_kN"]        = float(summary.get("R_left", 0.0))
+        st.session_state["diag_R2_kN"]        = float(summary.get("R_right", 0.0))
+        st.session_state["diag_delta_max_mm"] = float(summary.get("w_max_mm", 0.0))
+    except Exception:
+        # If anything is missing, just don't crash; Report tab can fall back to n/a
+        pass
+
     selected_case = st.session_state.get("ready_selected_case")
     input_vals    = st.session_state.get("ready_input_vals")
     sr_display    = st.session_state.get("sr_display")
@@ -3556,6 +3568,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
