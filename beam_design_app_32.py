@@ -101,7 +101,14 @@ def run_sql(sql, params=None):
         except Exception:
             pass
         return None, f"{e}\n\n{tb}"
-
+        
+# =========================================================
+# GLOBAL SAFETY FACTORS (EN 1993)
+# =========================================================
+GAMMA_M0 = 1.0
+GAMMA_M1 = 1.0
+# If later needed:
+# GAMMA_M2 = 1.25
 
 # -------------------------
 # Fallback sample rows (if DB not available)
@@ -247,13 +254,7 @@ def get_section_row_db(type_value, size_value, table_name):
             row = df_row.iloc[0].to_dict()
             break
     return row
-# =========================================================
-# GLOBAL SAFETY FACTORS (EN 1993)
-# =========================================================
-GAMMA_M0 = 1.0
-GAMMA_M1 = 1.0
-# If later needed:
-# GAMMA_M2 = 1.25
+
 
 # =========================================================
 # ROBUST NUMERIC PARSER & PICK
@@ -3682,6 +3683,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
