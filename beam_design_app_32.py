@@ -105,8 +105,8 @@ def run_sql(sql, params=None):
 # =========================================================
 # GLOBAL SAFETY FACTORS (EN 1993)
 # =========================================================
-GAMMA_M0 = 1.0
-GAMMA_M1 = 1.0
+gamma_M0 = 1.0
+gamma_M1 = 1.0
 # If later needed:
 # GAMMA_M2 = 1.25
 
@@ -3683,6 +3683,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
