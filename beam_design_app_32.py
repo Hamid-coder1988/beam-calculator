@@ -1825,46 +1825,58 @@ def render_results(df_rows, overall_ok, governing):
     else:
         st.caption(f"Overall status: **{status_txt}**")
 
-
     # -------------------------------------------------
     # Deflection summary (from diagrams)
     # -------------------------------------------------
     diag_summary = st.session_state.get("diag_summary")
+
     if diag_summary and diag_summary.get("defl_available"):
         w_max_mm   = diag_summary.get("w_max_mm")
         limit_L300 = diag_summary.get("limit_L300")
         limit_L600 = diag_summary.get("limit_L600")
         limit_L900 = diag_summary.get("limit_L900")
 
-        # Small, consistent title (assuming small_title() exists)
+        # format as strings
+        val_delta = f"{w_max_mm:.3f}" if w_max_mm is not None else "n/a"
+        val_L300  = f"{limit_L300:.3f}" if limit_L300 is not None else "n/a"
+        val_L600  = f"{limit_L600:.3f}" if limit_L600 is not None else "n/a"
+        val_L900  = f"{limit_L900:.3f}" if limit_L900 is not None else "n/a"
+
+        # *** IMPORTANT ***
+        # overwrite widget state so text_inputs show the latest values
+        st.session_state["res_delta_max_mm"] = val_delta
+        st.session_state["res_L300_mm"]      = val_L300
+        st.session_state["res_L600_mm"]      = val_L600
+        st.session_state["res_L900_mm"]      = val_L900
+
         small_title("Deflection (serviceability)")
 
         d1, d2, d3, d4 = st.columns(4)
         with d1:
             st.text_input(
                 "δ_max [mm]",
-                value=f"{w_max_mm:.3f}" if w_max_mm is not None else "n/a",
+                value=st.session_state["res_delta_max_mm"],
                 disabled=True,
                 key="res_delta_max_mm",
             )
         with d2:
             st.text_input(
                 "Limit L/300 [mm]",
-                value=f"{limit_L300:.3f}" if limit_L300 is not None else "n/a",
+                value=st.session_state["res_L300_mm"],
                 disabled=True,
                 key="res_L300_mm",
             )
         with d3:
             st.text_input(
                 "Limit L/600 [mm]",
-                value=f"{limit_L600:.3f}" if limit_L600 is not None else "n/a",
+                value=st.session_state["res_L600_mm"],
                 disabled=True,
                 key="res_L600_mm",
             )
         with d4:
             st.text_input(
                 "Limit L/900 [mm]",
-                value=f"{limit_L900:.3f}" if limit_L900 is not None else "n/a",
+                value=st.session_state["res_L900_mm"],
                 disabled=True,
                 key="res_L900_mm",
             )
@@ -3544,6 +3556,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
