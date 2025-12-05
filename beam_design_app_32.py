@@ -247,7 +247,13 @@ def get_section_row_db(type_value, size_value, table_name):
             row = df_row.iloc[0].to_dict()
             break
     return row
-
+# =========================================================
+# GLOBAL SAFETY FACTORS (EN 1993)
+# =========================================================
+GAMMA_M0 = 1.0
+GAMMA_M1 = 1.0
+# If later needed:
+# GAMMA_M2 = 1.25
 
 # =========================================================
 # ROBUST NUMERIC PARSER & PICK
@@ -1650,9 +1656,6 @@ def render_loads_readonly(inputs: dict, torsion_supported: bool, key_prefix="rpt
 # COMPUTATION CORE
 # =========================================================
 def compute_checks(use_props, fy, inputs, torsion_supported):
-    gamma_M0 = 1.0
-    gamma_M1 = 1.0
-
     L = inputs["L"]
     N_kN = inputs["N_kN"]
     Vy_kN = inputs["Vy_kN"]
@@ -3136,7 +3139,6 @@ def render_report_tab():
     # Get section area and material
     A_mm2 = float(sr_display.get("A_mm2", 0.0))  # from DB
     fy = material_to_fy(material)
-    gamma_M0 = 1.0  # same as in compute_checks
 
     # Design axial force (tension taken as positive here for explanation)
     N_kN = float(inputs.get("N_kN", 0.0))
@@ -3628,6 +3630,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
