@@ -2286,33 +2286,6 @@ def render_beam_diagrams_panel():
 
     # Deflection diagram δ(x) disabled; only δ_max is used in Results/Report.
 
-    if show_defl:
-        if delta is None or I_m4 is None:
-            st.warning("Deflection diagram not available: missing Iy/Iz or formula.")
-            return
-
-        colD, colEmpty = st.columns(2)
-
-        with colD:
-            small_title("Deflection diagram δ(x)")
-            fig3, ax3 = plt.subplots(figsize=(6, 3.5))
-            ax3.plot(x, delta * 1000.0)  # mm
-            ax3.axhline(0, linewidth=1)
-            ax3.set_xlabel("x (m)")
-            ax3.set_ylabel("δ (mm)")
-            ax3.grid(True)
-
-            buf_d = io.BytesIO()
-            fig3.savefig(buf_d, format="png", dpi=200, bbox_inches="tight")
-            buf_d.seek(0)
-            st.session_state["diag_D_png"] = buf_d.getvalue()
-
-            st.pyplot(fig3)
-
-        with colEmpty:
-            st.empty()
-
-
 # =========================================================
 # REPORT TAB & PDF HELPERS — ENGISNAP FULL REPORT
 # =========================================================
@@ -3577,6 +3550,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
