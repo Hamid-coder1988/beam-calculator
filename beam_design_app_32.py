@@ -1920,7 +1920,12 @@ def render_results(df_rows, overall_ok, governing):
     cs_status = ["" for _ in cs_checks]
     buck_util = ["" for _ in buck_checks]
     buck_status = ["" for _ in buck_checks]
-
+    # Map detailed check results into the summary table
+    # 1) Tension row: "N (tension)" ← "Tension (N<0)" from df_rows
+    if df_rows is not None and "Tension (N<0)" in df_rows.index:
+        ten_row = df_rows.loc["Tension (N<0)"]
+        cs_util[0] = ten_row.get("Utilization", "")
+        cs_status[0] = ten_row.get("Status", "")
     # -------------------------------------------------
     # Helper to build one nice looking table
     # -------------------------------------------------
@@ -3210,11 +3215,15 @@ def render_report_tab():
 
     # 6.3 Explanations & formulas (expander, with LaTeX)
     with st.expander("6.3 Eurocode formulas for cross-section checks (1–14)", expanded=False):
+        # (1) Tension
         st.markdown("### (1) Tension – EN 1993-1-1 §6.2.3")
-        st.latex(r"N_{Ed} \leq N_{t,Rd} = \frac{A f_y}{\gamma_{M0}}")
-
+        st.latex(r"\frac{N_{Ed}}{N_{t,Rd}} \leq 1.0")
+        st.latex(r"N_{t,Rd} = N_{pl,Rd} = \frac{A\,f_y}{\gamma_{M0}}")
+        
+        # (2) Compression
         st.markdown("### (2) Compression – EN 1993-1-1 §6.2.4")
-        st.latex(r"N_{Ed} \leq N_{c,Rd} = \frac{A f_y}{\gamma_{M0}}")
+        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} \leq 1.0")
+        st.latex(r"N_{c,Rd} = \frac{A\,f_y}{\gamma_{M0}}")
 
         st.markdown("### (3) Bending about major axis y – §6.2.5")
         st.latex(r"M_{y,Ed} \leq M_{y,Rd} = \frac{W_{pl,y} f_y}{\gamma_{M0}}")
@@ -3619,6 +3628,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
