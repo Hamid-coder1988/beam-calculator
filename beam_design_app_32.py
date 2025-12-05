@@ -3125,6 +3125,75 @@ def render_report_tab():
             disabled=True,
             key="rpt_gov_util_cs",
         )
+    # 6.1.a Detailed explanation for check (1) Tension
+    st.markdown("#### (1) Tension – EN 1993-1-1 §6.2.3")
+
+    # Get section area and material
+    A_mm2 = float(sr_display.get("A_mm2", 0.0))  # from DB
+    fy = material_to_fy(material)
+    gamma_M0 = 1.0  # same as in compute_checks
+
+    # Design axial force (tension taken as positive here for explanation)
+    N_kN = float(inputs.get("N_kN", 0.0))
+    if N_kN < 0.0:
+        NEd_ten_kN = abs(N_kN)
+    else:
+        NEd_ten_kN = 0.0
+
+    # Plastic tension resistance Npl,Rd = A * fy / gamma_M0  (convert to kN)
+    if A_mm2 > 0.0 and fy > 0.0:
+        Npl_Rd_kN = A_mm2 * fy / (gamma_M0 * 1e3)  # N → kN
+    else:
+        Npl_Rd_kN = 0.0
+
+    # Utilisation from our own numbers
+    if Npl_Rd_kN > 0.0:
+        u_ten = NEd_ten_kN / Npl_Rd_kN
+        u_ten_str = f"{u_ten:.3f}"
+    else:
+        u_ten = None
+        u_ten_str = "n/a"
+
+    # Status from the checks table (row 'Tension (N<0)')
+    status_ten = "n/a"
+    try:
+        row_ten = df_rows[df_rows["Check"] == "Tension (N<0)"]
+        if not row_ten.empty:
+            status_ten = str(row_ten.iloc[0]["Status"])
+    except Exception:
+        pass
+
+    st.markdown(
+        f"Design tensile axial force is taken as:\n\n"
+        f"\\( N_{{Ed}} = {NEd_ten_kN:.3f} \\, \\text{{kN}} \\)."
+    )
+
+    if Npl_Rd_kN > 0.0:
+        st.markdown(
+            f"The plastic tension resistance of the gross cross-section is estimated as:\n\n"
+            f"\\( N_{{pl,Rd}} = \\dfrac{{A f_y}}{{\\gamma_{{M0}}}}"
+            f" = {A_mm2:.1f} \\, \\text{{mm}}^2 \\cdot {fy:.0f} \\, \\text{{MPa}}"
+            f" / {gamma_M0:.2f}"
+            f" = {Npl_Rd_kN:.3f} \\, \\text{{kN}} \\)."
+        )
+
+        st.markdown(
+            f"Hence the utilisation for check (1) Tension is:\n\n"
+            f"\\( u = \\dfrac{{N_{{Ed}}}}{{N_{{pl,Rd}}}}"
+            f" = \\dfrac{{{NEd_ten_kN:.3f}}}{{{Npl_Rd_kN:.3f}}}"
+            f" = {u_ten_str} \\leq 1.0"
+            f" \\Rightarrow \\textbf{{{status_ten}}}. \\)"
+        )
+    else:
+        st.markdown(
+            "Tension resistance could not be evaluated because cross-section area or material data "
+            "is missing in the DB."
+        )
+
+    st.caption(
+        "Net-section tension per EN 1993-1-1 §6.2.3(2)b) (holes, openings) "
+        "is not yet implemented in this prototype."
+    )
 
     st.markdown("### 6.2 Detailed checks table (1–14)")
     def _hl(row):
@@ -3550,6 +3619,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
