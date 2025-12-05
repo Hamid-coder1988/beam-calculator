@@ -2296,7 +2296,7 @@ def render_beam_diagrams_panel():
 # REPORT TAB & PDF HELPERS — ENGISNAP FULL REPORT
 # =========================================================
 
-def render_loads_readonly(inputs: dict, torsion_supported: bool, key_prefix="rpt_load"):
+def render_loads_readonly_report(inputs: dict, torsion_supported: bool, key_prefix="rpt_load"):
     """
     Read-only version of the Loads form, for the Report tab.
     """
@@ -3556,6 +3556,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
