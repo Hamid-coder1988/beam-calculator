@@ -99,11 +99,9 @@ def init_default_state():
     ss.setdefault("span_L", 25.0)          # m
     ss.setdefault("runway_gauge", 15.0)    # m
 
-    ss.setdefault("crane_SWL", 65.0)       # t (Excel D13 = 65000 kg)
-    # Mass of bridge (without hoist / trolley), t
-    ss.setdefault("bridge_mass_t", 24.0)
-    # Total end-carriage mass for both sides, t (Excel D32 ~ 1640 kg per EC)
-    ss.setdefault("endcar_mass_t", 3.3)
+    ss.setdefault("crane_SWL", 65.0)       # t
+    ss.setdefault("bridge_mass_t", 24.0)   # bridge w/o hoist/trolley
+    ss.setdefault("endcar_mass_t", 3.3)    # both end carriages total
 
     ss.setdefault("num_wheels_per_side", 2)
     ss.setdefault("wheel_spacing_end_carriage", 5.9)   # m
@@ -114,35 +112,33 @@ def init_default_state():
     ss.setdefault("class_load_spectrum", "Q3")
     ss.setdefault("structure_class", "HC2")
 
-    # Hoisting group for φ2 (Excel D8)
+    # Hoisting group for φ2
     ss.setdefault("hoisting_group", "H2")  # H1/H2/H3/H4-like
 
     # --- Hoist, trolley, LT ---
-    ss.setdefault("hoist_mass", 5.3)       # t (Excel D43 5300 kg)
+    ss.setdefault("hoist_mass", 5.3)       # t
     ss.setdefault("trolley_mass", 2.0)     # t
-    ss.setdefault("hoist_speed", 4.0)      # m/min (Excel D44)
+    ss.setdefault("hoist_speed", 4.0)      # m/min
     ss.setdefault("trolley_speed", 16.0)   # m/min
-
-    # Trolley position range along span (for future use)
     ss.setdefault("crab_min_pos", 1.0)
     ss.setdefault("crab_max_pos", 24.0)
 
-    ss.setdefault("lt_speed", 20.0)        # m/min (Excel D20)
-    ss.setdefault("lt_accel", 0.5)         # m/s² (Excel D19)
+    ss.setdefault("lt_speed", 20.0)        # m/min
+    ss.setdefault("lt_accel", 0.5)         # m/s²
 
     ss.setdefault("wheel_diameter", 400.0)
     ss.setdefault("wheel_material", "Steel")
 
-    # Hoist wheel arrangement (Excel D45)
+    # Hoist wheel arrangement
     ss.setdefault("hoist_axles", 2)
 
-    # Approaches (Excel D59, D60)
+    # Approaches
     ss.setdefault("left_approach_mm", 1000.0)
     ss.setdefault("right_approach_mm", 1200.0)
 
-    # --- Buffer & special loads (Excel D39, D40, D131–D132) ---
+    # --- Buffer & special loads ---
     ss.setdefault("buffer_type", "CELLULAR ELASTO")   # ELASTIC SPRING / CELLULAR ELASTO / Other
-    ss.setdefault("buffer_k", 9.0)                    # kN/m (Excel D40)
+    ss.setdefault("buffer_k", 9.0)                    # kN/m
 
     # --- Loads & factors ---
     ss.setdefault("gamma_Q", 1.35)
@@ -151,14 +147,46 @@ def init_default_state():
     ss.setdefault("phi_LT", 1.1)
     ss.setdefault("phi_CT", 1.1)
     ss.setdefault("fatigue_safety_gamma_Ff", 1.0)
-    # Dynamic factor φ1 (Excel D9)
     ss.setdefault("phi1_dynamic", 1.1)
 
     ss.setdefault("selected_load_case", "LC1 – Hoisting, crab at midspan")
     ss.setdefault("serviceability_defl_limit", "L/700")
 
+    # --- New: detailed girder & other inputs (from Excel rows) ---
+    ss.setdefault("electrical_panel_kg", 500.0)
+    ss.setdefault("other_weight_kg", 0.0)
+
+    ss.setdefault("web_height_mm", 1480.0)
+    ss.setdefault("web_thickness_rail_mm", 8.0)
+    ss.setdefault("web_thickness_mm", 8.0)
+
+    ss.setdefault("top_flange_width_mm", 490.0)
+    ss.setdefault("top_flange_thickness_mm", 20.0)
+    ss.setdefault("a_mm", 50.0)
+
+    ss.setdefault("bottom_flange_width_mm", 490.0)
+    ss.setdefault("bottom_flange_thickness_mm", 16.0)
+    ss.setdefault("b_mm", 50.0)
+
+    ss.setdefault("end_girder_web_height_mm", 1480.0)
+    ss.setdefault("stiffener_type", "EA 80X8")
+    ss.setdefault("stiffener_no", 4.0)
+    ss.setdefault("stiffener_1_from_top_mm", 300.0)
+    ss.setdefault("stiffener_2_from_top_mm", 900.0)
+    ss.setdefault("stiffener_3_from_top_mm", 1150.0)
+
+    ss.setdefault("rail_type", "50X30")
+    ss.setdefault("diaph_thickness_mm", 6.0)
+    ss.setdefault("diaph_distance_mm", 2000.0)
+
+    ss.setdefault("girder_material", "S355")
+    ss.setdefault("yield_strength_Nmm2", 355.0)
+    ss.setdefault("ultimate_strength_Nmm2", 490.0)
+    ss.setdefault("E_modulus_Nmm2", 210000.0)
+
     # --- Results (main loads) ---
     ss.setdefault("crane_main_loads", None)
+
 
 init_default_state()
 
@@ -202,11 +230,8 @@ with st.sidebar:
 def compute_crane_main_loads(ss):
     """
     Port of the 'MAIN LOADS' block from Excel sheet 97-05-24:
-    D90–D105 (dead load, wheel loads),
-    D131–D132 (buffer),
-    D134–D135 (test loads).
-    Some parts (bridge self-weight from plate geometry, 'DETAILED' sheet)
-    are replaced by explicit mass inputs.
+    dead load, wheel loads, buffer and test loads.
+    Here bridge self-weight is taken directly from mass input (bridge_mass_t + endcar_mass_t).
     """
     # --- Basic geometry ---
     span_m = float(ss["span_L"])
@@ -219,31 +244,26 @@ def compute_crane_main_loads(ss):
     trolley_mass_t = float(ss["trolley_mass"])
     hoist_mass_t = float(ss["hoist_mass"])
 
-    # Convert to kN (Excel uses 9.81 * mass[kg] / 1000)
     def mass_t_to_kN(m_t: float) -> float:
         return 9.81 * m_t
 
-    # Dead loads (simplified Excel D92–D94)
+    # Dead loads
     bridge_kN = mass_t_to_kN(bridge_mass_t)
     endcar_kN = mass_t_to_kN(endcar_mass_t)
-    dead_total_kN = bridge_kN + endcar_kN       # Excel also adds panels/others via D63/D64
+    dead_total_kN = bridge_kN + endcar_kN
     dead_per_m_kN = (1000.0 * dead_total_kN / span_mm) if span_mm > 0 else 0.0
 
-    # Live loads: trolley + hoist load (Excel D96, D97)
+    # Live loads: trolley + hoist load
     trolley_kN = mass_t_to_kN(trolley_mass_t)
-    hoist_load_kN = mass_t_to_kN(SWL_t)  # using capacity as hoisted load
+    hoist_load_kN = mass_t_to_kN(SWL_t)
 
     # --- Dynamic factors ---
-    phi1 = float(ss.get("phi1_dynamic", 1.1))  # D9
+    phi1 = float(ss.get("phi1_dynamic", 1.1))
 
-    hoist_speed = float(ss["hoist_speed"])     # D44 (m/min)
-    hoisting_group = ss.get("hoisting_group", "H2")  # D8
+    hoist_speed = float(ss["hoist_speed"])     # m/min
+    hoisting_group = ss.get("hoisting_group", "H2")
 
-    # Excel D10:
-    # IF(H1, 1.1+0.13*v/60;
-    #    IF(H2, 1.2+0.27*v/60;
-    #       IF(H3, 1.3+0.40*v/60;
-    #          1.4+0.53*v/60)))
+    # Excel-like dynamic factor φ₂ depending on group and speed
     v_ratio = hoist_speed / 60.0
     if hoisting_group == "H1":
         phi2 = 1.1 + 0.13 * v_ratio
@@ -254,38 +274,37 @@ def compute_crane_main_loads(ss):
     else:
         phi2 = 1.4 + 0.53 * v_ratio
 
-    # --- Wheel loads (Excel D99, D100, D104, D105) ---
-    total_axles = int(ss["num_wheels_per_side"]) * 2  # D18
-    hoist_axles = int(ss.get("hoist_axles", 2))       # D45
+    # --- Wheel loads ---
+    total_axles = int(ss["num_wheels_per_side"]) * 2
+    hoist_axles = int(ss.get("hoist_axles", 2))
 
-    left_app = float(ss.get("left_approach_mm", 1000.0))   # D60
-    right_app = float(ss.get("right_approach_mm", 1000.0)) # D59
-    min_app = min(left_app, right_app)                     # D61
+    left_app = float(ss.get("left_approach_mm", 1000.0))
+    right_app = float(ss.get("right_approach_mm", 1000.0))
+    min_app = min(left_app, right_app)
 
     live_sum = trolley_kN + hoist_load_kN
 
     if span_mm <= 0:
-        span_mm = 1.0  # avoid div/0; shouldn't happen in practice
+        span_mm = 1.0  # avoid div/0
 
-    # Helper to avoid div/0 for axles
     def safe_div(value, n_axles):
         return value / n_axles if n_axles > 0 else 0.0
 
-    # D99: MAXIMUM DYNAMIC VERTICAL WHEEL LOAD
+    # Max dynamic wheel load
     max_dyn_wheel = safe_div(
         dead_total_kN / 2.0
         + phi2 * ((span_mm - min_app) / span_mm) * live_sum,
         total_axles,
     )
 
-    # D100: MAXIMUM ACCOMPANYING DYNAMIC VERTICAL WHEEL LOAD (trolley side)
+    # Companion dynamic wheel (trolley side)
     max_comp_dyn_wheel = safe_div(
         dead_total_kN / 2.0
         + phi2 * (min_app / span_mm) * live_sum,
         hoist_axles,
     )
 
-    # Static versions (same but φ2 = 1.0) → D104, D105
+    # Static versions (φ₂ = 1.0)
     max_stat_wheel = safe_div(
         dead_total_kN / 2.0
         + ((span_mm - min_app) / span_mm) * live_sum,
@@ -298,10 +317,7 @@ def compute_crane_main_loads(ss):
         hoist_axles,
     )
 
-    # --- Buffer force (Excel D131–D132) ---
-    # D131:
-    # IF(D39="ELASTIC SPRING",1.25,
-    #    IF(D39="CELLULAR ELASTO",1.25,1.6))
+    # --- Buffer force ---
     buffer_type = ss.get("buffer_type", "CELLULAR ELASTO")
     if buffer_type == "ELASTIC SPRING":
         phi_buffer = 1.25
@@ -310,11 +326,9 @@ def compute_crane_main_loads(ss):
     else:
         phi_buffer = 1.6
 
-    buffer_k = float(ss.get("buffer_k", 9.0))  # D40 [kN/m]
-    lt_speed = float(ss["lt_speed"])           # D20 [m/min]
+    buffer_k = float(ss.get("buffer_k", 9.0))  # kN/m
+    lt_speed = float(ss["lt_speed"])           # m/min
 
-    # D132:
-    # BUFFER FORCE = (φ_buffer/1000)*(0.7*V) * ( 1000*(D97+D96+D94)*D40/9.81 )^0.5
     if lt_speed > 0 and buffer_k > 0:
         buffer_force = (
             (phi_buffer / 1000.0)
@@ -325,11 +339,8 @@ def compute_crane_main_loads(ss):
     else:
         buffer_force = 0.0
 
-    # --- Test loads (Excel D134–D135) ---
-    # D134: φ5 = 0.5*(1+φ2)
+    # --- Test loads ---
     phi5 = 0.5 * (1.0 + phi2)
-
-    # D135: LARGE TEST LOAD = (φ5*1.1*D97) + (φ1*D96)
     large_test_load = (phi5 * 1.1 * hoist_load_kN) + (phi1 * trolley_kN)
 
     return {
@@ -548,6 +559,170 @@ def render_tab_geometry_classes():
             key="hoist_axles_in",
         )
 
+    # --- 2.4 Girder cross section & extra inputs from Excel ---
+    st.markdown("---")
+    small_title("2.4 Girder cross-section & other inputs (from Excel)")
+
+    with st.expander("Open detailed girder & extra inputs", expanded=False):
+        st.caption("These correspond to girder size, stiffeners, rail, diaphragms and material inputs.")
+
+        # 2.4.1 Other weights
+        ow1, ow2 = st.columns(2)
+        with ow1:
+            st.session_state["electrical_panel_kg"] = st.number_input(
+                "Electrical panel weight [kg]",
+                value=float(st.session_state["electrical_panel_kg"]),
+                key="electrical_panel_kg_in",
+            )
+        with ow2:
+            st.session_state["other_weight_kg"] = st.number_input(
+                "Other weight [kg]",
+                value=float(st.session_state["other_weight_kg"]),
+                key="other_weight_kg_in",
+            )
+
+        st.markdown("**Girder plate dimensions**")
+        g1, g2, g3 = st.columns(3)
+
+        # Web
+        with g1:
+            st.session_state["web_height_mm"] = st.number_input(
+                "Web height [mm]",
+                value=float(st.session_state["web_height_mm"]),
+                key="web_height_mm_in",
+            )
+            st.session_state["web_thickness_rail_mm"] = st.number_input(
+                "Web thickness at rail [mm]",
+                value=float(st.session_state["web_thickness_rail_mm"]),
+                key="web_thickness_rail_mm_in",
+            )
+            st.session_state["web_thickness_mm"] = st.number_input(
+                "Web thickness (other) [mm]",
+                value=float(st.session_state["web_thickness_mm"]),
+                key="web_thickness_mm_in",
+            )
+
+        # Top flange
+        with g2:
+            st.session_state["top_flange_width_mm"] = st.number_input(
+                "Top flange width [mm]",
+                value=float(st.session_state["top_flange_width_mm"]),
+                key="top_flange_width_mm_in",
+            )
+            st.session_state["top_flange_thickness_mm"] = st.number_input(
+                "Top flange thickness [mm]",
+                value=float(st.session_state["top_flange_thickness_mm"]),
+                key="top_flange_thickness_mm_in",
+            )
+            st.session_state["a_mm"] = st.number_input(
+                "a [mm] (flange detail)",
+                value=float(st.session_state["a_mm"]),
+                key="a_mm_in",
+            )
+
+        # Bottom flange
+        with g3:
+            st.session_state["bottom_flange_width_mm"] = st.number_input(
+                "Bottom flange width [mm]",
+                value=float(st.session_state["bottom_flange_width_mm"]),
+                key="bottom_flange_width_mm_in",
+            )
+            st.session_state["bottom_flange_thickness_mm"] = st.number_input(
+                "Bottom flange thickness [mm]",
+                value=float(st.session_state["bottom_flange_thickness_mm"]),
+                key="bottom_flange_thickness_mm_in",
+            )
+            st.session_state["b_mm"] = st.number_input(
+                "b [mm] (flange detail)",
+                value=float(st.session_state["b_mm"]),
+                key="b_mm_in",
+            )
+
+        st.markdown("**End girder & stiffeners**")
+        s1, s2, s3 = st.columns(3)
+        with s1:
+            st.session_state["end_girder_web_height_mm"] = st.number_input(
+                "End girder web height [mm]",
+                value=float(st.session_state["end_girder_web_height_mm"]),
+                key="end_girder_web_height_mm_in",
+            )
+            st.session_state["stiffener_type"] = st.text_input(
+                "Stiffener type",
+                value=st.session_state["stiffener_type"],
+                key="stiffener_type_in",
+            )
+        with s2:
+            st.session_state["stiffener_no"] = st.number_input(
+                "Number of stiffeners",
+                value=float(st.session_state["stiffener_no"]),
+                step=1.0,
+                key="stiffener_no_in",
+            )
+            st.session_state["stiffener_1_from_top_mm"] = st.number_input(
+                "Distance from top flange to stiffener #1 [mm]",
+                value=float(st.session_state["stiffener_1_from_top_mm"]),
+                key="stiffener_1_from_top_mm_in",
+            )
+        with s3:
+            st.session_state["stiffener_2_from_top_mm"] = st.number_input(
+                "Distance from top flange to stiffener #2 [mm]",
+                value=float(st.session_state["stiffener_2_from_top_mm"]),
+                key="stiffener_2_from_top_mm_in",
+            )
+            st.session_state["stiffener_3_from_top_mm"] = st.number_input(
+                "Distance from top flange to stiffener #3 [mm]",
+                value=float(st.session_state["stiffener_3_from_top_mm"]),
+                key="stiffener_3_from_top_mm_in",
+            )
+
+        st.markdown("**Rail & diaphragms**")
+        r1, r2, r3 = st.columns(3)
+        with r1:
+            st.session_state["rail_type"] = st.text_input(
+                "Rail type",
+                value=st.session_state["rail_type"],
+                key="rail_type_in",
+            )
+        with r2:
+            st.session_state["diaph_thickness_mm"] = st.number_input(
+                "Diaphragm thickness [mm]",
+                value=float(st.session_state["diaph_thickness_mm"]),
+                key="diaph_thickness_mm_in",
+            )
+        with r3:
+            st.session_state["diaph_distance_mm"] = st.number_input(
+                "Diaphragm distance [mm]",
+                value=float(st.session_state["diaph_distance_mm"]),
+                key="diaph_distance_mm_in",
+            )
+
+        st.markdown("**Material properties**")
+        m1, m2, m3 = st.columns(3)
+        with m1:
+            st.session_state["girder_material"] = st.text_input(
+                "Girder material",
+                value=st.session_state["girder_material"],
+                key="girder_material_in",
+            )
+        with m2:
+            st.session_state["yield_strength_Nmm2"] = st.number_input(
+                "Yield strength fy [N/mm²]",
+                value=float(st.session_state["yield_strength_Nmm2"]),
+                key="yield_strength_Nmm2_in",
+            )
+        with m3:
+            st.session_state["ultimate_strength_Nmm2"] = st.number_input(
+                "Ultimate strength fu [N/mm²]",
+                value=float(st.session_state["ultimate_strength_Nmm2"]),
+                key="ultimate_strength_Nmm2_in",
+            )
+
+        st.session_state["E_modulus_Nmm2"] = st.number_input(
+            "Elastic modulus E [N/mm²]",
+            value=float(st.session_state["E_modulus_Nmm2"]),
+            key="E_modulus_Nmm2_in",
+        )
+
 # =========================================================
 # TAB 3 – HOIST & END CARRIAGES
 # =========================================================
@@ -673,7 +848,7 @@ def render_tab_hoist_endcarriages():
 def render_tab_loads_combinations():
     st.subheader("Loads & combinations")
 
-    # --- 4.1 Partial safety & dynamic factors (global EN factors, separate from Excel φ1/φ2) ---
+    # --- 4.1 Partial safety & dynamic factors (global EN-like factors) ---
     small_title("4.1 Partial safety & dynamic factors")
 
     l1, l2, l3, l4 = st.columns(4)
@@ -769,37 +944,37 @@ def render_tab_loads_combinations():
     else:
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric("Total dead load D94 [kN]", f"{res['dead_total_kN']:.2f}")
-            st.metric("Dead load per meter D95 [kN/m]", f"{res['dead_per_m_kN']:.2f}")
+            st.metric("Total dead load [kN]", f"{res['dead_total_kN']:.2f}")
+            st.metric("Dead load per meter [kN/m]", f"{res['dead_per_m_kN']:.2f}")
         with c2:
-            st.metric("Trolley load D96 [kN]", f"{res['trolley_kN']:.2f}")
-            st.metric("Hoisting load D97 [kN]", f"{res['hoist_load_kN']:.2f}")
+            st.metric("Trolley load [kN]", f"{res['trolley_kN']:.2f}")
+            st.metric("Hoisting load [kN]", f"{res['hoist_load_kN']:.2f}")
         with c3:
-            st.metric("Dynamic factor φ₂ (D10)", f"{res['phi2']:.3f}")
-            st.metric("Test factor φ₅ (D134)", f"{res['phi5']:.3f}")
+            st.metric("Dynamic factor φ₂", f"{res['phi2']:.3f}")
+            st.metric("Test factor φ₅", f"{res['phi5']:.3f}")
 
         st.markdown("#### Wheel loads (per wheel)")
         w1, w2, w3, w4 = st.columns(4)
         with w1:
-            st.write("**Max dynamic wheel (D99)**")
+            st.write("**Max dynamic wheel**")
             st.write(f"{res['max_dyn_wheel_kN']:.2f} kN")
         with w2:
-            st.write("**Companion dynamic wheel (D100)**")
+            st.write("**Companion dynamic wheel**")
             st.write(f"{res['max_comp_dyn_wheel_kN']:.2f} kN")
         with w3:
-            st.write("**Max static wheel (D104)**")
+            st.write("**Max static wheel**")
             st.write(f"{res['max_stat_wheel_kN']:.2f} kN")
         with w4:
-            st.write("**Companion static wheel (D105)**")
+            st.write("**Companion static wheel**")
             st.write(f"{res['max_comp_stat_wheel_kN']:.2f} kN")
 
         st.markdown("#### Special loads")
         s1, s2 = st.columns(2)
         with s1:
-            st.write("**Buffer force D132**")
+            st.write("**Buffer force**")
             st.write(f"{res['buffer_force_kN']:.2f} kN")
         with s2:
-            st.write("**Large test load D135**")
+            st.write("**Large test load**")
             st.write(f"{res['large_test_load_kN']:.2f} kN")
 
 # =========================================================
@@ -831,25 +1006,25 @@ def render_tab_checks_results():
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.write("**Dead load D94**")
+        st.write("**Dead load**")
         st.write(f"{res['dead_total_kN']:.2f} kN")
-        st.write("**Dead load per m D95**")
+        st.write("**Dead load per m**")
         st.write(f"{res['dead_per_m_kN']:.2f} kN/m")
     with c2:
-        st.write("**Max dyn wheel D99**")
+        st.write("**Max dyn wheel**")
         st.write(f"{res['max_dyn_wheel_kN']:.2f} kN")
-        st.write("**Companion dyn wheel D100**")
+        st.write("**Companion dyn wheel**")
         st.write(f"{res['max_comp_dyn_wheel_kN']:.2f} kN")
     with c3:
-        st.write("**Buffer force D132**")
+        st.write("**Buffer force**")
         st.write(f"{res['buffer_force_kN']:.2f} kN")
-        st.write("**Large test load D135**")
+        st.write("**Large test load**")
         st.write(f"{res['large_test_load_kN']:.2f} kN")
 
     st.markdown("---")
     st.info(
-        "Next step: add girder cross-section, internal force calculation and "
-        "stress/buckling checks so we can match the lower part of the Excel sheet."
+        "Next step: add girder cross-section properties and stress/buckling checks "
+        "to match the lower part of your Excel sheet."
     )
 
 # =========================================================
@@ -892,7 +1067,7 @@ def render_tab_report():
         st.text_input("Structure class", st.session_state["structure_class"], disabled=True)
 
     st.markdown("---")
-    st.markdown("### 3. Main load results (Excel 97-05-24 block)")
+    st.markdown("### 3. Main load results (snapshot)")
 
     res = st.session_state.get("crane_main_loads", None)
     if res is None:
@@ -900,17 +1075,18 @@ def render_tab_report():
     else:
         st.json(
             {
-                "D94 dead load [kN]": round(res["dead_total_kN"], 3),
-                "D95 dead load per m [kN/m]": round(res["dead_per_m_kN"], 3),
-                "D96 trolley load [kN]": round(res["trolley_kN"], 3),
-                "D97 hoist load [kN]": round(res["hoist_load_kN"], 3),
-                "D99 max dyn wheel [kN]": round(res["max_dyn_wheel_kN"], 3),
-                "D100 comp dyn wheel [kN]": round(res["max_comp_dyn_wheel_kN"], 3),
-                "D104 max static wheel [kN]": round(res["max_stat_wheel_kN"], 3),
-                "D105 comp static wheel [kN]": round(res["max_comp_stat_wheel_kN"], 3),
-                "D132 buffer force [kN]": round(res["buffer_force_kN"], 3),
-                "D134 φ5": round(res["phi5"], 3),
-                "D135 large test load [kN]": round(res["large_test_load_kN"], 3),
+                "Dead load [kN]": round(res["dead_total_kN"], 3),
+                "Dead load per m [kN/m]": round(res["dead_per_m_kN"], 3),
+                "Trolley load [kN]": round(res["trolley_kN"], 3),
+                "Hoist load [kN]": round(res["hoist_load_kN"], 3),
+                "Max dynamic wheel [kN]": round(res["max_dyn_wheel_kN"], 3),
+                "Companion dynamic wheel [kN]": round(res["max_comp_dyn_wheel_kN"], 3),
+                "Max static wheel [kN]": round(res["max_stat_wheel_kN"], 3),
+                "Companion static wheel [kN]": round(res["max_comp_stat_wheel_kN"], 3),
+                "Buffer force [kN]": round(res["buffer_force_kN"], 3),
+                "φ₂": round(res["phi2"], 3),
+                "φ₅": round(res["phi5"], 3),
+                "Large test load [kN]": round(res["large_test_load_kN"], 3),
             }
         )
 
