@@ -1710,6 +1710,56 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     tau_total_MPa = tau_total_Pa / 1e6
     sigma_total_MPa = (sigma_axial_Pa + sigma_by_Pa + sigma_bz_Pa) / 1e6
     sigma_eq_MPa = math.sqrt((abs(sigma_total_MPa))**2 + 3.0 * (tau_total_MPa**2))
+    
+    # -----------------------------------------------
+    # Cross-section checks: axial tension / compression
+    # Sign convention: N > 0 tension, N < 0 compression
+    # -----------------------------------------------
+    rows = []  # if you already have rows defined earlier, remove this line
+
+    # Design axial force in N (N_N already defined)
+    # Tension: N > 0
+    N_ten_N = max(N_N, 0.0)
+    # Compression: N < 0 (store magnitude as positive)
+    N_comp_N = max(-N_N, 0.0)
+
+    # Plastic axial resistance of gross section
+    # N_Rd_N was defined above:
+    # N_Rd_N = A_m2 * fy * 1e6 / gamma_M0
+    T_Rd_N = N_Rd_N       # tension resistance
+    Nc_Rd_N = N_Rd_N      # compression resistance (cross-section only)
+
+    # --- (1) Tension (N > 0) ---
+    if T_Rd_N > 0.0 and N_ten_N > 0.0:
+        util_ten = N_ten_N / T_Rd_N
+        status_ten = "OK" if util_ten <= 1.0 else "EXCEEDS"
+    else:
+        util_ten = 0.0
+        status_ten = "OK"  # no tension → check is trivially OK
+
+    rows.append({
+        "Check":      "Tension (N>0)",
+        "Applied":    f"{N_ten_N/1e3:.3f} kN",
+        "Resistance": f"{T_Rd_N/1e3:.3f} kN",
+        "Utilization": f"{util_ten:.3f}",
+        "Status":      status_ten,
+    })
+
+    # --- (2) Compression (N < 0) – cross-section resistance only ---
+    if Nc_Rd_N > 0.0 and N_comp_N > 0.0:
+        util_comp = N_comp_N / Nc_Rd_N
+        status_comp = "OK" if util_comp <= 1.0 else "EXCEEDS"
+    else:
+        util_comp = 0.0
+        status_comp = "OK"
+
+    rows.append({
+        "Check":      "Compression (N<0)",
+        "Applied":    f"{-N_comp_N/1e3:.3f} kN",  # negative sign shown in kN
+        "Resistance": f"{Nc_Rd_N/1e3:.3f} kN",
+        "Utilization": f"{util_comp:.3f}",
+        "Status":      status_comp,
+    })
 
     # Buckling simplified
     E = 210e9
@@ -1742,14 +1792,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
     applied_N = N_N if N_N >= 0 else 0.0
     status_comp, util_comp = status_and_util(applied_N, compression_resistance_N)
-    rows.append({"Check":"Compression (N≥0)","Applied":f"{applied_N/1e3:.3f} kN",
+    rows.append({"Check":"Compression (N<0)","Applied":f"{applied_N/1e3:.3f} kN",
                  "Resistance":f"{compression_resistance_N/1e3:.3f} kN",
                  "Utilization":f"{util_comp:.3f}" if util_comp else "n/a",
                  "Status":status_comp})
 
     applied_tension_N = -N_N if N_N < 0 else 0.0
     status_ten, util_ten = status_and_util(applied_tension_N, T_Rd_N)
-    rows.append({"Check":"Tension (N<0)","Applied":f"{applied_tension_N/1e3:.3f} kN",
+    rows.append({"Check":"Tension (N≥0)","Applied":f"{applied_tension_N/1e3:.3f} kN",
                  "Resistance":f"{T_Rd_N/1e3:.3f} kN",
                  "Utilization":f"{util_ten:.3f}" if util_ten else "n/a",
                  "Status":status_ten})
@@ -1924,9 +1974,9 @@ def render_results(df_rows, overall_ok, governing):
     buck_util = ["" for _ in buck_checks]
     buck_status = ["" for _ in buck_checks]
     # Map detailed check results into the summary table
-    # 1) Tension row: "N (tension)" ← "Tension (N<0)" from df_rows
-    if df_rows is not None and "Tension (N<0)" in df_rows.index:
-        ten_row = df_rows.loc["Tension (N<0)"]
+    # 1) Tension row: "N (tension)" ← "Tension (N≥0)" from df_rows
+    if df_rows is not None and "Tension (N≥0)" in df_rows.index:
+        ten_row = df_rows.loc["Tension (N≥0)"]
         cs_util[0] = ten_row.get("Utilization", "")
         cs_status[0] = ten_row.get("Status", "")
     # -------------------------------------------------
@@ -3142,8 +3192,10 @@ def render_report_tab():
 
     # Design axial force (tension taken as positive here for explanation)
     N_kN = float(inputs.get("N_kN", 0.0))
-    if N_kN < 0.0:
-        NEd_ten_kN = abs(N_kN)
+    
+    # Tension: N > 0
+    if N_kN > 0.0:
+        NEd_ten_kN = N_kN
     else:
         NEd_ten_kN = 0.0
 
@@ -3161,10 +3213,10 @@ def render_report_tab():
         u_ten = None
         u_ten_str = "n/a"
 
-    # Status from the checks table (row 'Tension (N<0)')
+    # Status from the checks table (row 'Tension (N≥0)')
     status_ten = "n/a"
     try:
-        row_ten = df_rows[df_rows["Check"] == "Tension (N<0)"]
+        row_ten = df_rows[df_rows["Check"] == "Tension (N≥0)"]
         if not row_ten.empty:
             status_ten = str(row_ten.iloc[0]["Status"])
     except Exception:
@@ -3630,6 +3682,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
