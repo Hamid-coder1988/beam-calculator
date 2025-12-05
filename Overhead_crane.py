@@ -94,7 +94,7 @@ def init_default_state():
     ss.setdefault("proj_date", date.today())
     ss.setdefault("proj_notes", "")
 
-    # --- Geometry & classes (global crane) ---
+    # --- General crane data ---
     ss.setdefault("crane_type", "Double-girder overhead crane")
     ss.setdefault("span_L", 25.0)          # m
     ss.setdefault("runway_gauge", 15.0)    # m
@@ -152,7 +152,7 @@ def init_default_state():
     ss.setdefault("selected_load_case", "LC1 – Hoisting, crab at midspan")
     ss.setdefault("serviceability_defl_limit", "L/700")
 
-    # --- New: detailed girder & other inputs (from Excel rows) ---
+    # --- Detailed girder & other inputs (Excel-style) ---
     ss.setdefault("electrical_panel_kg", 500.0)
     ss.setdefault("other_weight_kg", 0.0)
 
@@ -198,11 +198,12 @@ with st.sidebar:
     st.markdown(
         """
 1. **Project info**  
-2. **Geometry & classes**  
-3. **Hoist & end carriages**  
-4. **Loads & combinations**  
-5. **Checks & results**  
-6. **Report**
+2. **General**  
+3. **Girder cross-section**  
+4. **Hoist & end carriages**  
+5. **Loads & combinations**  
+6. **Checks & results**  
+7. **Report**
         """
     )
     st.markdown("---")
@@ -231,7 +232,7 @@ def compute_crane_main_loads(ss):
     """
     Port of the 'MAIN LOADS' block from Excel sheet 97-05-24:
     dead load, wheel loads, buffer and test loads.
-    Here bridge self-weight is taken directly from mass input (bridge_mass_t + endcar_mass_t).
+    Bridge self-weight is taken from bridge_mass_t + endcar_mass_t (+ extra weights).
     """
     # --- Basic geometry ---
     span_m = float(ss["span_L"])
@@ -244,13 +245,23 @@ def compute_crane_main_loads(ss):
     trolley_mass_t = float(ss["trolley_mass"])
     hoist_mass_t = float(ss["hoist_mass"])
 
+    # Other weights in kg (panel, etc.)
+    elec_kg = float(ss.get("electrical_panel_kg", 0.0))
+    other_kg = float(ss.get("other_weight_kg", 0.0))
+
     def mass_t_to_kN(m_t: float) -> float:
         return 9.81 * m_t
+
+    def mass_kg_to_kN(m_kg: float) -> float:
+        return 9.81 * m_kg / 1000.0
 
     # Dead loads
     bridge_kN = mass_t_to_kN(bridge_mass_t)
     endcar_kN = mass_t_to_kN(endcar_mass_t)
-    dead_total_kN = bridge_kN + endcar_kN
+    elec_kN = mass_kg_to_kN(elec_kg)
+    other_kN = mass_kg_to_kN(other_kg)
+
+    dead_total_kN = bridge_kN + endcar_kN + elec_kN + other_kN
     dead_per_m_kN = (1000.0 * dead_total_kN / span_mm) if span_mm > 0 else 0.0
 
     # Live loads: trolley + hoist load
@@ -368,43 +379,43 @@ def render_tab_project_info():
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.session_state["proj_title"] = st.text_input(
+        st.text_input(
             "Document title",
+            key="proj_title",
             value=st.session_state["proj_title"],
-            key="proj_title_in",
         )
-        st.session_state["proj_name"] = st.text_input(
+        st.text_input(
             "Project name",
+            key="proj_name",
             value=st.session_state["proj_name"],
-            key="proj_name_in",
         )
     with c2:
-        st.session_state["proj_client"] = st.text_input(
+        st.text_input(
             "Client / End user",
+            key="proj_client",
             value=st.session_state["proj_client"],
-            key="proj_client_in",
         )
-        st.session_state["proj_location"] = st.text_input(
+        st.text_input(
             "Plant / Location",
+            key="proj_location",
             value=st.session_state["proj_location"],
-            key="proj_location_in",
         )
     with c3:
-        st.session_state["proj_revision"] = st.text_input(
+        st.text_input(
             "Revision",
+            key="proj_revision",
             value=st.session_state["proj_revision"],
-            key="proj_revision_in",
         )
-        st.session_state["proj_date"] = st.date_input(
+        st.date_input(
             "Date",
+            key="proj_date",
             value=st.session_state["proj_date"],
-            key="proj_date_in",
         )
 
-    st.session_state["proj_notes"] = st.text_area(
+    st.text_area(
         "Notes / comments",
+        key="proj_notes",
         value=st.session_state["proj_notes"],
-        key="proj_notes_in",
         height=100,
     )
 
@@ -412,17 +423,17 @@ def render_tab_project_info():
     st.caption("This meta will later show up in the report / PDF header.")
 
 # =========================================================
-# TAB 2 – GEOMETRY & CLASSES
+# TAB 2 – GENERAL (GLOBAL GEOMETRY & CLASSES)
 # =========================================================
-def render_tab_geometry_classes():
-    st.subheader("Crane geometry & classification")
+def render_tab_general():
+    st.subheader("General crane data (geometry & classes)")
 
     # --- 2.1 Crane type & geometry ---
     small_title("2.1 Crane type & basic geometry")
 
     g1, g2, g3 = st.columns(3)
     with g1:
-        st.session_state["crane_type"] = st.selectbox(
+        st.selectbox(
             "Crane type",
             [
                 "Double-girder overhead crane",
@@ -430,38 +441,43 @@ def render_tab_geometry_classes():
                 "Underslung crane",
                 "Gantry crane",
             ],
-            key="crane_type_sel",
-            index=0,
+            key="crane_type",
+            index=[
+                "Double-girder overhead crane",
+                "Single-girder overhead crane",
+                "Underslung crane",
+                "Gantry crane",
+            ].index(st.session_state["crane_type"]),
         )
-        st.session_state["span_L"] = st.number_input(
+        st.number_input(
             "Span L (m) – centre to centre of runway",
             min_value=0.0,
+            key="span_L",
             value=float(st.session_state["span_L"]),
             step=0.1,
-            key="span_L_in",
         )
     with g2:
-        st.session_state["runway_gauge"] = st.number_input(
+        st.number_input(
             "Runway gauge (m) – rail to rail",
             min_value=0.0,
+            key="runway_gauge",
             value=float(st.session_state["runway_gauge"]),
             step=0.1,
-            key="runway_gauge_in",
         )
-        st.session_state["crane_SWL"] = st.number_input(
+        st.number_input(
             "Rated lifting capacity SWL (t)",
             min_value=0.0,
+            key="crane_SWL",
             value=float(st.session_state["crane_SWL"]),
             step=0.5,
-            key="crane_SWL_in",
         )
     with g3:
-        st.session_state["bridge_mass_t"] = st.number_input(
+        st.number_input(
             "Bridge mass (without hoist/trolley) (t)",
             min_value=0.0,
+            key="bridge_mass_t",
             value=float(st.session_state["bridge_mass_t"]),
             step=0.5,
-            key="bridge_mass_in",
         )
 
     st.markdown("---")
@@ -471,29 +487,29 @@ def render_tab_geometry_classes():
 
     w1, w2, w3 = st.columns(3)
     with w1:
-        st.session_state["num_wheels_per_side"] = st.number_input(
+        st.number_input(
             "Number of wheels per side",
             min_value=1,
             max_value=8,
+            key="num_wheels_per_side",
             value=int(st.session_state["num_wheels_per_side"]),
             step=1,
-            key="num_wheels_per_side_in",
         )
     with w2:
-        st.session_state["wheel_spacing_end_carriage"] = st.number_input(
+        st.number_input(
             "Wheel spacing in each end carriage (m)",
             min_value=0.0,
+            key="wheel_spacing_end_carriage",
             value=float(st.session_state["wheel_spacing_end_carriage"]),
             step=0.1,
-            key="wheel_spacing_ec_in",
         )
     with w3:
-        st.session_state["endcar_mass_t"] = st.number_input(
+        st.number_input(
             "Total end carriage mass (both) (t)",
             min_value=0.0,
+            key="endcar_mass_t",
             value=float(st.session_state["endcar_mass_t"]),
             step=0.1,
-            key="endcar_mass_in",
         )
 
     st.caption("Wheel arrangement is used to distribute calculated wheel loads.")
@@ -505,419 +521,444 @@ def render_tab_geometry_classes():
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.session_state["crane_duty_class"] = st.selectbox(
+        st.selectbox(
             "Duty class (FEM / ISO)",
             ["FEM 1Bm / ISO M3", "FEM 2m / ISO M5", "FEM 3m / ISO M6", "FEM 4m / ISO M8"],
-            index=1,
-            key="crane_duty_sel",
+            key="crane_duty_class",
+            index=["FEM 1Bm / ISO M3", "FEM 2m / ISO M5", "FEM 3m / ISO M6", "FEM 4m / ISO M8"].index(
+                st.session_state["crane_duty_class"]
+            ),
         )
     with c2:
-        st.session_state["class_utilization"] = st.selectbox(
+        st.selectbox(
             "Class of utilization (U)",
             [f"U{i}" for i in range(1, 9)],
-            index=4,
-            key="class_util_sel",
+            key="class_utilization",
+            index=[f"U{i}" for i in range(1, 9)].index(st.session_state["class_utilization"]),
         )
     with c3:
-        st.session_state["class_load_spectrum"] = st.selectbox(
+        st.selectbox(
             "Load spectrum class (Q)",
             ["Q1", "Q2", "Q3", "Q4"],
-            index=2,
-            key="class_load_sel",
+            key="class_load_spectrum",
+            index=["Q1", "Q2", "Q3", "Q4"].index(st.session_state["class_load_spectrum"]),
         )
     with c4:
-        st.session_state["structure_class"] = st.selectbox(
+        st.selectbox(
             "Structure class (EN 13001)",
             ["HC1", "HC2", "HC3"],
-            index=1,
-            key="structure_class_sel",
+            key="structure_class",
+            index=["HC1", "HC2", "HC3"].index(st.session_state["structure_class"]),
         )
 
     c5, c6, c7 = st.columns(3)
     with c5:
-        st.session_state["hoisting_group"] = st.selectbox(
+        st.selectbox(
             "Hoisting group (for φ₂)",
             ["H1", "H2", "H3", "H4"],
+            key="hoisting_group",
             index=["H1", "H2", "H3", "H4"].index(st.session_state["hoisting_group"]),
-            key="hoisting_group_sel",
         )
     with c6:
-        st.session_state["phi1_dynamic"] = st.number_input(
+        st.number_input(
             "φ₁ (dynamic factor for dead load)",
             min_value=1.0,
+            key="phi1_dynamic",
             value=float(st.session_state["phi1_dynamic"]),
             step=0.05,
-            key="phi1_dynamic_in",
         )
     with c7:
-        st.session_state["hoist_axles"] = st.number_input(
+        st.number_input(
             "Number of hoist axles",
             min_value=1,
             max_value=4,
+            key="hoist_axles",
             value=int(st.session_state["hoist_axles"]),
             step=1,
-            key="hoist_axles_in",
-        )
-
-    # --- 2.4 Girder cross section & extra inputs from Excel ---
-    st.markdown("---")
-    small_title("2.4 Girder cross-section & other inputs (from Excel)")
-
-    with st.expander("Open detailed girder & extra inputs", expanded=False):
-        st.caption("These correspond to girder size, stiffeners, rail, diaphragms and material inputs.")
-
-        # 2.4.1 Other weights
-        ow1, ow2 = st.columns(2)
-        with ow1:
-            st.session_state["electrical_panel_kg"] = st.number_input(
-                "Electrical panel weight [kg]",
-                value=float(st.session_state["electrical_panel_kg"]),
-                key="electrical_panel_kg_in",
-            )
-        with ow2:
-            st.session_state["other_weight_kg"] = st.number_input(
-                "Other weight [kg]",
-                value=float(st.session_state["other_weight_kg"]),
-                key="other_weight_kg_in",
-            )
-
-        st.markdown("**Girder plate dimensions**")
-        g1, g2, g3 = st.columns(3)
-
-        # Web
-        with g1:
-            st.session_state["web_height_mm"] = st.number_input(
-                "Web height [mm]",
-                value=float(st.session_state["web_height_mm"]),
-                key="web_height_mm_in",
-            )
-            st.session_state["web_thickness_rail_mm"] = st.number_input(
-                "Web thickness at rail [mm]",
-                value=float(st.session_state["web_thickness_rail_mm"]),
-                key="web_thickness_rail_mm_in",
-            )
-            st.session_state["web_thickness_mm"] = st.number_input(
-                "Web thickness (other) [mm]",
-                value=float(st.session_state["web_thickness_mm"]),
-                key="web_thickness_mm_in",
-            )
-
-        # Top flange
-        with g2:
-            st.session_state["top_flange_width_mm"] = st.number_input(
-                "Top flange width [mm]",
-                value=float(st.session_state["top_flange_width_mm"]),
-                key="top_flange_width_mm_in",
-            )
-            st.session_state["top_flange_thickness_mm"] = st.number_input(
-                "Top flange thickness [mm]",
-                value=float(st.session_state["top_flange_thickness_mm"]),
-                key="top_flange_thickness_mm_in",
-            )
-            st.session_state["a_mm"] = st.number_input(
-                "a [mm] (flange detail)",
-                value=float(st.session_state["a_mm"]),
-                key="a_mm_in",
-            )
-
-        # Bottom flange
-        with g3:
-            st.session_state["bottom_flange_width_mm"] = st.number_input(
-                "Bottom flange width [mm]",
-                value=float(st.session_state["bottom_flange_width_mm"]),
-                key="bottom_flange_width_mm_in",
-            )
-            st.session_state["bottom_flange_thickness_mm"] = st.number_input(
-                "Bottom flange thickness [mm]",
-                value=float(st.session_state["bottom_flange_thickness_mm"]),
-                key="bottom_flange_thickness_mm_in",
-            )
-            st.session_state["b_mm"] = st.number_input(
-                "b [mm] (flange detail)",
-                value=float(st.session_state["b_mm"]),
-                key="b_mm_in",
-            )
-
-        st.markdown("**End girder & stiffeners**")
-        s1, s2, s3 = st.columns(3)
-        with s1:
-            st.session_state["end_girder_web_height_mm"] = st.number_input(
-                "End girder web height [mm]",
-                value=float(st.session_state["end_girder_web_height_mm"]),
-                key="end_girder_web_height_mm_in",
-            )
-            st.session_state["stiffener_type"] = st.text_input(
-                "Stiffener type",
-                value=st.session_state["stiffener_type"],
-                key="stiffener_type_in",
-            )
-        with s2:
-            st.session_state["stiffener_no"] = st.number_input(
-                "Number of stiffeners",
-                value=float(st.session_state["stiffener_no"]),
-                step=1.0,
-                key="stiffener_no_in",
-            )
-            st.session_state["stiffener_1_from_top_mm"] = st.number_input(
-                "Distance from top flange to stiffener #1 [mm]",
-                value=float(st.session_state["stiffener_1_from_top_mm"]),
-                key="stiffener_1_from_top_mm_in",
-            )
-        with s3:
-            st.session_state["stiffener_2_from_top_mm"] = st.number_input(
-                "Distance from top flange to stiffener #2 [mm]",
-                value=float(st.session_state["stiffener_2_from_top_mm"]),
-                key="stiffener_2_from_top_mm_in",
-            )
-            st.session_state["stiffener_3_from_top_mm"] = st.number_input(
-                "Distance from top flange to stiffener #3 [mm]",
-                value=float(st.session_state["stiffener_3_from_top_mm"]),
-                key="stiffener_3_from_top_mm_in",
-            )
-
-        st.markdown("**Rail & diaphragms**")
-        r1, r2, r3 = st.columns(3)
-        with r1:
-            st.session_state["rail_type"] = st.text_input(
-                "Rail type",
-                value=st.session_state["rail_type"],
-                key="rail_type_in",
-            )
-        with r2:
-            st.session_state["diaph_thickness_mm"] = st.number_input(
-                "Diaphragm thickness [mm]",
-                value=float(st.session_state["diaph_thickness_mm"]),
-                key="diaph_thickness_mm_in",
-            )
-        with r3:
-            st.session_state["diaph_distance_mm"] = st.number_input(
-                "Diaphragm distance [mm]",
-                value=float(st.session_state["diaph_distance_mm"]),
-                key="diaph_distance_mm_in",
-            )
-
-        st.markdown("**Material properties**")
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            st.session_state["girder_material"] = st.text_input(
-                "Girder material",
-                value=st.session_state["girder_material"],
-                key="girder_material_in",
-            )
-        with m2:
-            st.session_state["yield_strength_Nmm2"] = st.number_input(
-                "Yield strength fy [N/mm²]",
-                value=float(st.session_state["yield_strength_Nmm2"]),
-                key="yield_strength_Nmm2_in",
-            )
-        with m3:
-            st.session_state["ultimate_strength_Nmm2"] = st.number_input(
-                "Ultimate strength fu [N/mm²]",
-                value=float(st.session_state["ultimate_strength_Nmm2"]),
-                key="ultimate_strength_Nmm2_in",
-            )
-
-        st.session_state["E_modulus_Nmm2"] = st.number_input(
-            "Elastic modulus E [N/mm²]",
-            value=float(st.session_state["E_modulus_Nmm2"]),
-            key="E_modulus_Nmm2_in",
         )
 
 # =========================================================
-# TAB 3 – HOIST & END CARRIAGES
+# TAB 3 – GIRDER CROSS-SECTION
+# =========================================================
+def render_tab_girder_section():
+    st.subheader("Girder cross-section (Excel-style inputs)")
+
+    st.caption("These match the inputs in sheet 97-05-24 for plate sizes, stiffeners, rail and material.")
+
+    # -----------------------
+    # 1. PLATE DIMENSIONS
+    # -----------------------
+    with st.expander("1) Plate dimensions", expanded=True):
+
+        # Extra weights (panel etc.)
+        ow1, ow2 = st.columns(2)
+        with ow1:
+            st.number_input(
+                "Electrical panel weight [kg]",
+                key="electrical_panel_kg",
+                value=float(st.session_state["electrical_panel_kg"]),
+            )
+        with ow2:
+            st.number_input(
+                "Other weight [kg]",
+                key="other_weight_kg",
+                value=float(st.session_state["other_weight_kg"]),
+            )
+
+        g1, g2, g3 = st.columns(3)
+
+        with g1:
+            st.number_input(
+                "Web height [mm]",
+                key="web_height_mm",
+                value=float(st.session_state["web_height_mm"]),
+            )
+            st.number_input(
+                "Web thickness at rail [mm]",
+                key="web_thickness_rail_mm",
+                value=float(st.session_state["web_thickness_rail_mm"]),
+            )
+            st.number_input(
+                "Web thickness (other) [mm]",
+                key="web_thickness_mm",
+                value=float(st.session_state["web_thickness_mm"]),
+            )
+
+        with g2:
+            st.number_input(
+                "Top flange width [mm]",
+                key="top_flange_width_mm",
+                value=float(st.session_state["top_flange_width_mm"]),
+            )
+            st.number_input(
+                "Top flange thickness [mm]",
+                key="top_flange_thickness_mm",
+                value=float(st.session_state["top_flange_thickness_mm"]),
+            )
+            st.number_input(
+                "a [mm] (detail)",
+                key="a_mm",
+                value=float(st.session_state["a_mm"]),
+            )
+
+        with g3:
+            st.number_input(
+                "Bottom flange width [mm]",
+                key="bottom_flange_width_mm",
+                value=float(st.session_state["bottom_flange_width_mm"]),
+            )
+            st.number_input(
+                "Bottom flange thickness [mm]",
+                key="bottom_flange_thickness_mm",
+                value=float(st.session_state["bottom_flange_thickness_mm"]),
+            )
+            st.number_input(
+                "b [mm] (detail)",
+                key="b_mm",
+                value=float(st.session_state["b_mm"]),
+            )
+
+    # -----------------------
+    # 2. STIFFENERS
+    # -----------------------
+    with st.expander("2) Stiffeners", expanded=False):
+
+        s1, s2, s3 = st.columns(3)
+
+        with s1:
+            st.text_input(
+                "Stiffener type",
+                key="stiffener_type",
+                value=st.session_state["stiffener_type"],
+            )
+            st.number_input(
+                "Number of stiffeners",
+                key="stiffener_no",
+                value=float(st.session_state["stiffener_no"]),
+                step=1.0,
+            )
+
+        with s2:
+            st.number_input(
+                "Stiffener #1 distance from top [mm]",
+                key="stiffener_1_from_top_mm",
+                value=float(st.session_state["stiffener_1_from_top_mm"]),
+            )
+            st.number_input(
+                "Stiffener #2 distance from top [mm]",
+                key="stiffener_2_from_top_mm",
+                value=float(st.session_state["stiffener_2_from_top_mm"]),
+            )
+
+        with s3:
+            st.number_input(
+                "Stiffener #3 distance from top [mm]",
+                key="stiffener_3_from_top_mm",
+                value=float(st.session_state["stiffener_3_from_top_mm"]),
+            )
+            st.number_input(
+                "End girder web height [mm]",
+                key="end_girder_web_height_mm",
+                value=float(st.session_state["end_girder_web_height_mm"]),
+            )
+
+    # -----------------------
+    # 3. RAIL & DIAPHRAGMS
+    # -----------------------
+    with st.expander("3) Rail & diaphragms", expanded=False):
+
+        r1, r2, r3 = st.columns(3)
+
+        with r1:
+            st.text_input(
+                "Rail type",
+                key="rail_type",
+                value=st.session_state["rail_type"],
+            )
+
+        with r2:
+            st.number_input(
+                "Diaphragm thickness [mm]",
+                key="diaph_thickness_mm",
+                value=float(st.session_state["diaph_thickness_mm"]),
+            )
+
+        with r3:
+            st.number_input(
+                "Diaphragm spacing [mm]",
+                key="diaph_distance_mm",
+                value=float(st.session_state["diaph_distance_mm"]),
+            )
+
+    # -----------------------
+    # 4. MATERIAL
+    # -----------------------
+    with st.expander("4) Material", expanded=False):
+
+        m1, m2, m3 = st.columns(3)
+
+        with m1:
+            st.text_input(
+                "Material",
+                key="girder_material",
+                value=st.session_state["girder_material"],
+            )
+
+        with m2:
+            st.number_input(
+                "Yield strength fy [N/mm²]",
+                key="yield_strength_Nmm2",
+                value=float(st.session_state["yield_strength_Nmm2"]),
+            )
+
+        with m3:
+            st.number_input(
+                "Ultimate strength fu [N/mm²]",
+                key="ultimate_strength_Nmm2",
+                value=float(st.session_state["ultimate_strength_Nmm2"]),
+            )
+
+        st.number_input(
+            "Elastic modulus E [N/mm²]",
+            key="E_modulus_Nmm2",
+            value=float(st.session_state["E_modulus_Nmm2"]),
+        )
+
+# =========================================================
+# TAB 4 – HOIST & END CARRIAGES
 # =========================================================
 def render_tab_hoist_endcarriages():
     st.subheader("Hoist, trolley & end carriages")
 
-    # --- 3.1 Hoist & trolley ---
-    small_title("3.1 Hoist & trolley")
+    # --- 4.1 Hoist & trolley ---
+    small_title("4.1 Hoist & trolley")
 
     h1, h2, h3 = st.columns(3)
     with h1:
-        st.session_state["hoist_mass"] = st.number_input(
+        st.number_input(
             "Hoist mass (t)",
             min_value=0.0,
+            key="hoist_mass",
             value=float(st.session_state["hoist_mass"]),
             step=0.1,
-            key="hoist_mass_in",
         )
     with h2:
-        st.session_state["trolley_mass"] = st.number_input(
+        st.number_input(
             "Trolley / crab mass (t)",
             min_value=0.0,
+            key="trolley_mass",
             value=float(st.session_state["trolley_mass"]),
             step=0.1,
-            key="trolley_mass_in",
         )
     with h3:
-        st.session_state["hoist_speed"] = st.number_input(
+        st.number_input(
             "Hoisting speed (m/min)",
             min_value=0.0,
+            key="hoist_speed",
             value=float(st.session_state["hoist_speed"]),
             step=0.5,
-            key="hoist_speed_in",
         )
 
     h4, h5, h6 = st.columns(3)
     with h4:
-        st.session_state["trolley_speed"] = st.number_input(
+        st.number_input(
             "Cross travel speed (m/min)",
             min_value=0.0,
+            key="trolley_speed",
             value=float(st.session_state["trolley_speed"]),
             step=0.5,
-            key="trolley_speed_in",
         )
     with h5:
-        st.session_state["crab_min_pos"] = st.number_input(
+        st.number_input(
             "Crab min position from left end carriage (m)",
             min_value=0.0,
+            key="crab_min_pos",
             value=float(st.session_state["crab_min_pos"]),
             step=0.1,
-            key="crab_min_pos_in",
         )
     with h6:
-        st.session_state["crab_max_pos"] = st.number_input(
+        st.number_input(
             "Crab max position from left end carriage (m)",
             min_value=0.0,
+            key="crab_max_pos",
             value=float(st.session_state["crab_max_pos"]),
             step=0.1,
-            key="crab_max_pos_in",
         )
 
     st.markdown("---")
 
-    # --- 3.2 Long travel, approaches & buffer ---
-    small_title("3.2 Long travel, approaches & buffer")
+    # --- 4.2 Long travel, approaches & buffer ---
+    small_title("4.2 Long travel, approaches & buffer")
 
     e1, e2, e3 = st.columns(3)
     with e1:
-        st.session_state["lt_speed"] = st.number_input(
+        st.number_input(
             "Long travel speed (m/min)",
             min_value=0.0,
+            key="lt_speed",
             value=float(st.session_state["lt_speed"]),
             step=0.5,
-            key="lt_speed_in",
         )
     with e2:
-        st.session_state["lt_accel"] = st.number_input(
+        st.number_input(
             "Long travel nominal acceleration (m/s²)",
             min_value=0.0,
+            key="lt_accel",
             value=float(st.session_state["lt_accel"]),
             step=0.05,
-            key="lt_accel_in",
         )
     with e3:
-        st.session_state["buffer_k"] = st.number_input(
+        st.number_input(
             "Buffer spring stiffness k (kN/m)",
             min_value=0.0,
+            key="buffer_k",
             value=float(st.session_state["buffer_k"]),
             step=0.5,
-            key="buffer_k_in",
         )
 
     e4, e5, e6 = st.columns(3)
     with e4:
-        st.session_state["buffer_type"] = st.selectbox(
+        st.selectbox(
             "Buffer type",
             ["ELASTIC SPRING", "CELLULAR ELASTO", "Other"],
+            key="buffer_type",
             index=["ELASTIC SPRING", "CELLULAR ELASTO", "Other"].index(
                 st.session_state["buffer_type"]
             ),
-            key="buffer_type_sel",
         )
     with e5:
-        st.session_state["left_approach_mm"] = st.number_input(
+        st.number_input(
             "Left approach (mm)",
             min_value=0.0,
+            key="left_approach_mm",
             value=float(st.session_state["left_approach_mm"]),
             step=10.0,
-            key="left_approach_in",
         )
     with e6:
-        st.session_state["right_approach_mm"] = st.number_input(
+        st.number_input(
             "Right approach (mm)",
             min_value=0.0,
+            key="right_approach_mm",
             value=float(st.session_state["right_approach_mm"]),
             step=10.0,
-            key="right_approach_in",
         )
 
 # =========================================================
-# TAB 4 – LOADS & COMBINATIONS
+# TAB 5 – LOADS & COMBINATIONS
 # =========================================================
 def render_tab_loads_combinations():
     st.subheader("Loads & combinations")
 
-    # --- 4.1 Partial safety & dynamic factors (global EN-like factors) ---
-    small_title("4.1 Partial safety & dynamic factors")
+    # --- 5.1 Partial safety & dynamic factors (global EN-like factors) ---
+    small_title("5.1 Partial safety & dynamic factors")
 
     l1, l2, l3, l4 = st.columns(4)
     with l1:
-        st.session_state["gamma_Q"] = st.number_input(
+        st.number_input(
             "γ_Q (variable / live loads)",
             min_value=1.0,
+            key="gamma_Q",
             value=float(st.session_state["gamma_Q"]),
             step=0.05,
-            key="gamma_Q_in",
         )
     with l2:
-        st.session_state["gamma_G"] = st.number_input(
+        st.number_input(
             "γ_G (permanent / dead loads)",
             min_value=1.0,
+            key="gamma_G",
             value=float(st.session_state["gamma_G"]),
             step=0.05,
-            key="gamma_G_in",
         )
     with l3:
-        st.session_state["phi_hoist"] = st.number_input(
+        st.number_input(
             "φ (hoisting, global)",
             min_value=1.0,
+            key="phi_hoist",
             value=float(st.session_state["phi_hoist"]),
             step=0.05,
-            key="phi_hoist_in",
         )
     with l4:
-        st.session_state["fatigue_safety_gamma_Ff"] = st.number_input(
+        st.number_input(
             "γ_Ff (fatigue load factor)",
             min_value=0.8,
+            key="fatigue_safety_gamma_Ff",
             value=float(st.session_state["fatigue_safety_gamma_Ff"]),
             step=0.05,
-            key="gamma_Ff_in",
         )
 
     l5, l6, l7 = st.columns(3)
     with l5:
-        st.session_state["phi_LT"] = st.number_input(
+        st.number_input(
             "φ (long travel)",
             min_value=1.0,
+            key="phi_LT",
             value=float(st.session_state["phi_LT"]),
             step=0.05,
-            key="phi_LT_in",
         )
     with l6:
-        st.session_state["phi_CT"] = st.number_input(
+        st.number_input(
             "φ (cross travel)",
             min_value=1.0,
+            key="phi_CT",
             value=float(st.session_state["phi_CT"]),
             step=0.05,
-            key="phi_CT_in",
         )
     with l7:
-        st.session_state["serviceability_defl_limit"] = st.selectbox(
+        st.selectbox(
             "Serviceability deflection limit (crane girder)",
             ["L/500", "L/600", "L/700", "L/800"],
+            key="serviceability_defl_limit",
             index=["L/500", "L/600", "L/700", "L/800"].index(
                 st.session_state["serviceability_defl_limit"]
             ),
-            key="sls_limit_sel",
         )
 
     st.markdown("---")
 
-    # --- 4.2 Conceptual load cases ---
-    small_title("4.2 Crane load cases (conceptual)")
+    # --- 5.2 Conceptual load cases ---
+    small_title("5.2 Crane load cases (conceptual)")
 
-    st.session_state["selected_load_case"] = st.selectbox(
+    st.selectbox(
         "Select conceptual load case (for reporting later)",
         [
             "LC1 – Hoisting, crab at midspan",
@@ -926,13 +967,13 @@ def render_tab_loads_combinations():
             "LC4 – Crane parked with max crab offset",
             "LC5 – Fatigue spectrum (repeated cycles)",
         ],
-        key="load_case_sel",
+        key="selected_load_case",
     )
 
     st.markdown("---")
 
-    # --- 4.3 Run Excel-style main load calculations ---
-    small_title("4.3 Excel-style main load calculations")
+    # --- 5.3 Run Excel-style main load calculations ---
+    small_title("5.3 Excel-style main load calculations")
 
     if st.button("Run crane load calculations (from current inputs)", key="run_calc_btn"):
         st.session_state["crane_main_loads"] = compute_crane_main_loads(st.session_state)
@@ -978,14 +1019,14 @@ def render_tab_loads_combinations():
             st.write(f"{res['large_test_load_kN']:.2f} kN")
 
 # =========================================================
-# TAB 5 – CHECKS & RESULTS
+# TAB 6 – CHECKS & RESULTS
 # =========================================================
 def render_tab_checks_results():
     st.subheader("Checks & results")
 
     res = st.session_state.get("crane_main_loads", None)
 
-    # Summary metrics
+    # Summary metrics placeholders
     s1, s2, s3, s4 = st.columns(4)
     with s1:
         st.metric("Serviceability (deflection)", "–", "pending")
@@ -998,7 +1039,7 @@ def render_tab_checks_results():
 
     st.markdown("---")
 
-    small_title("5.1 Main loads snapshot (from Excel logic)")
+    small_title("6.1 Main loads snapshot (from Excel logic)")
 
     if res is None:
         st.info("No results yet. Go to **Loads & combinations → Run crane load calculations**.")
@@ -1028,7 +1069,7 @@ def render_tab_checks_results():
     )
 
 # =========================================================
-# TAB 6 – REPORT
+# TAB 7 – REPORT
 # =========================================================
 def render_tab_report():
     st.subheader("Crane report (skeleton)")
@@ -1095,26 +1136,29 @@ def render_tab_report():
 # =========================================================
 # MAIN TABS
 # =========================================================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
     [
         "1) Project info",
-        "2) Geometry & classes",
-        "3) Hoist & end carriages",
-        "4) Loads & combinations",
-        "5) Checks & results",
-        "6) Report",
+        "2) General",
+        "3) Girder cross-section",
+        "4) Hoist & end carriages",
+        "5) Loads & combinations",
+        "6) Checks & results",
+        "7) Report",
     ]
 )
 
 with tab1:
     render_tab_project_info()
 with tab2:
-    render_tab_geometry_classes()
+    render_tab_general()
 with tab3:
-    render_tab_hoist_endcarriages()
+    render_tab_girder_section()
 with tab4:
-    render_tab_loads_combinations()
+    render_tab_hoist_endcarriages()
 with tab5:
-    render_tab_checks_results()
+    render_tab_loads_combinations()
 with tab6:
+    render_tab_checks_results()
+with tab7:
     render_tab_report()
