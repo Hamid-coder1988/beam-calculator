@@ -2160,18 +2160,6 @@ def render_beam_diagrams_panel():
     to pick Iy or Iz for deflection. Store summary in
     st.session_state["diag_summary"].
     """
-        # Make important values available for other tabs (e.g. Report)
-    try:
-        st.session_state["diag_Mmax_kNm"]     = float(summary.get("M_max", 0.0))
-        st.session_state["diag_x_Mmax_m"]     = float(summary.get("x_M_max", 0.0))
-        st.session_state["diag_V_at_Mmax_kN"] = float(summary.get("V_at_Mmax", 0.0))
-        st.session_state["diag_R1_kN"]        = float(summary.get("R_left", 0.0))
-        st.session_state["diag_R2_kN"]        = float(summary.get("R_right", 0.0))
-        st.session_state["diag_delta_max_mm"] = float(summary.get("w_max_mm", 0.0))
-    except Exception:
-        # If anything is missing, just don't crash; Report tab can fall back to n/a
-        pass
-
     selected_case = st.session_state.get("ready_selected_case")
     input_vals    = st.session_state.get("ready_input_vals")
     sr_display    = st.session_state.get("sr_display")
@@ -2233,7 +2221,31 @@ def render_beam_diagrams_panel():
     summary = get_beam_summary_for_diagrams(x, V, M, delta, L_val)
     summary["bending_axis"] = bending_axis
     st.session_state["diag_summary"] = summary
+    # 4b) Export main numbers for Report tab & Loads 3.2
+    try:
+        # Vmax from the shear diagram
+        if V is not None:
+            st.session_state["diag_Vmax_kN"] = float(np.nanmax(np.abs(V)))
+        else:
+            st.session_state["diag_Vmax_kN"] = None
 
+        # From summary dict
+        M_max      = summary.get("M_max")
+        x_M_max    = summary.get("x_M_max")
+        V_at_Mmax  = summary.get("V_at_Mmax")
+        R_left     = summary.get("R_left")
+        R_right    = summary.get("R_right")
+        w_max_mm   = summary.get("w_max_mm")
+
+        st.session_state["diag_Mmax_kNm"]      = float(M_max)     if M_max     is not None else None
+        st.session_state["diag_x_Mmax_m"]      = float(x_M_max)   if x_M_max   is not None else None
+        st.session_state["diag_V_at_Mmax_kN"]  = float(V_at_Mmax) if V_at_Mmax is not None else None
+        st.session_state["diag_R1_kN"]         = float(R_left)    if R_left    is not None else None
+        st.session_state["diag_R2_kN"]         = float(R_right)   if R_right   is not None else None
+        st.session_state["diag_delta_max_mm"]  = float(w_max_mm)  if w_max_mm  is not None else None
+    except Exception:
+        # Don't break diagrams if something is missing
+        pass
     # --------------------------------------
     # 5) Diagrams (V & M, same style as before)
     # --------------------------------------
@@ -2272,10 +2284,7 @@ def render_beam_diagrams_panel():
 
         st.pyplot(fig2)
 
-    # Optional deflection diagram (unchanged logic)
-    show_defl = st.checkbox(
-        "Show deflection diagram δ(x)", value=False, key="show_defl_diag"
-    )
+    # Deflection diagram δ(x) disabled; only δ_max is used in Results/Report.
 
     if show_defl:
         if delta is None or I_m4 is None:
@@ -3568,6 +3577,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
