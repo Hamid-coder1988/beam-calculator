@@ -1791,27 +1791,39 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
     rows = []
 
-    applied_N = N_N if N_N >= 0 else 0.0
-    status_comp, util_comp = status_and_util(applied_N, compression_resistance_N)
-    rows.append({"Check":"Compression (N<0)","Applied":f"{applied_N/1e3:.3f} kN",
-                 "Resistance":f"{compression_resistance_N/1e3:.3f} kN",
-                 "Utilization": f"{util_comp:.3f}" if util_comp is not None else "n/a",
-                 "Status":status_comp})
-
-    applied_tension_N = -N_N if N_N < 0 else 0.0
+    # --- Axial: compression (N < 0) ---
+    # Use magnitude of compression (positive value for the check)
+    applied_comp_N = abs(N_N) if N_N < 0 else 0.0
+    status_comp, util_comp = status_and_util(applied_comp_N, compression_resistance_N)
+    rows.append({
+        "Check": "Compression (N < 0)",
+        "Applied": f"{applied_comp_N/1e3:.3f} kN",
+        "Resistance": f"{compression_resistance_N/1e3:.3f} kN",
+        "Utilization": f"{util_comp:.3f}" if util_comp is not None else "n/a",
+        "Status": status_comp,
+    })
+    
+    # --- Axial: tension (N > 0) ---
+    applied_tension_N = N_N if N_N > 0 else 0.0
     status_ten, util_ten = status_and_util(applied_tension_N, T_Rd_N)
-    rows.append({"Check":"Tension (N≥0)","Applied":f"{applied_tension_N/1e3:.3f} kN",
-                 "Resistance":f"{T_Rd_N/1e3:.3f} kN",
-                 "Utilization": f"{util_ten:.3f}" if util_ten is not None else "n/a",
-                 "Status":status_ten})
-
+    rows.append({
+        "Check": "Tension (N > 0)",
+        "Applied": f"{applied_tension_N/1e3:.3f} kN",
+        "Resistance": f"{T_Rd_N/1e3:.3f} kN",
+        "Utilization": f"{util_ten:.3f}" if util_ten is not None else "n/a",
+        "Status": status_ten,
+    })
+    
+    # --- Shear (unchanged) ---
     applied_shear_N = math.sqrt(Vy_N**2 + Vz_N**2)
     status_shear, util_shear = status_and_util(applied_shear_N, V_Rd_N)
-    rows.append({"Check":"Shear (resultant Vy & Vz)","Applied":f"{applied_shear_N/1e3:.3f} kN",
-                 "Resistance":f"{V_Rd_N/1e3:.3f} kN",
-                 "Utilization": f"{util_shear:.3f}" if util_shear is not None else "n/a",
-                 "Status":status_shear})
-
+    rows.append({
+        "Check": "Shear (resultant Vy & Vz)",
+        "Applied": f"{applied_shear_N/1e3:.3f} kN",
+        "Resistance": f"{V_Rd_N/1e3:.3f} kN",
+        "Utilization": f"{util_shear:.3f}" if util_shear is not None else "n/a",
+        "Status": status_shear,
+    })
 
     rows.append({"Check":"Bending y-y (σ_by)","Applied":f"{sigma_by_Pa/1e6:.3f} MPa",
                  "Resistance":f"{sigma_allow_MPa:.3f} MPa",
@@ -3752,6 +3764,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
