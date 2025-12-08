@@ -1803,11 +1803,11 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Status":      status_comp,
     })
 
-    # Tension (N > 0) – use T_Rd
+    # Tension (N > 0)
     applied_tension_N = N_N if N_N > 0 else 0.0
     status_ten, util_ten = status_and_util(applied_tension_N, T_Rd_N)
     rows.append({
-        "Check":      "Tension (N≥0)",   # this name is used in the summary table
+        "Check":      "Tension (N≥0)",
         "Applied":    f"{applied_tension_N/1e3:.3f} kN",
         "Resistance": f"{T_Rd_N/1e3:.3f} kN",
         "Utilization": f"{util_ten:.3f}" if util_ten is not None else "n/a",
@@ -3750,6 +3750,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
