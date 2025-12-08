@@ -31,19 +31,18 @@ try:
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
     from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader  # for PDF images
     HAS_RL = True
 except Exception:
     HAS_RL = False
+    ImageReader = None  # so we can safely reference it later
 
-from io import BytesIO
-from reportlab.lib.utils import ImageReader  # for PDF images
-
+# (BytesIO already imported at the top; no need to import again)
 def fig_to_png_bytes(fig):
     buf = BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight")
     buf.seek(0)
     return buf.getvalue()
-
 
 # =========================================================
 # DB CONNECTION (same as Beam Code 3, uses st.secrets)
@@ -3752,6 +3751,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
