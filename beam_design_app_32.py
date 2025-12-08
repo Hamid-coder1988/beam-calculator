@@ -3237,27 +3237,25 @@ def render_report_tab():
     except Exception:
         pass
 
-    st.markdown(
-        f"Design tensile axial force is taken as:\n\n"
-        f"\\( N_{{Ed}} = {NEd_ten_kN:.3f} \\, \\text{{kN}} \\)."
+    st.markdown("Design tensile axial force is taken as:")
+    st.latex(rf"N_{{Ed}} = {NEd_ten_kN:.3f}\,\text{{kN}}")
+    
+    st.markdown("The plastic tension resistance of the gross cross-section is estimated as:")
+    st.latex(
+        rf"N_{{pl,Rd}} = \frac{{A f_y}}{{\gamma_{{M0}}}}"
+        rf" = {A_mm2:.1f}\,\text{{mm}}^2 \cdot {fy:.0f}\,\text{{MPa}}"
+        rf" / {gamma_M0:.2f}"
+        rf" = {Npl_Rd_kN:.3f}\,\text{{kN}}"
+    )
+    
+    st.markdown("Hence the utilisation for the tension verification is:")
+    st.latex(
+        rf"u = \frac{{N_{{Ed}}}}{{N_{{pl,Rd}}}}"
+        rf" = \frac{{{NEd_ten_kN:.3f}}}{{{Npl_Rd_kN:.3f}}}"
+        rf" = {u_ten_str} \le 1.0"
+        rf" \Rightarrow \mathbf{{{status_ten}}}."
     )
 
-    if Npl_Rd_kN > 0.0:
-        st.markdown(
-            f"The plastic tension resistance of the gross cross-section is estimated as:\n\n"
-            f"\\( N_{{pl,Rd}} = \\dfrac{{A f_y}}{{\\gamma_{{M0}}}}"
-            f" = {A_mm2:.1f} \\, \\text{{mm}}^2 \\cdot {fy:.0f} \\, \\text{{MPa}}"
-            f" / {gamma_M0:.2f}"
-            f" = {Npl_Rd_kN:.3f} \\, \\text{{kN}} \\)."
-        )
-
-        st.markdown(
-            f"Hence the utilisation for check (1) Tension is:\n\n"
-            f"\\( u = \\dfrac{{N_{{Ed}}}}{{N_{{pl,Rd}}}}"
-            f" = \\dfrac{{{NEd_ten_kN:.3f}}}{{{Npl_Rd_kN:.3f}}}"
-            f" = {u_ten_str} \\leq 1.0"
-            f" \\Rightarrow \\textbf{{{status_ten}}}. \\)"
-        )
     else:
         st.markdown(
             "Tension resistance could not be evaluated because cross-section area or material data "
@@ -3760,6 +3758,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
