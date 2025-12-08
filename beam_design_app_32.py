@@ -3180,41 +3180,23 @@ def render_report_tab():
 
     st.markdown("---")
 
-    # ----------------------------------------------------
-    # 6. Verification of cross-section strength (ULS)
-    # ----------------------------------------------------
-    st.markdown("## 6. Verification of cross-section strength (ULS)")
-
-    st.markdown("### 6.1 Summary")
-    s1, s2, s3 = st.columns(3)
-    with s1:
-        st.text_input("Status", value=status_txt, disabled=True, key="rpt_status_txt_cs")
-    with s2:
-        st.text_input("Governing check", value=str(gov_check or "n/a"), disabled=True, key="rpt_gov_check_cs")
-    with s3:
-        st.text_input(
-            "Governing utilisation",
-            value=f"{gov_util:.3f}" if gov_util is not None else "n/a",
-            disabled=True,
-            key="rpt_gov_util_cs",
-        )
-    # 6.1.a Detailed explanation for check (1) Tension
+        # 6.1.a Detailed explanation for check (1) Tension
     st.markdown("#### (1) Tension – EN 1993-1-1 §6.2.3")
 
     # Get section area and material
     A_mm2 = float(sr_display.get("A_mm2", 0.0))  # from DB
     fy = material_to_fy(material)
 
-    # Design axial force (tension taken as positive here for explanation)
+    # Design axial force N (tension positive)
     N_kN = float(inputs.get("N_kN", 0.0))
-    
+
     # Tension: N > 0
     if N_kN > 0.0:
         NEd_ten_kN = N_kN
     else:
         NEd_ten_kN = 0.0
 
-    # Plastic tension resistance Npl,Rd = A * fy / gamma_M0  (convert to kN)
+    # Plastic tension resistance Npl,Rd = A * fy / γM0  (convert to kN)
     if A_mm2 > 0.0 and fy > 0.0:
         Npl_Rd_kN = A_mm2 * fy / (gamma_M0 * 1e3)  # N → kN
     else:
@@ -3237,35 +3219,46 @@ def render_report_tab():
     except Exception:
         pass
 
+    # --- Text + equations in math format ---
+
+    st.markdown(
+        "The critical cross-section is verified for tensile axial force "
+        "in accordance with EN 1993-1-1 §6.2.3:"
+    )
+    st.latex(r"\frac{N_{Ed}}{N_{t,Rd}} \le 1.0")
+
     st.markdown("Design tensile axial force is taken as:")
     st.latex(rf"N_{{Ed}} = {NEd_ten_kN:.3f}\,\text{{kN}}")
-    
-    st.markdown("The plastic tension resistance of the gross cross-section is estimated as:")
-    st.latex(
-        rf"N_{{pl,Rd}} = \frac{{A f_y}}{{\gamma_{{M0}}}}"
-        rf" = {A_mm2:.1f}\,\text{{mm}}^2 \cdot {fy:.0f}\,\text{{MPa}}"
-        rf" / {gamma_M0:.2f}"
-        rf" = {Npl_Rd_kN:.3f}\,\text{{kN}}"
-    )
-    
-    st.markdown("Hence the utilisation for the tension verification is:")
-    st.latex(
-        rf"u = \frac{{N_{{Ed}}}}{{N_{{pl,Rd}}}}"
-        rf" = \frac{{{NEd_ten_kN:.3f}}}{{{Npl_Rd_kN:.3f}}}"
-        rf" = {u_ten_str} \le 1.0"
-        rf" \Rightarrow \mathbf{{{status_ten}}}."
-    )
 
+    if Npl_Rd_kN > 0.0:
+        st.markdown(
+            "The plastic tension resistance of the gross cross-section is estimated as:"
+        )
+        st.latex(
+            rf"N_{{pl,Rd}} = \frac{{A f_y}}{{\gamma_{{M0}}}}"
+            rf" = {A_mm2:.1f}\,\text{{mm}}^2 \cdot {fy:.0f}\,\text{{MPa}}"
+            rf" / {gamma_M0:.2f}"
+            rf" = {Npl_Rd_kN:.3f}\,\text{{kN}}"
+        )
+
+        st.markdown("Hence the utilisation for the tension verification is:")
+        st.latex(
+            rf"u = \frac{{N_{{Ed}}}}{{N_{{pl,Rd}}}}"
+            rf" = \frac{{{NEd_ten_kN:.3f}}}{{{Npl_Rd_kN:.3f}}}"
+            rf" = {u_ten_str} \le 1.0"
+            rf" \Rightarrow \mathbf{{{status_ten}}}."
+        )
     else:
         st.markdown(
-            "Tension resistance could not be evaluated because cross-section area or material data "
-            "is missing in the DB."
+            "Tension resistance could not be evaluated because cross-section area or "
+            "material data is missing in the DB."
         )
 
     st.caption(
         "Net-section tension per EN 1993-1-1 §6.2.3(2)b) (holes, openings) "
         "is not yet implemented in this prototype."
     )
+
 
         # 6.1.b Detailed explanation for check (2) Compression
     st.markdown("#### (2) Compression – EN 1993-1-1 §6.2.4")
@@ -3758,6 +3751,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
