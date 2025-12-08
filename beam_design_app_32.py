@@ -3269,6 +3269,69 @@ def render_report_tab():
         "is not yet implemented in this prototype."
     )
 
+        # 6.1.b Detailed explanation for check (2) Compression
+    st.markdown("#### (2) Compression – EN 1993-1-1 §6.2.4")
+
+    # design compressive axial force (take magnitude of N < 0)
+    if N_kN < 0.0:
+        NEd_comp_kN = -N_kN
+    else:
+        NEd_comp_kN = 0.0
+
+    # compression resistance (class 1–3): Nc,Rd = A fy / γM0
+    Nc_Rd_kN = Npl_Rd_kN  # same expression for gross section
+
+    # utilisation u = NEd / Nc,Rd from our own numbers
+    if Nc_Rd_kN > 0.0 and NEd_comp_kN > 0.0:
+        u_comp = NEd_comp_kN / Nc_Rd_kN
+        u_comp_str = f"{u_comp:.3f}"
+    else:
+        u_comp = None
+        u_comp_str = "n/a"
+
+    # status from results table row "Compression (N<0)"
+    status_comp = "n/a"
+    try:
+        row_comp = df_rows[df_rows["Check"] == "Compression (N<0)"]
+        if not row_comp.empty:
+            status_comp = str(row_comp.iloc[0]["Status"])
+            # if you want, you can also overwrite u_comp_str from the table
+    except Exception:
+        pass
+
+    # --- text + equations in math format ---
+    st.markdown(
+        "The critical cross-section is verified for compressive axial force "
+        "in accordance with EN 1993-1-1 §6.2.4:"
+    )
+    st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} \le 1.0")
+
+    st.markdown("Design compressive axial force (compression taken as negative in the global sign convention):")
+    st.latex(rf"N_{{Ed}} = {NEd_comp_kN:.3f}\,\text{{kN}}")
+
+    if Nc_Rd_kN > 0.0:
+        st.markdown("Compression resistance of the gross cross-section (class 1–3):")
+        st.latex(
+            rf"N_{{c,Rd}} = \frac{{A f_y}}{{\gamma_{{M0}}}}"
+            rf" = {A_mm2:.1f}\,\text{{mm}}^2 \cdot {fy:.0f}\,\text{{MPa}}"
+            rf" / {gamma_M0:.2f}"
+            rf" = {Nc_Rd_kN:.3f}\,\text{{kN}}"
+        )
+
+        if u_comp is not None:
+            st.markdown("Therefore the utilisation for the compression verification is:")
+            st.latex(
+                rf"u = \frac{{N_{{Ed}}}}{{N_{{c,Rd}}}}"
+                rf" = \frac{{{NEd_comp_kN:.3f}}}{{{Nc_Rd_kN:.3f}}}"
+                rf" = {u_comp_str} \le 1.0"
+                rf" \Rightarrow \mathbf{{{status_comp}}}."
+            )
+    else:
+        st.markdown(
+            "Compression resistance could not be evaluated because cross-section area "
+            "or material data is missing in the DB."
+        )
+
     st.markdown("### 6.2 Detailed checks table (1–14)")
     def _hl(row):
         s = row.get("Status", "")
@@ -3697,6 +3760,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
