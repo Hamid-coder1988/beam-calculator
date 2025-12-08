@@ -3143,11 +3143,22 @@ def render_report_tab():
             key="rpt_R2",
         )
 
-    d1, d2, d3 = st.columns(3)
+    # Second row: deflection summary (4 columns for consistent layout)
+    d1, d2, d3, d4 = st.columns(4)
+
+    # Deflection ratio L / δ_max
     if L > 0 and delta_max_mm not in (None, 0.0):
         L_over_w = (L * 1000.0) / abs(delta_max_mm) if delta_max_mm != 0 else None
     else:
         L_over_w = None
+
+    # Optional serviceability limit L/300 from diagrams (if available)
+    diag_summary = st.session_state.get("diag_summary")
+    if diag_summary and diag_summary.get("limit_L300") is not None:
+        limit_L300 = diag_summary.get("limit_L300")
+        limit_L300_str = f"{limit_L300:.3f}"
+    else:
+        limit_L300_str = "n/a"
 
     with d1:
         st.text_input(
@@ -3169,6 +3180,13 @@ def render_report_tab():
             value=f"{L_over_w:.1f}" if L_over_w is not None else "n/a",
             disabled=True,
             key="rpt_L_over_w",
+        )
+    with d4:
+        st.text_input(
+            "Limit L/300 [mm]",
+            value=limit_L300_str,
+            disabled=True,
+            key="rpt_L300_limit_mm",
         )
 
     st.markdown("---")
@@ -3751,6 +3769,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
