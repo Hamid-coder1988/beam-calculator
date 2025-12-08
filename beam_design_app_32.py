@@ -1780,6 +1780,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         status = "OK" if abs(N_N) <= N_b_Rd_N else "EXCEEDS"
         buck_results.append((axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status))
 
+    # --- Axial summary based on N and buckling results ---
     N_b_Rd_min_N = min([r[4] for r in buck_results if r[4]], default=None)
     compression_resistance_N = N_b_Rd_min_N if N_b_Rd_min_N else N_Rd_N
 
@@ -1789,16 +1790,13 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         util = abs(applied) / resistance
         return ("OK" if util <= 1.0 else "EXCEEDS", util)
 
-    # --- Axial summary based on sign of N ---
-    # Compression (N < 0) – use magnitude
+    # Compression (N < 0) – use magnitude, show negative in table
     applied_comp_N = -N_N if N_N < 0 else 0.0
     status_comp, util_comp = status_and_util(applied_comp_N, compression_resistance_N)
     rows.append({
         "Check":      "Compression (N<0)",
-        # show compressive force as negative in kN
-        "Applied":    f"{-applied_comp_N/1e3:.3f} kN",
+        "Applied":    f"{-applied_comp_N/1e3:.3f} kN",   # negative in kN
         "Resistance": f"{compression_resistance_N/1e3:.3f} kN",
-        # show 0.000 when there is no compression, only "n/a" if resistance is missing
         "Utilization": f"{util_comp:.3f}" if util_comp is not None else "n/a",
         "Status":      status_comp,
     })
@@ -3762,3 +3760,4 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
