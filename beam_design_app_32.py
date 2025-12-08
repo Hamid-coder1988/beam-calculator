@@ -3156,9 +3156,9 @@ def render_report_tab():
     diag_summary = st.session_state.get("diag_summary")
     if diag_summary and diag_summary.get("limit_L300") is not None:
         limit_L300 = diag_summary.get("limit_L300")
-        limit_L300_str = f"{limit_L300:.3f}"
+        limit_L600_str = f"{limit_L300:.3f}"
     else:
-        limit_L300_str = "n/a"
+        limit_L600_str = "n/a"
 
     with d1:
         st.text_input(
@@ -3183,10 +3183,10 @@ def render_report_tab():
         )
     with d4:
         st.text_input(
-            "Limit L/300 [mm]",
-            value=limit_L300_str,
+            "Limit L/600 [mm]",
+            value=limit_L600_str,
             disabled=True,
-            key="rpt_L300_limit_mm",
+            key="rpt_L600_limit_mm",
         )
 
     st.markdown("---")
@@ -3769,6 +3769,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
