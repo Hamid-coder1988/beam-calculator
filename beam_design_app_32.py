@@ -1993,7 +1993,7 @@ def render_results(df_rows, overall_ok, governing):
         ten_row = df_rows.loc["Tension (N≥0)"]
         cs_util[0] = ten_row.get("Utilization", "")
         cs_status[0] = ten_row.get("Status", "")
-            # 2) Compression row: "N (compression)" ← "Compression (N<0)" from df_rows
+     # 2) Compression row: "N (compression)" ← "Compression (N<0)" from df_rows
     if df_rows is not None and "Compression (N<0)" in df_rows.index:
         comp_row = df_rows.loc["Compression (N<0)"]
         cs_util[1] = comp_row.get("Utilization", "")
@@ -3328,8 +3328,10 @@ def render_report_tab():
         )
 
     st.markdown("### 6.2 Detailed checks table (1–14)")
+    # Row-highlighting for detailed check table
     def _hl(row):
-        s = row.get("Status", "")
+        # make sure we pull a scalar, not a Series
+        s = row["Status"] if "Status" in row.index else ""
         if s == "OK":
             color = "background-color: #e6f7e6"
         elif s == "EXCEEDS":
@@ -3338,7 +3340,12 @@ def render_report_tab():
             color = "background-color: #f0f0f0"
         return [color] * len(row)
 
-    st.write(df_rows.style.apply(_hl, axis=1))
+    # Be defensive: if styling fails, fall back to plain table
+    try:
+        st.write(df_rows.style.apply(_hl, axis=1))
+    except Exception as e:
+        st.write(df_rows)
+        st.caption(f"(Row colouring disabled due to an internal error: {e})")
 
     # 6.3 Explanations & formulas (expander, with LaTeX)
     with st.expander("6.3 Eurocode formulas for cross-section checks (1–14)", expanded=False):
@@ -3755,62 +3762,3 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
