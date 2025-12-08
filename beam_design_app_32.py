@@ -1993,6 +1993,11 @@ def render_results(df_rows, overall_ok, governing):
         ten_row = df_rows.loc["Tension (N≥0)"]
         cs_util[0] = ten_row.get("Utilization", "")
         cs_status[0] = ten_row.get("Status", "")
+            # 2) Compression row: "N (compression)" ← "Compression (N<0)" from df_rows
+    if df_rows is not None and "Compression (N<0)" in df_rows.index:
+        comp_row = df_rows.loc["Compression (N<0)"]
+        cs_util[1] = comp_row.get("Utilization", "")
+        cs_status[1] = comp_row.get("Status", "")
     # -------------------------------------------------
     # Helper to build one nice looking table
     # -------------------------------------------------
@@ -3750,6 +3755,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
