@@ -3183,10 +3183,10 @@ def render_report_tab():
         )
     with d4:
         st.text_input(
-            "Limit L/600 [mm]",
-            value=limit_L600_str,
+            "Limit L/300 [mm]",
+            value=limit_L300_str,
             disabled=True,
-            key="rpt_L600_limit_mm",
+            key="rpt_L300_limit_mm",
         )
 
     st.markdown("---")
@@ -3769,6 +3769,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
