@@ -1780,7 +1780,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         status = "OK" if abs(N_N) <= N_b_Rd_N else "EXCEEDS"
         buck_results.append((axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status))
 
-    # --- Axial summary based on N and buckling results ---
     N_b_Rd_min_N = min([r[4] for r in buck_results if r[4]], default=None)
     compression_resistance_N = N_b_Rd_min_N if N_b_Rd_min_N else N_Rd_N
 
@@ -1790,38 +1789,29 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         util = abs(applied) / resistance
         return ("OK" if util <= 1.0 else "EXCEEDS", util)
 
-    # Compression (N < 0) – use magnitude, show negative in table
-    applied_comp_N = -N_N if N_N < 0 else 0.0
-    status_comp, util_comp = status_and_util(applied_comp_N, compression_resistance_N)
-    rows.append({
-        "Check":      "Compression (N<0)",
-        "Applied":    f"{-applied_comp_N/1e3:.3f} kN",   # negative in kN
-        "Resistance": f"{compression_resistance_N/1e3:.3f} kN",
-        "Utilization": f"{util_comp:.3f}" if util_comp is not None else "n/a",
-        "Status":      status_comp,
-    })
+    rows = []
 
-    # Tension (N > 0)
-    applied_tension_N = N_N if N_N > 0 else 0.0
+    applied_N = N_N if N_N >= 0 else 0.0
+    status_comp, util_comp = status_and_util(applied_N, compression_resistance_N)
+    rows.append({"Check":"Compression (N<0)","Applied":f"{applied_N/1e3:.3f} kN",
+                 "Resistance":f"{compression_resistance_N/1e3:.3f} kN",
+                 "Utilization":f"{util_comp:.3f}" if util_comp else "n/a",
+                 "Status":status_comp})
+
+    applied_tension_N = -N_N if N_N < 0 else 0.0
     status_ten, util_ten = status_and_util(applied_tension_N, T_Rd_N)
-    rows.append({
-        "Check":      "Tension (N≥0)",
-        "Applied":    f"{applied_tension_N/1e3:.3f} kN",
-        "Resistance": f"{T_Rd_N/1e3:.3f} kN",
-        "Utilization": f"{util_ten:.3f}" if util_ten is not None else "n/a",
-        "Status":      status_ten,
-    })
+    rows.append({"Check":"Tension (N≥0)","Applied":f"{applied_tension_N/1e3:.3f} kN",
+                 "Resistance":f"{T_Rd_N/1e3:.3f} kN",
+                 "Utilization":f"{util_ten:.3f}" if util_ten else "n/a",
+                 "Status":status_ten})
 
-    # Resultant shear
     applied_shear_N = math.sqrt(Vy_N**2 + Vz_N**2)
     status_shear, util_shear = status_and_util(applied_shear_N, V_Rd_N)
-    rows.append({
-        "Check":      "Shear (resultant Vy & Vz)",
-        "Applied":    f"{applied_shear_N/1e3:.3f} kN",
-        "Resistance": f"{V_Rd_N/1e3:.3f} kN",
-        "Utilization": f"{util_shear:.3f}" if util_shear is not None else "n/a",
-        "Status":      status_shear,
-    })
+    rows.append({"Check":"Shear (resultant Vy & Vz)","Applied":f"{applied_shear_N/1e3:.3f} kN",
+                 "Resistance":f"{V_Rd_N/1e3:.3f} kN",
+                 "Utilization":f"{util_shear:.3f}" if util_shear else "n/a",
+                 "Status":status_shear})
+
 
     rows.append({"Check":"Bending y-y (σ_by)","Applied":f"{sigma_by_Pa/1e6:.3f} MPa",
                  "Resistance":f"{sigma_allow_MPa:.3f} MPa",
@@ -3762,5 +3752,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
