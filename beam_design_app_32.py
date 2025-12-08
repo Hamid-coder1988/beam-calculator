@@ -3266,7 +3266,7 @@ def render_report_tab():
     Nc_Rd_kN = Npl_Rd_kN  # same expression for gross section
 
     # utilisation u = NEd / Nc,Rd from our own numbers
-    if Nc_Rd_kN > 0.0 and NEd_comp_kN > 0.0:
+    if Nc_Rd_kN > 0.0:
         u_comp = NEd_comp_kN / Nc_Rd_kN
         u_comp_str = f"{u_comp:.3f}"
     else:
@@ -3751,6 +3751,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
