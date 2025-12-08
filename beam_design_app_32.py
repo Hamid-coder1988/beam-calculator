@@ -1789,17 +1789,16 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         util = abs(applied) / resistance
         return ("OK" if util <= 1.0 else "EXCEEDS", util)
 
-    # --- Summary rows for axial & shear using buckling resistance ---
-    rows = []
-
-    # Compression (N < 0) – use buckling-based compression resistance
-    applied_comp_N = -N_N if N_N < 0 else 0.0  # positive magnitude in compression
+    # --- Axial summary based on sign of N ---
+    # Compression (N < 0) – use magnitude
+    applied_comp_N = -N_N if N_N < 0 else 0.0
     status_comp, util_comp = status_and_util(applied_comp_N, compression_resistance_N)
     rows.append({
         "Check":      "Compression (N<0)",
-        # show it as negative in kN
+        # show compressive force as negative in kN
         "Applied":    f"{-applied_comp_N/1e3:.3f} kN",
         "Resistance": f"{compression_resistance_N/1e3:.3f} kN",
+        # show 0.000 when there is no compression, only "n/a" if resistance is missing
         "Utilization": f"{util_comp:.3f}" if util_comp is not None else "n/a",
         "Status":      status_comp,
     })
@@ -3751,6 +3750,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
