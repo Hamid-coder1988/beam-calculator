@@ -2959,7 +2959,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 2. Material design values (EN 1993-1-1)
     # ----------------------------------------------------
-    st.markdown("## 2. Material design values (EN 1993-1-1)")
+    report_h3(2. Material design values (EN 1993-1-1)")
 
     eps = (235.0 / fy) ** 0.5 if fy > 0 else None
     fy_over_gM0 = fy / 1.0 if fy is not None else None
@@ -3022,10 +3022,10 @@ def render_report_tab():
     # ----------------------------------------------------
     # 3. Member & section data
     # ----------------------------------------------------
-    st.markdown("## 3. Member & section data")
+   report_h3("3. Member & section data")
 
     # 3.1 Member inputs
-    st.markdown("### 3.1 Member definition")
+    report_h4("3.1 Member definition")
 
     ready_case = st.session_state.get("ready_selected_case")
     member_type = "Standard member"
@@ -3046,7 +3046,7 @@ def render_report_tab():
         st.number_input("LT buckling length L_LT [m]", value=float(Leff_LT), disabled=True, key="rpt_Leff_LT")
 
     # 3.2 Section data
-    st.markdown("### 3.2 Section data")
+    report_h4("3.2 Section data")
 
     cs1, cs2 = st.columns(2)
     with cs1:
@@ -3074,7 +3074,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 4. Section classification (EN 1993-1-1 §5.5)
     # ----------------------------------------------------
-    st.markdown("## 4. Section classification (EN 1993-1-1 §5.5)")
+    report_h3("4. Section classification (EN 1993-1-1 §5.5)")
 
     flange_class = sr_display.get("flange_class_db", "n/a")
     web_class_b = sr_display.get("web_class_bending_db", "n/a")
@@ -3132,7 +3132,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 5.2 Deflection summary
     # ----------------------------------------------------
-    st.markdown("### 5.2 Deflection summary")
+    report_h4("5.2 Deflection summary")
 
     L_mm = L * 1000 if L > 0 else 0
     L_over_w = (L_mm / abs(delta_max_mm)) if (L_mm > 0 and delta_max_mm not in (None,0)) else None
@@ -3162,7 +3162,7 @@ def render_report_tab():
     st.markdown("---")
 
     # 6.1.a Detailed explanation for check (1) Tension
-    st.markdown("#### (1) Tension – EN 1993-1-1 §6.2.3")
+    report_h4("(1) Tension – EN 1993-1-1 §6.2.3")
 
     # Get section area and material
     A_mm2 = float(sr_display.get("A_mm2", 0.0))  # from DB
@@ -3242,7 +3242,7 @@ def render_report_tab():
 
 
         # 6.1.b Detailed explanation for check (2) Compression
-    st.markdown("#### (2) Compression – EN 1993-1-1 §6.2.4")
+    report_h4("(2) Compression – EN 1993-1-1 §6.2.4")
 
     # design compressive axial force (take magnitude of N < 0)
     if N_kN < 0.0:
@@ -3361,7 +3361,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 7. Member stability (buckling)
     # ----------------------------------------------------
-    st.markdown("## 7. Member stability (buckling)")
+    report_h3("7. Member stability (buckling)")
 
     st.markdown("### 7.1 Buckling summary table")
     buck_data = []
@@ -3428,7 +3428,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 8. References
     # ----------------------------------------------------
-    st.markdown("## 8. References")
+    report_h3("8. References")
 
     st.markdown(
         """
@@ -3739,6 +3739,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
