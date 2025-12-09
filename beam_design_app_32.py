@@ -2959,7 +2959,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 2. Material design values (EN 1993-1-1)
     # ----------------------------------------------------
-    report_h3(2. Material design values (EN 1993-1-1)")
+    report_h3("2. Material design values (EN 1993-1-1)")
 
     eps = (235.0 / fy) ** 0.5 if fy > 0 else None
     fy_over_gM0 = fy / 1.0 if fy is not None else None
@@ -3739,6 +3739,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
