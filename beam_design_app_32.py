@@ -3089,77 +3089,55 @@ def render_report_tab():
 
     st.markdown("---")
 
-    # ----------------------------------------------------
+        # ----------------------------------------------------
     # 5. Applied actions & internal forces (ULS)
     # ----------------------------------------------------
     st.markdown("## 5. Applied actions & internal forces (ULS)")
 
-    # 5.1 Load input (as entered)
-    st.markdown("### 5.1 Load input (ULS)")
+    # 5.1 Design forces & moments (ULS) — INPUT
+    st.markdown("### 5.1 Design forces & moments (ULS) — INPUT")
 
     if ready_case:
         st.write(f"Load case type: **{ready_case.get('key','')} — {ready_case.get('label','')}**")
     else:
         st.write("Load case type: **User-defined**")
 
+    # Design internal forces as entered in Loads tab
     st.write(
-        f"N = {inputs.get('N_kN', 0.0):.3f} kN, "
-        f"Vy = {inputs.get('Vy_kN', 0.0):.3f} kN, "
-        f"Vz = {inputs.get('Vz_kN', 0.0):.3f} kN, "
-        f"My = {inputs.get('My_kNm', 0.0):.3f} kNm, "
-        f"Mz = {inputs.get('Mz_kNm', 0.0):.3f} kNm"
+        f"N_Ed = {inputs.get('N_kN', 0.0):.3f} kN, "
+        f"Vy_Ed = {inputs.get('Vy_kN', 0.0):.3f} kN, "
+        f"Vz_Ed = {inputs.get('Vz_kN', 0.0):.3f} kN, "
+        f"My_Ed = {inputs.get('My_kNm', 0.0):.3f} kNm, "
+        f"Mz_Ed = {inputs.get('Mz_kNm', 0.0):.3f} kNm"
     )
 
-    # 5.2 Internal forces results
-    st.markdown("### 5.2 Internal forces & deflection summary")
+    # 5.2 Deflection summary
+    st.markdown("### 5.2 Deflection summary")
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.text_input(
-            "V_max [kN]",
-            value=f"{Vmax:.3f}" if Vmax is not None else "n/a",
-            disabled=True,
-            key="rpt_Vmax",
-        )
-    with c2:
-        st.text_input(
-            "M_max [kN·m]",
-            value=f"{Mmax:.3f}" if Mmax is not None else "n/a",
-            disabled=True,
-            key="rpt_Mmax",
-        )
-    with c3:
-        st.text_input(
-            "R_A support [kN]",
-            value=f"{R1:.3f}" if R1 is not None else "n/a",
-            disabled=True,
-            key="rpt_R1",
-        )
-    with c4:
-        st.text_input(
-            "R_B support [kN]",
-            value=f"{R2:.3f}" if R2 is not None else "n/a",
-            disabled=True,
-            key="rpt_R2",
-        )
-
-    # Second row: deflection summary (4 columns for consistent layout)
-    d1, d2, d3, d4 = st.columns(4)
+    # Span in mm
+    L_mm = L * 1000.0 if L > 0 else 0.0
 
     # Deflection ratio L / δ_max
     if L > 0 and delta_max_mm not in (None, 0.0):
-        L_over_w = (L * 1000.0) / abs(delta_max_mm) if delta_max_mm != 0 else None
+        L_over_w = L_mm / abs(delta_max_mm)
     else:
         L_over_w = None
 
-    # Optional serviceability limit L/300 from diagrams (if available)
-    diag_summary = st.session_state.get("diag_summary")
-    if diag_summary and diag_summary.get("limit_L300") is not None:
-        limit_L300 = diag_summary.get("limit_L300")
-        limit_L600_str = f"{limit_L300:.3f}"
+    # Deflection criteria in mm: L/300, L/600, L/900
+    if L > 0:
+        limit_L300_mm = L_mm / 300.0
+        limit_L600_mm = L_mm / 600.0
+        limit_L900_mm = L_mm / 900.0
+        limit_L300_str = f"{limit_L300_mm:.3f}"
+        limit_L600_str = f"{limit_L600_mm:.3f}"
+        limit_L900_str = f"{limit_L900_mm:.3f}"
     else:
+        limit_L300_str = "n/a"
         limit_L600_str = "n/a"
+        limit_L900_str = "n/a"
 
+    # First row: deflection and three criteria
+    d1, d2, d3, d4 = st.columns(4)
     with d1:
         st.text_input(
             "δ_max [mm]",
@@ -3169,29 +3147,46 @@ def render_report_tab():
         )
     with d2:
         st.text_input(
-            "Span L [mm]",
-            value=f"{L*1000.0:.1f}" if L > 0 else "n/a",
+            "Limit L/300 [mm]",
+            value=limit_L300_str,
             disabled=True,
-            key="rpt_Lmm",
+            key="rpt_L300_limit_mm",
         )
     with d3:
-        st.text_input(
-            "Deflection ratio L / δ_max",
-            value=f"{L_over_w:.1f}" if L_over_w is not None else "n/a",
-            disabled=True,
-            key="rpt_L_over_w",
-        )
-    with d4:
         st.text_input(
             "Limit L/600 [mm]",
             value=limit_L600_str,
             disabled=True,
             key="rpt_L600_limit_mm",
         )
+    with d4:
+        st.text_input(
+            "Limit L/900 [mm]",
+            value=limit_L900_str,
+            disabled=True,
+            key="rpt_L900_limit_mm",
+        )
+
+    # Second row: span and ratio
+    e1, e2 = st.columns(2)
+    with e1:
+        st.text_input(
+            "Span L [mm]",
+            value=f"{L_mm:.1f}" if L > 0 else "n/a",
+            disabled=True,
+            key="rpt_Lmm",
+        )
+    with e2:
+        st.text_input(
+            "Deflection ratio L / δ_max",
+            value=f"{L_over_w:.1f}" if L_over_w is not None else "n/a",
+            disabled=True,
+            key="rpt_L_over_w",
+        )
 
     st.markdown("---")
 
-        # 6.1.a Detailed explanation for check (1) Tension
+    # 6.1.a Detailed explanation for check (1) Tension
     st.markdown("#### (1) Tension – EN 1993-1-1 §6.2.3")
 
     # Get section area and material
@@ -3769,6 +3764,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
