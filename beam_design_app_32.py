@@ -3097,19 +3097,52 @@ def render_report_tab():
     # 5.1 Design forces & moments (ULS) — INPUT
     st.markdown("### 5.1 Design forces & moments (ULS) — INPUT")
 
+    # Load case label
     if ready_case:
         st.write(f"Load case type: **{ready_case.get('key','')} — {ready_case.get('label','')}**")
     else:
         st.write("Load case type: **User-defined**")
 
-    # Design internal forces as entered in Loads tab
-    st.write(
-        f"N_Ed = {inputs.get('N_kN', 0.0):.3f} kN, "
-        f"Vy_Ed = {inputs.get('Vy_kN', 0.0):.3f} kN, "
-        f"Vz_Ed = {inputs.get('Vz_kN', 0.0):.3f} kN, "
-        f"My_Ed = {inputs.get('My_kNm', 0.0):.3f} kNm, "
-        f"Mz_Ed = {inputs.get('Mz_kNm', 0.0):.3f} kNm"
-    )
+    # First row: axial + shears
+    f1, f2, f3 = st.columns(3)
+    with f1:
+        st.text_input(
+            "N_Ed [kN]",
+            value=f"{inputs.get('N_kN', 0.0):.3f}",
+            disabled=True,
+            key="rpt_N_Ed",
+        )
+    with f2:
+        st.text_input(
+            "Vy_Ed [kN]",
+            value=f"{inputs.get('Vy_kN', 0.0):.3f}",
+            disabled=True,
+            key="rpt_Vy_Ed",
+        )
+    with f3:
+        st.text_input(
+            "Vz_Ed [kN]",
+            value=f"{inputs.get('Vz_kN', 0.0):.3f}",
+            disabled=True,
+            key="rpt_Vz_Ed",
+        )
+
+    # Second row: bending moments
+    g1, g2 = st.columns(2)
+    with g1:
+        st.text_input(
+            "My_Ed [kNm]",
+            value=f"{inputs.get('My_kNm', 0.0):.3f}",
+            disabled=True,
+            key="rpt_My_Ed",
+        )
+    with g2:
+        st.text_input(
+            "Mz_Ed [kNm]",
+            value=f"{inputs.get('Mz_kNm', 0.0):.3f}",
+            disabled=True,
+            key="rpt_Mz_Ed",
+        )
 
     # 5.2 Deflection summary
     st.markdown("### 5.2 Deflection summary")
@@ -3764,6 +3797,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
