@@ -136,6 +136,38 @@ SAMPLE_ROWS = [
     }
 ]
 
+@st.cache_data(show_spinner=False)
+def run_sql(sql, params=None):
+    """
+    Execute a SQL query using psycopg2 and return (df, err).
+
+    - df  : pandas.DataFrame with the result (or None on error)
+    - err : None if OK, or string with error message
+    """
+    if not HAS_PG:
+        return None, "Postgres driver not available (HAS_PG = False)"
+
+    conn = None
+    cur = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(sql, params or ())
+        # If the query returns rows
+        if cur.description:
+            cols = [c[0] for c in cur.description]
+            rows = cur.fetchall()
+            df = pd.DataFrame(rows, columns=cols)
+        else:
+            df = pd.DataFrame()
+        return df, None
+    except Exception as e:
+        return None, str(e)
+    finally:
+        if cur is not None:
+            cur.close()
+        if conn is not None:
+            conn.close()
 
 # =========================================================
 # DB INSPECTION HELPERS
@@ -3919,6 +3951,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
