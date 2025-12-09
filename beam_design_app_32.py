@@ -3090,6 +3090,7 @@ def render_report_tab():
     st.markdown("---")
 
         # ----------------------------------------------------
+    # ----------------------------------------------------
     # 5. Applied actions & internal forces (ULS)
     # ----------------------------------------------------
     st.markdown("## 5. Applied actions & internal forces (ULS)")
@@ -3099,12 +3100,12 @@ def render_report_tab():
 
     # Load case label
     if ready_case:
-        st.write(f"Load case type: **{ready_case.get('key','')} — {ready_case.get('label','')}**")
+        st.write(f"Load case type: **{ready_case.get('key', '')} — {ready_case.get('label', '')}**")
     else:
         st.write("Load case type: **User-defined**")
 
-    # First row: axial + shears
-    f1, f2, f3 = st.columns(3)
+    # Row 1: 4 boxes (N, Vy, Vz, My)
+    f1, f2, f3, f4 = st.columns(4)
     with f1:
         st.text_input(
             "N_Ed [kN]",
@@ -3126,23 +3127,24 @@ def render_report_tab():
             disabled=True,
             key="rpt_Vz_Ed",
         )
-
-    # Second row: bending moments
-    g1, g2 = st.columns(2)
-    with g1:
+    with f4:
         st.text_input(
             "My_Ed [kNm]",
             value=f"{inputs.get('My_kNm', 0.0):.3f}",
             disabled=True,
             key="rpt_My_Ed",
         )
-    with g2:
+
+    # Row 2: still 4 columns, but only first one used (Mz_Ed)
+    g1, g2, g3, g4 = st.columns(4)
+    with g1:
         st.text_input(
             "Mz_Ed [kNm]",
             value=f"{inputs.get('Mz_kNm', 0.0):.3f}",
             disabled=True,
             key="rpt_Mz_Ed",
         )
+    # g2, g3, g4 intentionally left empty to keep 4-column layout
 
     # 5.2 Deflection summary
     st.markdown("### 5.2 Deflection summary")
@@ -3169,7 +3171,7 @@ def render_report_tab():
         limit_L600_str = "n/a"
         limit_L900_str = "n/a"
 
-    # First row: deflection and three criteria
+    # Row 1: 4 boxes (δ_max, L/300, L/600, L/900)
     d1, d2, d3, d4 = st.columns(4)
     with d1:
         st.text_input(
@@ -3200,8 +3202,8 @@ def render_report_tab():
             key="rpt_L900_limit_mm",
         )
 
-    # Second row: span and ratio
-    e1, e2 = st.columns(2)
+    # Row 2: 4 columns; we use first two (L and L/δ_max) and keep grid 4-wide
+    e1, e2, e3, e4 = st.columns(4)
     with e1:
         st.text_input(
             "Span L [mm]",
@@ -3216,6 +3218,7 @@ def render_report_tab():
             disabled=True,
             key="rpt_L_over_w",
         )
+    # e3, e4 left empty on purpose for symmetry
 
     st.markdown("---")
 
@@ -3797,6 +3800,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
