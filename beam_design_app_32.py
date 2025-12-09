@@ -3022,7 +3022,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 3. Member & section data
     # ----------------------------------------------------
-   report_h3("3. Member & section data")
+    report_h3("3. Member & section data")
 
     # 3.1 Member inputs
     report_h4("3.1 Member definition")
@@ -3739,6 +3739,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
