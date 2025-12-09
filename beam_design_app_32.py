@@ -87,24 +87,12 @@ def get_conn():
 def report_h3(title):
     st.markdown(
         f"""
-        <h3 style='
+        <div style='
             font-weight:600;
+            font-size:1.25rem;
             margin-top:25px;
             margin-bottom:12px;
-        '>{title}</h3>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-def report_h4(title):
-    st.markdown(
-        f"""
-        <h4 style='
-            font-weight:500;
-            margin-top:15px;
-            margin-bottom:8px;
-        '>{title}</h4>
+        '>{title}</div>
         """,
         unsafe_allow_html=True
     )
@@ -112,14 +100,16 @@ def report_h4(title):
 def report_h4(title):
     st.markdown(
         f"""
-        <h4 style='
-            font-weight:500;
-            margin-top:15px;
+        <div style='
+            font-weight:550;
+            font-size:1.05rem;
+            margin-top:18px;
             margin-bottom:8px;
-        '>{title}</h4>
+        '>{title}</div>
         """,
         unsafe_allow_html=True
     )
+
 # =========================================================
 # GLOBAL SAFETY FACTORS (EN 1993)
 # =========================================================
@@ -3749,6 +3739,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
