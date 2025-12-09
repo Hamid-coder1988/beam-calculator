@@ -1769,7 +1769,39 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Utilization": f"{util_comp:.3f}",
         "Status":      status_comp,
     })
-
+    # ---- (3) Bending major-axis y-y ----
+    rows.append({
+        "Check": "(3) Bending My (major)",
+        "Applied": f"{My_Ed_kNm:.3f} kNm",
+        "Resistance": f"{Mc_y_Rd_kNm:.3f} kNm",
+        "Utilization": f"{util_My:.3f}" if util_My is not None else "n/a",
+        "Status": status_My,
+    })
+    # ---- (4) Bending minor-axis z-z ----
+    rows.append({
+        "Check": "(4) Bending Mz (minor)",
+        "Applied": f"{Mz_Ed_kNm:.3f} kNm",
+        "Resistance": f"{Mc_z_Rd_kNm:.3f} kNm",
+        "Utilization": f"{util_Mz:.3f}" if util_Mz is not None else "n/a",
+        "Status": status_Mz,
+    })
+    # ---- (5) Shear Vz (z-axis) ----
+    rows.append({
+        "Check": "(5) Shear Vz (z-axis)",
+        "Applied": f"{Vz_Ed_kN:.3f} kN",
+        "Resistance": f"{Vc_z_Rd_kN:.3f} kN",
+        "Utilization": f"{util_Vz:.3f}" if util_Vz is not None else "n/a",
+        "Status": status_Vz,
+    })
+    # ---- (6) Shear Vy (y-axis) ----
+    rows.append({
+        "Check": "(6) Shear Vy (y-axis)",
+        "Applied": f"{Vy_Ed_kN:.3f} kN",
+        "Resistance": f"{Vc_y_Rd_kN:.3f} kN",
+        "Utilization": f"{util_Vy:.3f}" if util_Vy is not None else "n/a",
+        "Status": status_Vy,
+    })
+    
     # Buckling simplified
     E = 210e9
     buck_results = []
@@ -1995,6 +2027,55 @@ def render_results(df_rows, overall_ok, governing):
         comp_row = df_rows.loc["Compression (N<0)"]
         cs_util[1] = comp_row.get("Utilization", "")
         cs_status[1] = comp_row.get("Status", "")
+    # --- (3) Bending major-axis y-y ---
+    if Wpl_y_mm3 > 0 and fy > 0:
+        Mc_y_Rd_kNm = (Wpl_y_mm3 * fy / gamma_M0) / 1e6  # mm3*MPa → Nmm → kNm
+    else:
+        Mc_y_Rd_kNm = 0.0
+    
+    if Mc_y_Rd_kNm > 0:
+        util_My = My_Ed_kNm / Mc_y_Rd_kNm
+        status_My = "OK" if util_My <= 1.0 else "NOT OK"
+    else:
+        util_My = None
+        status_My = "n/a"
+    # --- (4) Bending minor-axis z-z ---
+    if Wpl_z_mm3 > 0 and fy > 0:
+        Mc_z_Rd_kNm = (Wpl_z_mm3 * fy / gamma_M0) / 1e6
+    else:
+        Mc_z_Rd_kNm = 0.0
+    
+    if Mc_z_Rd_kNm > 0:
+        util_Mz = Mz_Ed_kNm / Mc_z_Rd_kNm
+        status_Mz = "OK" if util_Mz <= 1.0 else "NOT OK"
+    else:
+        util_Mz = None
+        status_Mz = "n/a"
+
+    # --- (4) Bending minor-axis z-z ---
+    if Wpl_z_mm3 > 0 and fy > 0:
+        Mc_z_Rd_kNm = (Wpl_z_mm3 * fy / gamma_M0) / 1e6
+    else:
+        Mc_z_Rd_kNm = 0.0
+    
+    if Mc_z_Rd_kNm > 0:
+        util_Mz = Mz_Ed_kNm / Mc_z_Rd_kNm
+        status_Mz = "OK" if util_Mz <= 1.0 else "NOT OK"
+    else:
+        util_Mz = None
+        status_Mz = "n/a"
+    # --- (6) Shear along y-y ---
+    if Av_y_mm2 > 0 and fy > 0:
+        Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1000.0
+    else:
+        Vc_y_Rd_kN = 0.0
+    
+    if Vc_y_Rd_kN > 0:
+        util_Vy = Vy_Ed_kN / Vc_y_Rd_kN
+        status_Vy = "OK" if util_Vy <= 1.0 else "NOT OK"
+    else:
+        util_Vy = None
+        status_Vy = "n/a"
 
     # -------------------------------------------------
     # Helper to build one nice looking table
@@ -3303,7 +3384,106 @@ def render_report_tab():
             "Compression resistance could not be evaluated because cross-section area "
             "or material data is missing in the DB."
         )
-
+        
+    report_h3("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
+    
+    st.markdown("""
+    The design bending resistance is checked using:
+    
+    \\[
+    \\frac{M_{Ed}}{M_{c,Rd}} \\le 1.0
+    \\]
+    
+    For Class 1–2 sections the design resistance is the **plastic moment resistance**:
+    
+    \\[
+    M_{c,Rd} = M_{pl,Rd} = W_{pl} \\, \\frac{f_y}{\\gamma_{M0}}
+    \\]
+    """)
+    
+    # Show computed resistances
+    st.latex(
+        rf"M_{{c,y,Rd}} = \\frac{{W_{{pl,y}} \, f_y}}{{\gamma_{{M0}}}}"
+        rf" = {Wpl_y_mm3:.0f} \; mm^3 \cdot {fy:.0f} \, MPa / {gamma_M0}"
+        rf" = {Mc_y_Rd_kNm:.2f} \; kNm"
+    )
+    
+    st.latex(
+        rf"M_{{c,z,Rd}} = \\frac{{W_{{pl,z}} \, f_y}}{{\gamma_{{M0}}}}"
+        rf" = {Wpl_z_mm3:.0f} \; mm^3 \cdot {fy:.0f} \, MPa / {gamma_M0}"
+        rf" = {Mc_z_Rd_kNm:.2f} \; kNm"
+    )
+    
+    # Utilization results
+    st.markdown("### Utilization checks")
+    
+    st.latex(
+        rf"u_y = \frac{{M_{{y,Ed}}}}{{M_{{c,y,Rd}}}}"
+        rf" = \frac{{{My_Ed_kNm:.2f}}}{{{Mc_y_Rd_kNm:.2f}}}"
+        rf" = {util_My:.3f} \Rightarrow \textbf{{{status_My}}}"
+    )
+    
+    st.latex(
+        rf"u_z = \frac{{M_{{z,Ed}}}}{{M_{{c,z,Rd}}}}"
+        rf" = \frac{{{Mz_Ed_kNm:.2f}}}{{{Mc_z_Rd_kNm:.2f}}}"
+        rf" = {util_Mz:.3f} \Rightarrow \textbf{{{status_Mz}}}"
+    )
+    
+    st.markdown("""
+    According to EN 1993-1-1 §6.2.5(4-6), holes may be neglected in bending resistance
+    provided the tensile and compression areas satisfy Eq. (6.16) and the holes in compression
+    zones are filled with fasteners.
+    """)
+    report_h3("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
+    
+    st.markdown("""
+    The shear resistance check uses:
+    
+    \\[
+    \\frac{V_{Ed}}{V_{c,Rd}} \\le 1.0
+    \\]
+    
+    Plastic shear resistance:
+    
+    \\[
+    V_{c,Rd} = A_v \\, \\frac{f_y}{\\sqrt{3} \\, \\gamma_{M0}}
+    \\]
+    """)
+    
+    # Shear resistances
+    st.latex(
+        rf"V_{{c,z,Rd}} = A_{{v,z}} \frac{{f_y}}{{\sqrt 3 \gamma_{{M0}}}}"
+        rf" = {Av_z_mm2:.0f} \, mm^2 \cdot ({fy:.0f} / \sqrt 3) / {gamma_M0}"
+        rf" = {Vc_z_Rd_kN:.2f} \, kN"
+    )
+    
+    st.latex(
+        rf"V_{{c,y,Rd}} = A_{{v,y}} \frac{{f_y}}{{\sqrt 3 \gamma_{{M0}}}}"
+        rf" = {Av_y_mm2:.0f} \, mm^2 \cdot ({fy:.0f} / \sqrt 3) / {gamma_M0}"
+        rf" = {Vc_y_Rd_kN:.2f} \, kN"
+    )
+    
+    # Utilization
+    st.markdown("### Utilization checks")
+    
+    st.latex(
+        rf"u_z = \frac{{V_{{z,Ed}}}}{{V_{{c,z,Rd}}}}"
+        rf" = \frac{{{Vz_Ed_kN:.2f}}}{{{Vc_z_Rd_kN:.2f}}}"
+        rf" = {util_Vz:.3f} \Rightarrow \textbf{{{status_Vz}}}"
+    )
+    
+    st.latex(
+        rf"u_y = \frac{{V_{{y,Ed}}}}{{V_{{c,y,Rd}}}}"
+        rf" = \frac{{{Vy_Ed_kN:.2f}}}{{{Vc_y_Rd_kN:.2f}}}"
+        rf" = {util_Vy:.3f} \Rightarrow \textbf{{{status_Vy}}}"
+    )
+    
+    st.markdown("""
+    Per EN 1993-1-1 §6.2.6(7), shear resistance does not need to account for fastener holes
+    except at joints where EN 1993-1-8 applies.
+    """)
+    
+        
     st.markdown("### 6.2 Detailed checks table (1–14)")
     # Row-highlighting for detailed check table
     def _hl(row):
@@ -3739,6 +3919,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
