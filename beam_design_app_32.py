@@ -1705,7 +1705,12 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     Mz_kNm = inputs["Mz_kNm"]
     Tx_kNm = inputs.get("Tx_kNm", 0.0)
     K_y = inputs["K_y"]; K_z = inputs["K_z"]
-
+    # Aliases for design internal forces (Ed) used in results / report
+    My_Ed_kNm = My_kNm
+    Mz_Ed_kNm = Mz_kNm
+    Vy_Ed_kN = Vy_kN
+    Vz_Ed_kN = Vz_kN
+    
     N_N = N_kN * 1e3
     Vy_N = Vy_kN * 1e3
     Vz_N = Vz_kN * 1e3
@@ -2996,6 +3001,12 @@ def render_report_tab():
     if sr_display is None or inputs is None or df_rows is None or meta is None:
         st.info("To see the report: select a section, define loads, run the check, then return here.")
         return
+    # Design internal forces for report equations (same as Loads tab)
+    N_kN = inputs.get("N_kN", 0.0)
+    Vy_Ed_kN = inputs.get("Vy_kN", 0.0)
+    Vz_Ed_kN = inputs.get("Vz_kN", 0.0)
+    My_Ed_kNm = inputs.get("My_kNm", 0.0)
+    Mz_Ed_kNm = inputs.get("Mz_kNm", 0.0)
 
     # --- support old 6-item meta and new 7-item meta with notes ---
     if len(meta) == 7:
@@ -3951,6 +3962,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
