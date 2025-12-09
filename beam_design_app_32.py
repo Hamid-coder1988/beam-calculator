@@ -2934,7 +2934,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 1. Project information
     # ----------------------------------------------------
-    st.markdown("## 1. Project information")
+    report_h3("1. Project information")
     c1, c2, c3 = st.columns(3)
     with c1:
         st.text_input("Project name", value=str(project_name), disabled=True, key="rpt_proj_name")
@@ -3739,6 +3739,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
