@@ -3089,136 +3089,66 @@ def render_report_tab():
 
     st.markdown("---")
 
-        # ----------------------------------------------------
     # ----------------------------------------------------
     # 5. Applied actions & internal forces (ULS)
     # ----------------------------------------------------
     st.markdown("## 5. Applied actions & internal forces (ULS)")
 
-    # 5.1 Design forces & moments (ULS) — INPUT
+    # 5.1 Design forces & moments (ULS)
     st.markdown("### 5.1 Design forces & moments (ULS) — INPUT")
 
-    # Load case label
     if ready_case:
-        st.write(f"Load case type: **{ready_case.get('key', '')} — {ready_case.get('label', '')}**")
+        st.write(f"Load case type: **{ready_case.get('key','')} — {ready_case.get('label','')}**")
     else:
         st.write("Load case type: **User-defined**")
 
-    # Row 1: 4 boxes (N, Vy, Vz, My)
-    f1, f2, f3, f4 = st.columns(4)
-    with f1:
-        st.text_input(
-            "N_Ed [kN]",
-            value=f"{inputs.get('N_kN', 0.0):.3f}",
-            disabled=True,
-            key="rpt_N_Ed",
-        )
-    with f2:
-        st.text_input(
-            "Vy_Ed [kN]",
-            value=f"{inputs.get('Vy_kN', 0.0):.3f}",
-            disabled=True,
-            key="rpt_Vy_Ed",
-        )
-    with f3:
-        st.text_input(
-            "Vz_Ed [kN]",
-            value=f"{inputs.get('Vz_kN', 0.0):.3f}",
-            disabled=True,
-            key="rpt_Vz_Ed",
-        )
-    with f4:
-        st.text_input(
-            "My_Ed [kNm]",
-            value=f"{inputs.get('My_kNm', 0.0):.3f}",
-            disabled=True,
-            key="rpt_My_Ed",
-        )
+    # --- Row 1: N, Vy, Vz ---
+    r1c1, r1c2, r1c3 = st.columns(3)
+    with r1c1:
+        st.text_input("N_Ed [kN]", f"{inputs.get('N_kN',0.0):.3f}", disabled=True)
+    with r1c2:
+        st.text_input("Vy_Ed [kN]", f"{inputs.get('Vy_kN',0.0):.3f}", disabled=True)
+    with r1c3:
+        st.text_input("Vz_Ed [kN]", f"{inputs.get('Vz_kN',0.0):.3f}", disabled=True)
 
-    # Row 2: still 4 columns, but only first one used (Mz_Ed)
-    g1, g2, g3, g4 = st.columns(4)
-    with g1:
-        st.text_input(
-            "Mz_Ed [kNm]",
-            value=f"{inputs.get('Mz_kNm', 0.0):.3f}",
-            disabled=True,
-            key="rpt_Mz_Ed",
-        )
-    # g2, g3, g4 intentionally left empty to keep 4-column layout
+    # --- Row 2: My, Mz ---
+    r2c1, r2c2, r2c3 = st.columns(3)
+    with r2c1:
+        st.text_input("My_Ed [kNm]", f"{inputs.get('My_kNm',0.0):.3f}", disabled=True)
+    with r2c2:
+        st.text_input("Mz_Ed [kNm]", f"{inputs.get('Mz_kNm',0.0):.3f}", disabled=True)
+    with r2c3:
+        st.empty()   # clean layout (no empty grey box)
 
+    # ----------------------------------------------------
     # 5.2 Deflection summary
+    # ----------------------------------------------------
     st.markdown("### 5.2 Deflection summary")
 
-    # Span in mm
-    L_mm = L * 1000.0 if L > 0 else 0.0
+    L_mm = L * 1000 if L > 0 else 0
+    L_over_w = (L_mm / abs(delta_max_mm)) if (L_mm > 0 and delta_max_mm not in (None,0)) else None
 
-    # Deflection ratio L / δ_max
-    if L > 0 and delta_max_mm not in (None, 0.0):
-        L_over_w = L_mm / abs(delta_max_mm)
-    else:
-        L_over_w = None
+    limit_L300 = L_mm/300 if L_mm>0 else None
+    limit_L600 = L_mm/600 if L_mm>0 else None
+    limit_L900 = L_mm/900 if L_mm>0 else None
 
-    # Deflection criteria in mm: L/300, L/600, L/900
-    if L > 0:
-        limit_L300_mm = L_mm / 300.0
-        limit_L600_mm = L_mm / 600.0
-        limit_L900_mm = L_mm / 900.0
-        limit_L300_str = f"{limit_L300_mm:.3f}"
-        limit_L600_str = f"{limit_L600_mm:.3f}"
-        limit_L900_str = f"{limit_L900_mm:.3f}"
-    else:
-        limit_L300_str = "n/a"
-        limit_L600_str = "n/a"
-        limit_L900_str = "n/a"
-
-    # Row 1: 4 boxes (δ_max, L/300, L/600, L/900)
-    d1, d2, d3, d4 = st.columns(4)
+    # --- Row 1: δmax, L/300, L/600 ---
+    d1, d2, d3 = st.columns(3)
     with d1:
-        st.text_input(
-            "δ_max [mm]",
-            value=f"{delta_max_mm:.3f}" if delta_max_mm is not None else "n/a",
-            disabled=True,
-            key="rpt_delta_max",
-        )
+        st.text_input("δ_max [mm]", f"{delta_max_mm:.3f}" if delta_max_mm is not None else "n/a", disabled=True)
     with d2:
-        st.text_input(
-            "Limit L/300 [mm]",
-            value=limit_L300_str,
-            disabled=True,
-            key="rpt_L300_limit_mm",
-        )
+        st.text_input("Limit L/300 [mm]", f"{limit_L300:.3f}" if limit_L300 else "n/a", disabled=True)
     with d3:
-        st.text_input(
-            "Limit L/600 [mm]",
-            value=limit_L600_str,
-            disabled=True,
-            key="rpt_L600_limit_mm",
-        )
-    with d4:
-        st.text_input(
-            "Limit L/900 [mm]",
-            value=limit_L900_str,
-            disabled=True,
-            key="rpt_L900_limit_mm",
-        )
+        st.text_input("Limit L/600 [mm]", f"{limit_L600:.3f}" if limit_L600 else "n/a", disabled=True)
 
-    # Row 2: 4 columns; we use first two (L and L/δ_max) and keep grid 4-wide
-    e1, e2, e3, e4 = st.columns(4)
+    # --- Row 2: L/900, span, ratio ---
+    e1, e2, e3 = st.columns(3)
     with e1:
-        st.text_input(
-            "Span L [mm]",
-            value=f"{L_mm:.1f}" if L > 0 else "n/a",
-            disabled=True,
-            key="rpt_Lmm",
-        )
+        st.text_input("Limit L/900 [mm]", f"{limit_L900:.3f}" if limit_L900 else "n/a", disabled=True)
     with e2:
-        st.text_input(
-            "Deflection ratio L / δ_max",
-            value=f"{L_over_w:.1f}" if L_over_w is not None else "n/a",
-            disabled=True,
-            key="rpt_L_over_w",
-        )
-    # e3, e4 left empty on purpose for symmetry
+        st.text_input("Span L [mm]", f"{L_mm:.1f}" if L_mm>0 else "n/a", disabled=True)
+    with e3:
+        st.text_input("Deflection ratio L / δ_max", f"{L_over_w:.1f}" if L_over_w else "n/a", disabled=True)
 
     st.markdown("---")
 
@@ -3800,6 +3730,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
