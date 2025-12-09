@@ -84,24 +84,7 @@ def get_conn():
             ) from e
 
 # Heading fonts
-def run_sql(sql, params=None):
-    try:
-        conn = get_conn()
-    except Exception as e:
-        return None, f"Connection error: {e}"
-    try:
-        df = pd.read_sql(sql, conn, params=params)
-        conn.close()
-        return df, None
-    except Exception as e:
-        tb = traceback.format_exc()
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return None, f"{e}\n\n{tb}"
-
-    def report_h3(title):
+def report_h3(title):
     st.markdown(
         f"""
         <h3 style='
@@ -109,6 +92,19 @@ def run_sql(sql, params=None):
             margin-top:25px;
             margin-bottom:12px;
         '>{title}</h3>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def report_h4(title):
+    st.markdown(
+        f"""
+        <h4 style='
+            font-weight:500;
+            margin-top:15px;
+            margin-bottom:8px;
+        '>{title}</h4>
         """,
         unsafe_allow_html=True
     )
@@ -3753,6 +3749,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
