@@ -83,7 +83,7 @@ def get_conn():
                 "Add [postgres] or DATABASE_URL to secrets."
             ) from e
 
-
+# Heading fonts
 def run_sql(sql, params=None):
     try:
         conn = get_conn()
@@ -100,7 +100,30 @@ def run_sql(sql, params=None):
         except Exception:
             pass
         return None, f"{e}\n\n{tb}"
-        
+
+    def report_h3(title):
+    st.markdown(
+        f"""
+        <h3 style='
+            font-weight:600;
+            margin-top:25px;
+            margin-bottom:12px;
+        '>{title}</h3>
+        """,
+        unsafe_allow_html=True
+    )
+
+def report_h4(title):
+    st.markdown(
+        f"""
+        <h4 style='
+            font-weight:500;
+            margin-top:15px;
+            margin-bottom:8px;
+        '>{title}</h4>
+        """,
+        unsafe_allow_html=True
+    )
 # =========================================================
 # GLOBAL SAFETY FACTORS (EN 1993)
 # =========================================================
@@ -3092,7 +3115,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 5. Applied actions & internal forces (ULS)
     # ----------------------------------------------------
-    st.markdown("## 5. Applied actions & internal forces (ULS)")
+    report_h3("## 5. Applied actions & internal forces (ULS)")
 
     # 5.1 Design forces & moments (ULS)
     st.markdown("### 5.1 Design forces & moments (ULS) — INPUT")
@@ -3730,6 +3753,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
