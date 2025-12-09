@@ -1806,7 +1806,51 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Utilization": f"{util_comp:.3f}",
         "Status":      status_comp,
     })
-    # ---- (3) Bending major-axis y-y ----
+    # ---- (3)–(6) Bending & shear cross-section checks ----
+
+    # Section properties from DB (plastic moduli and shear areas)
+    Wpl_y_cm3 = use_props.get("Wpl_y_cm3", 0.0)
+    Wpl_z_cm3 = use_props.get("Wpl_z_cm3", 0.0)
+    Av_z_mm2 = use_props.get("Av_z_mm2", 0.0)
+    Av_y_mm2 = use_props.get("Av_y_mm2", 0.0)
+
+    # Convert to consistent units
+    # Wpl in mm³: 1 cm³ = 1000 mm³
+    Wpl_y_mm3 = Wpl_y_cm3 * 1e3
+    Wpl_z_mm3 = Wpl_z_cm3 * 1e3
+
+    # (3) Major-axis bending resistance Mc,y,Rd
+    if Wpl_y_mm3 > 0 and fy > 0:
+        Mc_y_Rd_kNm = (Wpl_y_mm3 * fy / gamma_M0) / 1e6  # mm³*MPa → Nmm → kNm
+    else:
+        Mc_y_Rd_kNm = 0.0
+
+    # (4) Minor-axis bending resistance Mc,z,Rd
+    if Wpl_z_mm3 > 0 and fy > 0:
+        Mc_z_Rd_kNm = (Wpl_z_mm3 * fy / gamma_M0) / 1e6
+    else:
+        Mc_z_Rd_kNm = 0.0
+
+    # Use the design bending moments (same as inputs)
+    My_Ed_kNm = My_kNm
+    Mz_Ed_kNm = Mz_kNm
+
+    # Utilizations for bending
+    if Mc_y_Rd_kNm > 0:
+        util_My = My_Ed_kNm / Mc_y_Rd_kNm
+        status_My = "OK" if util_My <= 1.0 else "EXCEEDS"
+    else:
+        util_My = None
+        status_My = "n/a"
+
+    if Mc_z_Rd_kNm > 0:
+        util_Mz = Mz_Ed_kNm / Mc_z_Rd_kNm
+        status_Mz = "OK" if util_Mz <= 1.0 else "EXCEEDS"
+    else:
+        util_Mz = None
+        status_Mz = "n/a"
+
+    # Add bending rows to results table
     rows.append({
         "Check": "(3) Bending My (major)",
         "Applied": f"{My_Ed_kNm:.3f} kNm",
@@ -1814,7 +1858,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Utilization": f"{util_My:.3f}" if util_My is not None else "n/a",
         "Status": status_My,
     })
-    # ---- (4) Bending minor-axis z-z ----
+
     rows.append({
         "Check": "(4) Bending Mz (minor)",
         "Applied": f"{Mz_Ed_kNm:.3f} kNm",
@@ -1822,7 +1866,41 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Utilization": f"{util_Mz:.3f}" if util_Mz is not None else "n/a",
         "Status": status_Mz,
     })
-    # ---- (5) Shear Vz (z-axis) ----
+
+    # ---- Shear resistances along z and y ----
+
+    # Vc,z,Rd using Av,z
+    if Av_z_mm2 > 0 and fy > 0:
+        Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3  # N → kN
+    else:
+        Vc_z_Rd_kN = 0.0
+
+    # Vc,y,Rd using Av,y
+    if Av_y_mm2 > 0 and fy > 0:
+        Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3
+    else:
+        Vc_y_Rd_kN = 0.0
+
+    # Design shear forces from inputs
+    Vz_Ed_kN = Vz_kN
+    Vy_Ed_kN = Vy_kN
+
+    # Utilizations for shear
+    if Vc_z_Rd_kN > 0:
+        util_Vz = Vz_Ed_kN / Vc_z_Rd_kN
+        status_Vz = "OK" if util_Vz <= 1.0 else "EXCEEDS"
+    else:
+        util_Vz = None
+        status_Vz = "n/a"
+
+    if Vc_y_Rd_kN > 0:
+        util_Vy = Vy_Ed_kN / Vc_y_Rd_kN
+        status_Vy = "OK" if util_Vy <= 1.0 else "EXCEEDS"
+    else:
+        util_Vy = None
+        status_Vy = "n/a"
+
+    # Add shear rows to results table
     rows.append({
         "Check": "(5) Shear Vz (z-axis)",
         "Applied": f"{Vz_Ed_kN:.3f} kN",
@@ -1830,7 +1908,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Utilization": f"{util_Vz:.3f}" if util_Vz is not None else "n/a",
         "Status": status_Vz,
     })
-    # ---- (6) Shear Vy (y-axis) ----
+
     rows.append({
         "Check": "(6) Shear Vy (y-axis)",
         "Applied": f"{Vy_Ed_kN:.3f} kN",
@@ -3962,6 +4040,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
