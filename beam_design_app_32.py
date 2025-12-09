@@ -2875,7 +2875,7 @@ def render_report_tab():
     2. Material design values
     3. Member & section data
     4. Section classification
-    5. Applied actions & internal forces (ULS)
+    5. 
     6. Verification of cross-section strength (ULS)
     7. Member stability (buckling)
     8. References
@@ -3115,7 +3115,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 5. Applied actions & internal forces (ULS)
     # ----------------------------------------------------
-    report_h3("## 5. Applied actions & internal forces (ULS)")
+    report_h3("5. Applied actions & internal forces (ULS)")
 
     # 5.1 Design forces & moments (ULS)
     st.markdown("### 5.1 Design forces & moments (ULS) — INPUT")
@@ -3753,6 +3753,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
