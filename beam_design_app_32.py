@@ -3553,6 +3553,63 @@ def render_report_tab():
             "or material data is missing in the DB."
         )
         
+    report_h3("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
+
+    # General description + which modulus is used (plastic or elastic)
+    st.markdown(
+        f"""
+The design bending resistance is checked using:
+
+\\[
+\\frac{{M_{{Ed}}}}{{M_{{c,Rd}}}} \\le 1.0
+\\]
+
+For a **Class {section_class}** cross-section the **{W_text} section modulus** is used
+in accordance with EN 1993-1-1 §6.2.5:
+
+\\[
+M_{{c,Rd}} = W \\, \\frac{{f_y}}{{\\gamma_{{M0}}}}
+\\]
+"""
+    )
+
+    # Show computed resistances with the selected modulus (Wpl or Wel)
+    st.latex(
+        rf"M_{{c,y,Rd}} = W_{{y}} \frac{{f_y}}{{\gamma_{{M0}}}}"
+        rf" = {W_y_mm3:.0f} \; mm^3 \cdot {fy:.0f} \, MPa / {gamma_M0}"
+        rf" = {Mc_y_Rd_kNm:.2f} \; kNm"
+    )
+
+    st.latex(
+        rf"M_{{c,z,Rd}} = W_{{z}} \frac{{f_y}}{{\gamma_{{M0}}}}"
+        rf" = {W_z_mm3:.0f} \; mm^3 \cdot {fy:.0f} \, MPa / {gamma_M0}"
+        rf" = {Mc_z_Rd_kNm:.2f} \; kNm"
+    )
+
+    # Utilization results
+    report_h4("Utilization for bending resistance")
+
+    st.latex(
+        rf"u_y = \frac{{M_{{y,Ed}}}}{{M_{{c,y,Rd}}}}"
+        rf" = \frac{{{My_Ed_kNm:.2f}}}{{{Mc_y_Rd_kNm:.2f}}}"
+        rf" = {util_My:.3f} \Rightarrow \textbf{{{status_My}}}"
+    )
+
+    st.latex(
+        rf"u_z = \frac{{M_{{z,Ed}}}}{{M_{{c,z,Rd}}}}"
+        rf" = \frac{{{Mz_Ed_kNm:.2f}}}{{{Mc_z_Rd_kNm:.2f}}}"
+        rf" = {util_Mz:.3f} \Rightarrow \textbf{{{status_Mz}}}"
+    )
+
+    st.markdown(
+        """
+According to EN 1993-1-1 §6.2.5(4–6), holes may be neglected in bending resistance
+provided the tensile and compression areas satisfy Eq. (6.16) and the holes in compression
+zones are filled with fasteners.
+"""
+    )
+
+    
     report_h3("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
     
     st.markdown("""
@@ -4038,6 +4095,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
