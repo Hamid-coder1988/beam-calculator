@@ -1809,8 +1809,27 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     # ---- (3)–(6) Bending & shear cross-section checks ----
 
     # Section properties from DB (plastic moduli and shear areas)
+    # ---- Get plastic and elastic moduli from database ----
     Wpl_y_cm3 = use_props.get("Wpl_y_cm3", 0.0)
     Wpl_z_cm3 = use_props.get("Wpl_z_cm3", 0.0)
+    Wel_y_cm3 = use_props.get("Wel_y_cm3", 0.0)
+    Wel_z_cm3 = use_props.get("Wel_z_cm3", 0.0)
+    
+    # ---- Section class (1, 2, 3, or 4) ----
+    section_class = use_props.get("class", 1)  # default = 1 if not stored in DB
+    
+    # ---- Select correct modulus based on class ----
+    if section_class in (1, 2):     # Class 1–2 → plastic modulus
+        W_y_cm3 = Wpl_y_cm3
+        W_z_cm3 = Wpl_z_cm3
+    else:                           # Class 3 → elastic modulus
+        W_y_cm3 = Wel_y_cm3
+        W_z_cm3 = Wel_z_cm3
+    
+    # Convert cm³ → mm³
+    W_y_mm3 = W_y_cm3 * 1e3
+    W_z_mm3 = W_z_cm3 * 1e3
+
     Av_z_mm2 = use_props.get("Av_z_mm2", 0.0)
     Av_y_mm2 = use_props.get("Av_y_mm2", 0.0)
 
@@ -1820,14 +1839,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     Wpl_z_mm3 = Wpl_z_cm3 * 1e3
 
     # (3) Major-axis bending resistance Mc,y,Rd
-    if Wpl_y_mm3 > 0 and fy > 0:
-        Mc_y_Rd_kNm = (Wpl_y_mm3 * fy / gamma_M0) / 1e6  # mm³*MPa → Nmm → kNm
+    if W_y_mm3 > 0 and fy > 0:
+        Mc_y_Rd_kNm = (W_y_mm3 * fy / gamma_M0) / 1e6
     else:
         Mc_y_Rd_kNm = 0.0
-
+    
     # (4) Minor-axis bending resistance Mc,z,Rd
-    if Wpl_z_mm3 > 0 and fy > 0:
-        Mc_z_Rd_kNm = (Wpl_z_mm3 * fy / gamma_M0) / 1e6
+    if W_z_mm3 > 0 and fy > 0:
+        Mc_z_Rd_kNm = (W_z_mm3 * fy / gamma_M0) / 1e6
     else:
         Mc_z_Rd_kNm = 0.0
 
@@ -3079,6 +3098,7 @@ def render_report_tab():
     if sr_display is None or inputs is None or df_rows is None or meta is None:
         st.info("To see the report: select a section, define loads, run the check, then return here.")
         return
+
     # Design internal forces for report equations (same as Loads tab)
     N_kN = inputs.get("N_kN", 0.0)
     Vy_Ed_kN = inputs.get("Vy_kN", 0.0)
@@ -3098,6 +3118,33 @@ def render_report_tab():
     fy = material_to_fy(material)
     gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
+
+    # 🔽🔽🔽 PUT THE SECTION-CLASS / Wpl–Wel BLOCK HERE 🔽🔽🔽
+    # Plastic + elastic section moduli from DB (values in cm³)
+    Wpl_y_cm3 = sr_display.get("Wpl_y_cm3", 0.0)
+    Wpl_z_cm3 = sr_display.get("Wpl_z_cm3", 0.0)
+    Wel_y_cm3 = sr_display.get("Wel_y_cm3", 0.0)
+    Wel_z_cm3 = sr_display.get("Wel_z_cm3", 0.0)
+
+    # Section class (1, 2, 3, 4)
+    section_class = sr_display.get("class", 1)
+
+    # Select correct modulus based on class:
+    #   Class 1–2 → plastic modulus Wpl
+    #   Class 3   → elastic modulus Wel
+    if section_class in (1, 2):
+        W_y_cm3 = Wpl_y_cm3
+        W_z_cm3 = Wpl_z_cm3
+        W_text = "plastic"
+    else:
+        W_y_cm3 = Wel_y_cm3
+        W_z_cm3 = Wel_z_cm3
+        W_text = "elastic"
+
+    # Convert to mm³ for equations (1 cm³ = 1000 mm³)
+    W_y_mm3 = W_y_cm3 * 1e3
+    W_z_mm3 = W_z_cm3 * 1e3
+    # 🔼🔼🔼 END OF BLOCK 🔼🔼🔼
 
     L = inputs.get("L", 0.0)
     Ky = inputs.get("K_y", 1.0)
@@ -3506,55 +3553,6 @@ def render_report_tab():
             "or material data is missing in the DB."
         )
         
-    report_h3("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
-    
-    st.markdown("""
-    The design bending resistance is checked using:
-    
-    \\[
-    \\frac{M_{Ed}}{M_{c,Rd}} \\le 1.0
-    \\]
-    
-    For Class 1–2 sections the design resistance is the **plastic moment resistance**:
-    
-    \\[
-    M_{c,Rd} = M_{pl,Rd} = W_{pl} \\, \\frac{f_y}{\\gamma_{M0}}
-    \\]
-    """)
-    
-    # Show computed resistances
-    st.latex(
-        rf"M_{{c,y,Rd}} = \\frac{{W_{{pl,y}} \, f_y}}{{\gamma_{{M0}}}}"
-        rf" = {Wpl_y_mm3:.0f} \; mm^3 \cdot {fy:.0f} \, MPa / {gamma_M0}"
-        rf" = {Mc_y_Rd_kNm:.2f} \; kNm"
-    )
-    
-    st.latex(
-        rf"M_{{c,z,Rd}} = \\frac{{W_{{pl,z}} \, f_y}}{{\gamma_{{M0}}}}"
-        rf" = {Wpl_z_mm3:.0f} \; mm^3 \cdot {fy:.0f} \, MPa / {gamma_M0}"
-        rf" = {Mc_z_Rd_kNm:.2f} \; kNm"
-    )
-    
-    # Utilization results
-    st.markdown("### Utilization checks")
-    
-    st.latex(
-        rf"u_y = \frac{{M_{{y,Ed}}}}{{M_{{c,y,Rd}}}}"
-        rf" = \frac{{{My_Ed_kNm:.2f}}}{{{Mc_y_Rd_kNm:.2f}}}"
-        rf" = {util_My:.3f} \Rightarrow \textbf{{{status_My}}}"
-    )
-    
-    st.latex(
-        rf"u_z = \frac{{M_{{z,Ed}}}}{{M_{{c,z,Rd}}}}"
-        rf" = \frac{{{Mz_Ed_kNm:.2f}}}{{{Mc_z_Rd_kNm:.2f}}}"
-        rf" = {util_Mz:.3f} \Rightarrow \textbf{{{status_Mz}}}"
-    )
-    
-    st.markdown("""
-    According to EN 1993-1-1 §6.2.5(4-6), holes may be neglected in bending resistance
-    provided the tensile and compression areas satisfy Eq. (6.16) and the holes in compression
-    zones are filled with fasteners.
-    """)
     report_h3("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
     
     st.markdown("""
@@ -4040,6 +4038,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
