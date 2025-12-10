@@ -3144,6 +3144,10 @@ def render_report_tab():
     # Convert to mm³ for equations (1 cm³ = 1000 mm³)
     W_y_mm3 = W_y_cm3 * 1e3
     W_z_mm3 = W_z_cm3 * 1e3
+    # Aliases for older code that still uses Wpl_y_mm3 / Wpl_z_mm3
+    Wpl_y_mm3 = W_y_mm3
+    Wpl_z_mm3 = W_z_mm3
+    
     # 🔼🔼🔼 END OF BLOCK 🔼🔼🔼
 
     L = inputs.get("L", 0.0)
@@ -4095,6 +4099,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
