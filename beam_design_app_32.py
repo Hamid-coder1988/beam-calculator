@@ -1693,9 +1693,6 @@ def render_loads_readonly(inputs: dict, torsion_supported: bool, key_prefix="rpt
             key=f"{key_prefix}_Tx"
         )
 
-# =========================================================
-# COMPUTATION CORE
-# =========================================================
 def compute_checks(use_props, fy, inputs, torsion_supported):
     L = inputs["L"]
     N_kN = inputs["N_kN"]
@@ -1704,13 +1701,16 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     My_kNm = inputs["My_kNm"]
     Mz_kNm = inputs["Mz_kNm"]
     Tx_kNm = inputs.get("Tx_kNm", 0.0)
-    K_y = inputs["K_y"]; K_z = inputs["K_z"]
+    K_y = inputs["K_y"]
+    K_z = inputs["K_z"]
+
     # Aliases for design internal forces (Ed) used in results / report
     My_Ed_kNm = My_kNm
     Mz_Ed_kNm = Mz_kNm
     Vy_Ed_kN = Vy_kN
     Vz_Ed_kN = Vz_kN
-    
+
+    # Convert to base units
     N_N = N_kN * 1e3
     Vy_N = Vy_kN * 1e3
     Vz_N = Vz_kN * 1e3
@@ -1718,6 +1718,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     Mz_Nm = Mz_kNm * 1e3
     T_Nm = Tx_kNm * 1e3
 
+    # Section properties from DB
     A_m2 = use_props.get("A_cm2", 0.0) / 1e4
     S_y_m3 = use_props.get("S_y_cm3", 0.0) * 1e-6
     S_z_m3 = use_props.get("S_z_cm3", 0.0) * 1e-6
@@ -1726,21 +1727,30 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     J_m4 = use_props.get("J_cm4", 0.0) * 1e-8
     c_max_m = use_props.get("c_max_mm", 0.0) / 1000.0
 
-    Wpl_y_m3 = (use_props.get("Wpl_y_cm3", 0.0) * 1e-6) if use_props.get("Wpl_y_cm3", 0.0) > 0 else 1.1 * S_y_m3
-    Wpl_z_m3 = (use_props.get("Wpl_z_cm3", 0.0) * 1e-6) if use_props.get("Wpl_z_cm3", 0.0) > 0 else 1.1 * S_z_m3
+    Wpl_y_cm3 = use_props.get("Wpl_y_cm3", 0.0)
+    Wpl_z_cm3 = use_props.get("Wpl_z_cm3", 0.0)
+    Wel_y_cm3 = use_props.get("Wel_y_cm3", 0.0)
+    Wel_z_cm3 = use_props.get("Wel_z_cm3", 0.0)
+    Av_z_mm2 = use_props.get("Av_z_mm2", 0.0)
+    Av_y_mm2 = use_props.get("Av_y_mm2", 0.0)
+
     alpha_curve_db = use_props.get("alpha_curve", 0.49)
 
     if A_m2 <= 0:
         raise ValueError("Section area not provided (A <= 0).")
 
+    # Basic resistances (cross-section)
     N_Rd_N = A_m2 * fy * 1e6 / gamma_M0
     T_Rd_N = N_Rd_N
+    Wpl_y_m3 = (Wpl_y_cm3 * 1e-6) if Wpl_y_cm3 > 0 else 1.1 * S_y_m3
     M_Rd_y_Nm = Wpl_y_m3 * fy * 1e6 / gamma_M0
     Av_m2 = 0.6 * A_m2
     V_Rd_N = Av_m2 * fy * 1e6 / (math.sqrt(3) * gamma_M0)
 
+    # Allowable stress for indicative combined check
     sigma_allow_MPa = 0.6 * fy
 
+    # Stresses
     sigma_axial_Pa = N_N / A_m2
     sigma_by_Pa = My_Nm / S_y_m3 if S_y_m3 > 0 else 0.0
     sigma_bz_Pa = Mz_Nm / S_z_m3 if S_z_m3 > 0 else 0.0
@@ -1756,32 +1766,23 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     tau_total_MPa = tau_total_Pa / 1e6
     sigma_total_MPa = (sigma_axial_Pa + sigma_by_Pa + sigma_bz_Pa) / 1e6
     sigma_eq_MPa = math.sqrt((abs(sigma_total_MPa))**2 + 3.0 * (tau_total_MPa**2))
-    
-    # -----------------------------------------------
-    # Cross-section checks: axial tension / compression
-    # Sign convention: N > 0 tension, N < 0 compression
-    # -----------------------------------------------
-    rows = []  # if you already have rows defined earlier, remove this line
 
-    # Design axial force in N (N_N already defined)
-    # Tension: N > 0
+    # -----------------------------------------------
+    # Cross-section checks: axial, bending, shear
+    # -----------------------------------------------
+    rows = []
+
+    # Axial: sign convention N>0 tension, N<0 compression
     N_ten_N = max(N_N, 0.0)
-    # Compression: N < 0 (store magnitude as positive)
     N_comp_N = max(-N_N, 0.0)
 
-    # Plastic axial resistance of gross section
-    # N_Rd_N was defined above:
-    # N_Rd_N = A_m2 * fy * 1e6 / gamma_M0
-    T_Rd_N = N_Rd_N       # tension resistance
-    Nc_Rd_N = N_Rd_N      # compression resistance (cross-section only)
-
-    # --- (1) Tension (N > 0) ---
+    # (1) Tension (N>0)
     if T_Rd_N > 0.0 and N_ten_N > 0.0:
         util_ten = N_ten_N / T_Rd_N
         status_ten = "OK" if util_ten <= 1.0 else "EXCEEDS"
     else:
         util_ten = 0.0
-        status_ten = "OK"  # no tension → check is trivially OK
+        status_ten = "OK"
 
     rows.append({
         "Check":      "Tension (N>0)",
@@ -1791,9 +1792,9 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Status":      status_ten,
     })
 
-    # --- (2) Compression (N < 0) – cross-section resistance only ---
-    if Nc_Rd_N > 0.0 and N_comp_N > 0.0:
-        util_comp = N_comp_N / Nc_Rd_N
+    # (2) Compression (N<0) – cross-section
+    if N_Rd_N > 0.0 and N_comp_N > 0.0:
+        util_comp = N_comp_N / N_Rd_N
         status_comp = "OK" if util_comp <= 1.0 else "EXCEEDS"
     else:
         util_comp = 0.0
@@ -1801,58 +1802,35 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
     rows.append({
         "Check":      "Compression (N<0)",
-        "Applied":    f"{-N_comp_N/1e3:.3f} kN",  # negative sign shown in kN
-        "Resistance": f"{Nc_Rd_N/1e3:.3f} kN",
+        "Applied":    f"{-N_comp_N/1e3:.3f} kN",
+        "Resistance": f"{N_Rd_N/1e3:.3f} kN",
         "Utilization": f"{util_comp:.3f}",
         "Status":      status_comp,
     })
-    # ---- (3)–(6) Bending & shear cross-section checks ----
 
-    # Section properties from DB (plastic moduli and shear areas)
-    # ---- Get plastic and elastic moduli from database ----
-    Wpl_y_cm3 = use_props.get("Wpl_y_cm3", 0.0)
-    Wpl_z_cm3 = use_props.get("Wpl_z_cm3", 0.0)
-    Wel_y_cm3 = use_props.get("Wel_y_cm3", 0.0)
-    Wel_z_cm3 = use_props.get("Wel_z_cm3", 0.0)
-    
-    # ---- Section class (1, 2, 3, or 4) ----
-    section_class = use_props.get("class", 1)  # default = 1 if not stored in DB
-    
-    # ---- Select correct modulus based on class ----
-    if section_class in (1, 2):     # Class 1–2 → plastic modulus
+    # ---- Bending section modulus based on class ----
+    section_class = use_props.get("class", 1)
+    if section_class in (1, 2):
         W_y_cm3 = Wpl_y_cm3
         W_z_cm3 = Wpl_z_cm3
-    else:                           # Class 3 → elastic modulus
+    else:
         W_y_cm3 = Wel_y_cm3
         W_z_cm3 = Wel_z_cm3
-    
-    # Convert cm³ → mm³
+
     W_y_mm3 = W_y_cm3 * 1e3
     W_z_mm3 = W_z_cm3 * 1e3
 
-    Av_z_mm2 = use_props.get("Av_z_mm2", 0.0)
-    Av_y_mm2 = use_props.get("Av_y_mm2", 0.0)
-
-    # Convert to consistent units
-    # Wpl in mm³: 1 cm³ = 1000 mm³
-    Wpl_y_mm3 = Wpl_y_cm3 * 1e3
-    Wpl_z_mm3 = Wpl_z_cm3 * 1e3
-
-    # (3) Major-axis bending resistance Mc,y,Rd
+    # (3) Major-axis bending Mc,y,Rd
     if W_y_mm3 > 0 and fy > 0:
         Mc_y_Rd_kNm = (W_y_mm3 * fy / gamma_M0) / 1e6
     else:
         Mc_y_Rd_kNm = 0.0
-    
-    # (4) Minor-axis bending resistance Mc,z,Rd
+
+    # (4) Minor-axis bending Mc,z,Rd
     if W_z_mm3 > 0 and fy > 0:
         Mc_z_Rd_kNm = (W_z_mm3 * fy / gamma_M0) / 1e6
     else:
         Mc_z_Rd_kNm = 0.0
-
-    # Use the design bending moments (same as inputs)
-    My_Ed_kNm = My_kNm
-    Mz_Ed_kNm = Mz_kNm
 
     # Utilizations for bending
     if Mc_y_Rd_kNm > 0:
@@ -1869,7 +1847,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         util_Mz = None
         status_Mz = "n/a"
 
-    # Add bending rows to results table
     rows.append({
         "Check": "(3) Bending My (major)",
         "Applied": f"{My_Ed_kNm:.3f} kNm",
@@ -1887,22 +1864,15 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     })
 
     # ---- Shear resistances along z and y ----
-
-    # Vc,z,Rd using Av,z
     if Av_z_mm2 > 0 and fy > 0:
-        Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3  # N → kN
+        Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3
     else:
         Vc_z_Rd_kN = 0.0
 
-    # Vc,y,Rd using Av,y
     if Av_y_mm2 > 0 and fy > 0:
         Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3
     else:
         Vc_y_Rd_kN = 0.0
-
-    # Design shear forces from inputs
-    Vz_Ed_kN = Vz_kN
-    Vy_Ed_kN = Vy_kN
 
     # Utilizations for shear
     if Vc_z_Rd_kN > 0:
@@ -1919,7 +1889,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         util_Vy = None
         status_Vy = "n/a"
 
-    # Add shear rows to results table
     rows.append({
         "Check": "(5) Shear Vz (z-axis)",
         "Applied": f"{Vz_Ed_kN:.3f} kN",
@@ -1935,8 +1904,35 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Utilization": f"{util_Vy:.3f}" if util_Vy is not None else "n/a",
         "Status": status_Vy,
     })
-    
-    # Buckling simplified
+
+    # Indicative stress-based checks
+    rows.append({
+        "Check": "Bending y-y (σ_by)",
+        "Applied": f"{sigma_by_Pa/1e6:.3f} MPa",
+        "Resistance": f"{sigma_allow_MPa:.3f} MPa",
+        "Utilization": f"{(abs(sigma_by_Pa/1e6)/sigma_allow_MPa):.3f}" if sigma_allow_MPa > 0 else "n/a",
+        "Status": "OK" if abs(sigma_by_Pa/1e6)/sigma_allow_MPa <= 1.0 else "EXCEEDS",
+    })
+
+    rows.append({
+        "Check": "Bending z-z (σ_bz)",
+        "Applied": f"{sigma_bz_Pa/1e6:.3f} MPa",
+        "Resistance": f"{sigma_allow_MPa:.3f} MPa",
+        "Utilization": f"{(abs(sigma_bz_Pa/1e6)/sigma_allow_MPa):.3f}" if sigma_allow_MPa > 0 else "n/a",
+        "Status": "OK" if abs(sigma_bz_Pa/1e6)/sigma_allow_MPa <= 1.0 else "EXCEEDS",
+    })
+
+    rows.append({
+        "Check": "Biaxial bending + axial + shear (indicative)",
+        "Applied": f"σ_eq={sigma_eq_MPa:.3f} MPa",
+        "Resistance": f"{sigma_allow_MPa:.3f} MPa",
+        "Utilization": f"{(sigma_eq_MPa/sigma_allow_MPa):.3f}" if sigma_allow_MPa > 0 else "n/a",
+        "Status": "OK" if sigma_eq_MPa/sigma_allow_MPa <= 1.0 else "EXCEEDS",
+    })
+
+    # -------------------------
+    # Buckling checks
+    # -------------------------
     E = 210e9
     buck_results = []
     for axis_label, I_axis, K_axis in [("y", I_y_m4, K_y), ("z", I_z_m4, K_z)]:
@@ -1945,7 +1941,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             continue
         Leff_axis = K_axis * L
         Ncr = (math.pi**2 * E * I_axis) / (Leff_axis**2)
-        lambda_bar = math.sqrt((A_m2 * fy * 1e6) / Ncr) if Ncr > 0 else float('inf')
+        lambda_bar = math.sqrt((A_m2 * fy * 1e6) / Ncr) if Ncr > 0 else float("inf")
         alpha_use = alpha_curve_db if alpha_curve_db is not None else 0.49
         phi = 0.5 * (1.0 + alpha_use * (lambda_bar**2))
         sqrt_term = max(phi**2 - lambda_bar**2, 0.0)
@@ -1954,64 +1950,19 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         status = "OK" if abs(N_N) <= N_b_Rd_N else "EXCEEDS"
         buck_results.append((axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status))
 
-        N_b_Rd_min_N = min([r[4] for r in buck_results if r[4]], default=None)
-        compression_resistance_N = N_b_Rd_min_N if N_b_Rd_min_N else N_Rd_N
-    
-        def status_and_util(applied, resistance):
-            if not resistance:
-                return ("n/a", None)
-            util = abs(applied) / resistance
-            return ("OK" if util <= 1.0 else "EXCEEDS", util)
-    
-        rows = []
-    
-    applied_N = -N_N if N_N < 0 else 0.0
-    status_comp, util_comp = status_and_util(applied_N, compression_resistance_N)
-    rows.append({"Check":"Compression (N<0)","Applied":f"{applied_N/1e3:.3f} kN",
-                 "Resistance":f"{compression_resistance_N/1e3:.3f} kN",
-                 "Utilization": f"{util_comp:.3f}" if util_comp is not None else "n/a",
-                 "Status":status_comp})
-
-    applied_tension_N = N_N if N_N >= 0 else 0.0
-    status_ten, util_ten = status_and_util(applied_tension_N, T_Rd_N)
-    rows.append({"Check":"Tension (N≥0)","Applied":f"{applied_tension_N/1e3:.3f} kN",
-                 "Resistance":f"{T_Rd_N/1e3:.3f} kN",
-                 "Utilization": f"{util_ten:.3f}" if util_ten is not None else "n/a",
-                 "Status":status_ten})
-    
-    applied_shear_N = math.sqrt(Vy_N**2 + Vz_N**2)
-    status_shear, util_shear = status_and_util(applied_shear_N, V_Rd_N)
-    rows.append({"Check":"Shear (resultant Vy & Vz)","Applied":f"{applied_shear_N/1e3:.3f} kN",
-                 "Resistance":f"{V_Rd_N/1e3:.3f} kN",
-                 "Utilization": f"{util_shear:.3f}" if util_shear is not None else "n/a",
-                 "Status":status_shear})
-
-
-    rows.append({"Check":"Bending y-y (σ_by)","Applied":f"{sigma_by_Pa/1e6:.3f} MPa",
-                 "Resistance":f"{sigma_allow_MPa:.3f} MPa",
-                 "Utilization":f"{(abs(sigma_by_Pa/1e6)/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a",
-                 "Status":"OK" if abs(sigma_by_Pa/1e6)/sigma_allow_MPa<=1.0 else "EXCEEDS"})
-
-    rows.append({"Check":"Bending z-z (σ_bz)","Applied":f"{sigma_bz_Pa/1e6:.3f} MPa",
-                 "Resistance":f"{sigma_allow_MPa:.3f} MPa",
-                 "Utilization":f"{(abs(sigma_bz_Pa/1e6)/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a",
-                 "Status":"OK" if abs(sigma_bz_Pa/1e6)/sigma_allow_MPa<=1.0 else "EXCEEDS"})
-
-    rows.append({"Check":"Biaxial bending + axial + shear (indicative)",
-                 "Applied":f"σ_eq={sigma_eq_MPa:.3f} MPa",
-                 "Resistance":f"{sigma_allow_MPa:.3f} MPa",
-                 "Utilization":f"{(sigma_eq_MPa/sigma_allow_MPa):.3f}" if sigma_allow_MPa>0 else "n/a",
-                 "Status":"OK" if sigma_eq_MPa/sigma_allow_MPa<=1.0 else "EXCEEDS"})
-
+    # Add flexural buckling rows
     for axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status in buck_results:
         if N_b_Rd_N:
             util_buck = abs(N_N) / N_b_Rd_N
-            rows.append({"Check":f"Flexural buckling {axis_label}",
-                         "Applied":f"{abs(N_N)/1e3:.3f} kN",
-                         "Resistance":f"{N_b_Rd_N/1e3:.3f} kN",
-                         "Utilization":f"{util_buck:.3f}",
-                         "Status":"OK" if util_buck<=1.0 else "EXCEEDS"})
+            rows.append({
+                "Check": f"Flexural buckling {axis_label}",
+                "Applied": f"{abs(N_N)/1e3:.3f} kN",
+                "Resistance": f"{N_b_Rd_N/1e3:.3f} kN",
+                "Utilization": f"{util_buck:.3f}",
+                "Status": "OK" if util_buck <= 1.0 else "EXCEEDS",
+            })
 
+    # Build DataFrame and summary
     df_rows = pd.DataFrame(rows).set_index("Check")
     overall_ok = not any(df_rows["Status"] == "EXCEEDS")
 
@@ -2027,10 +1978,11 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         sigma_allow_MPa=sigma_allow_MPa,
         sigma_eq_MPa=sigma_eq_MPa,
         buck_results=buck_results,
-        N_Rd_N=N_Rd_N, M_Rd_y_Nm=M_Rd_y_Nm, V_Rd_N=V_Rd_N
+        N_Rd_N=N_Rd_N,
+        M_Rd_y_Nm=M_Rd_y_Nm,
+        V_Rd_N=V_Rd_N,
     )
     return df_rows, overall_ok, governing, extras
-
 
 def render_results(df_rows, overall_ok, governing):
     """
@@ -4028,6 +3980,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
