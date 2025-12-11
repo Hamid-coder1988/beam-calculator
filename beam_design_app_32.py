@@ -2161,55 +2161,6 @@ def render_results(df_rows, overall_ok, governing):
         comp_row = df_rows.loc["Compression (N<0)"]
         cs_util[1] = comp_row.get("Utilization", "")
         cs_status[1] = comp_row.get("Status", "")
-    # --- (3) Bending major-axis y-y ---
-    if Wpl_y_mm3 > 0 and fy > 0:
-        Mc_y_Rd_kNm = (Wpl_y_mm3 * fy / gamma_M0) / 1e6  # mm3*MPa → Nmm → kNm
-    else:
-        Mc_y_Rd_kNm = 0.0
-    
-    if Mc_y_Rd_kNm > 0:
-        util_My = My_Ed_kNm / Mc_y_Rd_kNm
-        status_My = "OK" if util_My <= 1.0 else "NOT OK"
-    else:
-        util_My = None
-        status_My = "n/a"
-    # --- (4) Bending minor-axis z-z ---
-    if Wpl_z_mm3 > 0 and fy > 0:
-        Mc_z_Rd_kNm = (Wpl_z_mm3 * fy / gamma_M0) / 1e6
-    else:
-        Mc_z_Rd_kNm = 0.0
-    
-    if Mc_z_Rd_kNm > 0:
-        util_Mz = Mz_Ed_kNm / Mc_z_Rd_kNm
-        status_Mz = "OK" if util_Mz <= 1.0 else "NOT OK"
-    else:
-        util_Mz = None
-        status_Mz = "n/a"
-
-    # --- (4) Bending minor-axis z-z ---
-    if Wpl_z_mm3 > 0 and fy > 0:
-        Mc_z_Rd_kNm = (Wpl_z_mm3 * fy / gamma_M0) / 1e6
-    else:
-        Mc_z_Rd_kNm = 0.0
-    
-    if Mc_z_Rd_kNm > 0:
-        util_Mz = Mz_Ed_kNm / Mc_z_Rd_kNm
-        status_Mz = "OK" if util_Mz <= 1.0 else "NOT OK"
-    else:
-        util_Mz = None
-        status_Mz = "n/a"
-    # --- (6) Shear along y-y ---
-    if Av_y_mm2 > 0 and fy > 0:
-        Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1000.0
-    else:
-        Vc_y_Rd_kN = 0.0
-    
-    if Vc_y_Rd_kN > 0:
-        util_Vy = Vy_Ed_kN / Vc_y_Rd_kN
-        status_Vy = "OK" if util_Vy <= 1.0 else "NOT OK"
-    else:
-        util_Vy = None
-        status_Vy = "n/a"
 
     # -------------------------------------------------
     # Helper to build one nice looking table
@@ -3556,7 +3507,32 @@ def render_report_tab():
             "Compression resistance could not be evaluated because cross-section area "
             "or material data is missing in the DB."
         )
-        
+        # ---- Bending resistances for report (using selected Wpl/Wel) ----
+    if Wpl_y_mm3 > 0 and fy > 0:
+        Mc_y_Rd_kNm = (Wpl_y_mm3 * fy / gamma_M0) / 1e6  # mm³*MPa → Nmm → kNm
+    else:
+        Mc_y_Rd_kNm = 0.0
+
+    if Wpl_z_mm3 > 0 and fy > 0:
+        Mc_z_Rd_kNm = (Wpl_z_mm3 * fy / gamma_M0) / 1e6
+    else:
+        Mc_z_Rd_kNm = 0.0
+
+    # Utilizations in bending for the equations
+    if Mc_y_Rd_kNm > 0:
+        util_My = My_Ed_kNm / Mc_y_Rd_kNm
+        status_My = "OK" if util_My <= 1.0 else "EXCEEDS"
+    else:
+        util_My = 0.0
+        status_My = "n/a"
+
+    if Mc_z_Rd_kNm > 0:
+        util_Mz = Mz_Ed_kNm / Mc_z_Rd_kNm
+        status_Mz = "OK" if util_Mz <= 1.0 else "EXCEEDS"
+    else:
+        util_Mz = 0.0
+        status_Mz = "n/a"
+    
     report_h3("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
 
     # General description + which modulus is used (plastic or elastic)
@@ -4099,6 +4075,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
