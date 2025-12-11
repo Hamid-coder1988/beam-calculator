@@ -2134,18 +2134,18 @@ def render_results(df_rows, overall_ok, governing):
         must_contain=["Compression", "N"],
     )
 
-    # 3) My  – pure bending My only (no +, no N, no shear, no Mz)
+    # 3) My  – pure bending My only (no +, no shear)
     fill_cs_from_df(
         idx_out=2,
         must_contain=["My"],
-        must_not_contain=["+", "N", "Vy", "Vz", "Mz"],
+        must_not_contain=["+", "Vy", "Vz"],
     )
-
-    # 4) Mz  – pure bending Mz only
+    
+    # 4) Mz  – pure bending Mz only (no +, no shear)
     fill_cs_from_df(
         idx_out=3,
         must_contain=["Mz"],
-        must_not_contain=["+", "N", "Vy", "Vz", "My"],
+        must_not_contain=["+", "Vy", "Vz"],
     )
 
     # 5) Vy – shear in y
@@ -2159,18 +2159,6 @@ def render_results(df_rows, overall_ok, governing):
         idx_out=5,
         must_contain=["Shear", "Vz"],
     )
-    # --- explicit override for pure bending rows -----------------
-    # Use the newly added dedicated bending rows if they exist,
-    # so the table always picks up the correct utilisation.
-    if df_rows is not None:
-        if "(3) Bending My (major)" in df_rows.index:
-            row = df_rows.loc["(3) Bending My (major)"]
-            cs_util[2] = row.get("Utilization", "")
-            cs_status[2] = row.get("Status", "")
-        if "(4) Bending Mz (minor)" in df_rows.index:
-            row = df_rows.loc["(4) Bending Mz (minor)"]
-            cs_util[3] = row.get("Utilization", "")
-            cs_status[3] = row.get("Status", "")
     # -------------------------------------------------
     # Helper to build one nice looking table
     # -------------------------------------------------
@@ -3980,6 +3968,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
