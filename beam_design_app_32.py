@@ -2149,41 +2149,37 @@ def render_results(df_rows, overall_ok, governing):
     cs_status = ["" for _ in cs_checks]
     buck_util = ["" for _ in buck_checks]
     buck_status = ["" for _ in buck_checks]
+    # -----------------------------
     # Map detailed check results into the summary table
-    # 1) Tension row: "N (tension)" ← "Tension (N≥0)" from df_rows
-    if df_rows is not None and "Tension (N≥0)" in df_rows.index:
-        ten_row = df_rows.loc["Tension (N≥0)"]
-        cs_util[0] = ten_row.get("Utilization", "")
-        cs_status[0] = ten_row.get("Status", "")
-        
-    # 2) Compression row: "N (compression)" ← "Compression (N<0)" from df_rows
-    if df_rows is not None and "Compression (N<0)" in df_rows.index:
-        comp_row = df_rows.loc["Compression (N<0)"]
-        cs_util[1] = comp_row.get("Utilization", "")
-        cs_status[1] = comp_row.get("Status", "")
-    # 3) My  ← "(3) Bending My (major)"
-    if df_rows is not None and "(3) Bending My (major)" in df_rows.index:
-        row = df_rows.loc["(3) Bending My (major)"]
-        cs_util[2] = row.get("Utilization", "")
-        cs_status[2] = row.get("Status", "")
+    # -----------------------------
+    def fill_cs_from_df(idx_out, substrings):
+        """Find first check whose label contains all substrings."""
+        if df_rows is None:
+            return
+        for label, row in df_rows.iterrows():
+            s = str(label)
+            if all(sub in s for sub in substrings):
+                cs_util[idx_out] = row.get("Utilization", "")
+                cs_status[idx_out] = row.get("Status", "")
+                break
 
-    # 4) Mz  ← "(4) Bending Mz (minor)"
-    if df_rows is not None and "(4) Bending Mz (minor)" in df_rows.index:
-        row = df_rows.loc["(4) Bending Mz (minor)"]
-        cs_util[3] = row.get("Utilization", "")
-        cs_status[3] = row.get("Status", "")
+    # 1) N (tension)
+    fill_cs_from_df(0, ["Tension", "N"])
 
-    # 5) Vy  ← "(6) Shear Vy (y-axis)"   (your label "Vy")
-    if df_rows is not None and "(6) Shear Vy (y-axis)" in df_rows.index:
-        row = df_rows.loc["(6) Shear Vy (y-axis)"]
-        cs_util[4] = row.get("Utilization", "")
-        cs_status[4] = row.get("Status", "")
+    # 2) N (compression)
+    fill_cs_from_df(1, ["Compression", "N"])
 
-    # 6) Vz  ← "(5) Shear Vz (z-axis)"   (your label "Vz")
-    if df_rows is not None and "(5) Shear Vz (z-axis)" in df_rows.index:
-        row = df_rows.loc["(5) Shear Vz (z-axis)"]
-        cs_util[5] = row.get("Utilization", "")
-        cs_status[5] = row.get("Status", "")
+    # 3) My  (major-axis bending)
+    fill_cs_from_df(2, ["Bending", "My"])
+
+    # 4) Mz  (minor-axis bending)
+    fill_cs_from_df(3, ["Bending", "Mz"])
+
+    # 5) Vy  (shear in y)
+    fill_cs_from_df(4, ["Shear", "Vy"])
+
+    # 6) Vz  (shear in z)
+    fill_cs_from_df(5, ["Shear", "Vz"])
 
     # -------------------------------------------------
     # Helper to build one nice looking table
@@ -4116,6 +4112,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
