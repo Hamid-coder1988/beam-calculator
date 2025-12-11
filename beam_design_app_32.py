@@ -1993,7 +1993,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     )
     return df_rows, overall_ok, governing, extras
 
-def render_results(df_rows, overall_ok, governing):
+def render_results(df_rows, overall_ok, governing, show_footer=True):
     """
     Results tab: two aligned tables with color coding and bold governing row,
     nicer card-style formatting.
@@ -2249,7 +2249,7 @@ def render_results(df_rows, overall_ok, governing):
     # -------------------------------------------------
     # TABLE 2: Buckling
     # -------------------------------------------------
-    buck_html = build_table_html(
+        buck_html = build_table_html(
         "Verification of member stability (buckling, checks 15–20)",
         15,
         buck_checks,
@@ -2257,6 +2257,9 @@ def render_results(df_rows, overall_ok, governing):
         buck_status,
     )
     st.markdown(buck_html, unsafe_allow_html=True)
+
+    if not show_footer:
+        return
 
     st.markdown("---")
 
@@ -3409,8 +3412,14 @@ def render_report_tab():
         u_ten = None
         u_ten_str = "n/a"
 
+    # ----------------------------------------------------
+    # Result summary (same tables as in Results tab)
+    # ----------------------------------------------------
+    render_results(df_rows, overall_ok, governing, show_footer=False)
+
     # Status from the checks table (row 'Tension (N≥0)')
     status_ten = "n/a"
+
     try:
         row_ten = df_rows[df_rows["Check"] == "Tension (N≥0)"]
         if not row_ten.empty:
@@ -3974,12 +3983,13 @@ with tab4:
             st.session_state["governing"] = governing
             st.session_state["extras"] = extras
 
-            render_results(df_rows, overall_ok, governing)
+            render_results(df_rows, overall_ok, governing, show_footer=True)
 
         except Exception as e:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
