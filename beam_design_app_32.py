@@ -2148,17 +2148,20 @@ def render_results(df_rows, overall_ok, governing):
         must_not_contain=["+", "Vy", "Vz"],
     )
 
-    # 5) Vy – shear in y
+    # 5) Vy – pure shear in y direction
     fill_cs_from_df(
         idx_out=4,
-        must_contain=["Shear", "Vy"],
+        must_contain=["Vy"],
+        must_not_contain=["+"],
     )
-
-    # 6) Vz – shear in z
+    
+    # 6) Vz – pure shear in z direction
     fill_cs_from_df(
         idx_out=5,
-        must_contain=["Shear", "Vz"],
+        must_contain=["Vz"],
+        must_not_contain=["+"],
     )
+
     # -------------------------------------------------
     # Helper to build one nice looking table
     # -------------------------------------------------
@@ -3968,6 +3971,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
