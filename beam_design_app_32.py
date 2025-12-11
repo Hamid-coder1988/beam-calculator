@@ -2161,6 +2161,29 @@ def render_results(df_rows, overall_ok, governing):
         comp_row = df_rows.loc["Compression (N<0)"]
         cs_util[1] = comp_row.get("Utilization", "")
         cs_status[1] = comp_row.get("Status", "")
+    # 3) My  ← "(3) Bending My (major)"
+    if df_rows is not None and "(3) Bending My (major)" in df_rows.index:
+        row = df_rows.loc["(3) Bending My (major)"]
+        cs_util[2] = row.get("Utilization", "")
+        cs_status[2] = row.get("Status", "")
+
+    # 4) Mz  ← "(4) Bending Mz (minor)"
+    if df_rows is not None and "(4) Bending Mz (minor)" in df_rows.index:
+        row = df_rows.loc["(4) Bending Mz (minor)"]
+        cs_util[3] = row.get("Utilization", "")
+        cs_status[3] = row.get("Status", "")
+
+    # 5) Vy  ← "(6) Shear Vy (y-axis)"   (your label "Vy")
+    if df_rows is not None and "(6) Shear Vy (y-axis)" in df_rows.index:
+        row = df_rows.loc["(6) Shear Vy (y-axis)"]
+        cs_util[4] = row.get("Utilization", "")
+        cs_status[4] = row.get("Status", "")
+
+    # 6) Vz  ← "(5) Shear Vz (z-axis)"   (your label "Vz")
+    if df_rows is not None and "(5) Shear Vz (z-axis)" in df_rows.index:
+        row = df_rows.loc["(5) Shear Vz (z-axis)"]
+        cs_util[5] = row.get("Utilization", "")
+        cs_status[5] = row.get("Status", "")
 
     # -------------------------------------------------
     # Helper to build one nice looking table
@@ -3099,6 +3122,11 @@ def render_report_tab():
     Wpl_y_mm3 = W_y_mm3
     Wpl_z_mm3 = W_z_mm3
     
+     # --- Shear areas for shear resistance (from DB, mm²) ---
+    Av_z_mm2 = sr_display.get("Av_z_mm2", 0.0)
+    Av_y_mm2 = sr_display.get("Av_y_mm2", 0.0)
+
+    
     # 🔼🔼🔼 END OF BLOCK 🔼🔼🔼
 
     L = inputs.get("L", 0.0)
@@ -3589,7 +3617,37 @@ zones are filled with fasteners.
 """
     )
 
-    
+        # ---- Shear resistances and utilizations for report ----
+    # Design shear forces from inputs
+    Vz_Ed_kN = Vz_Ed_kN  # already set at top, just documenting
+    Vy_Ed_kN = Vy_Ed_kN
+
+    # Shear resistances
+    if Av_z_mm2 > 0 and fy > 0:
+        Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1000.0
+    else:
+        Vc_z_Rd_kN = 0.0
+
+    if Av_y_mm2 > 0 and fy > 0:
+        Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1000.0
+    else:
+        Vc_y_Rd_kN = 0.0
+
+    # Utilizations
+    if Vc_z_Rd_kN > 0:
+        util_Vz = Vz_Ed_kN / Vc_z_Rd_kN
+        status_Vz = "OK" if util_Vz <= 1.0 else "EXCEEDS"
+    else:
+        util_Vz = 0.0
+        status_Vz = "n/a"
+
+    if Vc_y_Rd_kN > 0:
+        util_Vy = Vy_Ed_kN / Vc_y_Rd_kN
+        status_Vy = "OK" if util_Vy <= 1.0 else "EXCEEDS"
+    else:
+        util_Vy = 0.0
+        status_Vy = "n/a"
+
     report_h3("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
     
     st.markdown("""
@@ -4075,37 +4133,4 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
