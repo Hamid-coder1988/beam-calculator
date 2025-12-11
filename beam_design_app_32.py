@@ -2248,14 +2248,14 @@ def render_results(df_rows, overall_ok, governing, show_footer=True):
 
     # -------------------------------------------------
     # TABLE 2: Buckling
-        # -------------------------------------------------
-            buck_html = build_table_html(
-            "Verification of member stability (buckling, checks 15–20)",
-            15,
-            buck_checks,
-            buck_util,
-            buck_status,
-        )
+    # -------------------------------------------------
+    buck_html = build_table_html(
+        "Verification of member stability (buckling, checks 15–20)",
+        15,
+        buck_checks,
+        buck_util,
+        buck_status,
+    )
     st.markdown(buck_html, unsafe_allow_html=True)
 
     if not show_footer:
@@ -3989,6 +3989,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
