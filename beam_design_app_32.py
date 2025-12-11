@@ -1731,8 +1731,9 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     Wpl_z_cm3 = use_props.get("Wpl_z_cm3", 0.0)
     Wel_y_cm3 = use_props.get("Wel_y_cm3", 0.0)
     Wel_z_cm3 = use_props.get("Wel_z_cm3", 0.0)
-    Av_z_mm2 = use_props.get("Av_z_mm2", 0.0)
-    Av_y_mm2 = use_props.get("Av_y_mm2", 0.0)
+    # Shear areas: support both old and new keys
+    Av_z_mm2 = use_props.get("Av_z_mm2", use_props.get("Avz_mm2", 0.0))
+    Av_y_mm2 = use_props.get("Av_y_mm2", use_props.get("Avy_mm2", 0.0))
 
     alpha_curve_db = use_props.get("alpha_curve", 0.49)
 
@@ -1864,12 +1865,20 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     })
 
     # ---- Shear resistances along z and y ----
-    if Av_z_mm2 > 0 and fy > 0:
+    Vpl_Rd_z_kN = use_props.get("Vpl_Rd_z_kN", 0.0)
+    Vpl_Rd_y_kN = use_props.get("Vpl_Rd_y_kN", 0.0)
+
+    # Prefer DB design resistances; fall back to area-based if missing
+    if Vpl_Rd_z_kN > 0:
+        Vc_z_Rd_kN = Vpl_Rd_z_kN
+    elif Av_z_mm2 > 0 and fy > 0:
         Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3
     else:
         Vc_z_Rd_kN = 0.0
 
-    if Av_y_mm2 > 0 and fy > 0:
+    if Vpl_Rd_y_kN > 0:
+        Vc_y_Rd_kN = Vpl_Rd_y_kN
+    elif Av_y_mm2 > 0 and fy > 0:
         Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3
     else:
         Vc_y_Rd_kN = 0.0
@@ -3971,6 +3980,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
