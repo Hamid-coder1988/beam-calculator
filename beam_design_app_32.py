@@ -2162,6 +2162,7 @@ def render_results(df_rows, overall_ok, governing):
             return
         if must_not_contain is None:
             must_not_contain = []
+
         for label, row in df_rows.iterrows():
             s = str(label)
             if all(m in s for m in must_contain) and all(n not in s for n in must_not_contain):
@@ -2170,34 +2171,40 @@ def render_results(df_rows, overall_ok, governing):
                 break
 
     # 1) N (tension)
-    fill_cs_from_df(0, must_contain=["Tension", "N"])
+    fill_cs_from_df(
+        idx_out=0,
+        must_contain=["Tension", "N"],
+    )
 
     # 2) N (compression)
-    fill_cs_from_df(1, must_contain=["Compression", "N"])
-
-    # 3) My  – pure bending My only (no combos with N or V or Mz)
     fill_cs_from_df(
-        2,
+        idx_out=1,
+        must_contain=["Compression", "N"],
+    )
+
+    # 3) My  – pure bending My only (no +, no N, no shear, no Mz)
+    fill_cs_from_df(
+        idx_out=2,
         must_contain=["My"],
         must_not_contain=["+", "N", "Vy", "Vz", "Mz"],
     )
 
     # 4) Mz  – pure bending Mz only
     fill_cs_from_df(
-        3,
+        idx_out=3,
         must_contain=["Mz"],
         must_not_contain=["+", "N", "Vy", "Vz", "My"],
     )
 
     # 5) Vy – shear in y
     fill_cs_from_df(
-        4,
+        idx_out=4,
         must_contain=["Shear", "Vy"],
     )
 
     # 6) Vz – shear in z
     fill_cs_from_df(
-        5,
+        idx_out=5,
         must_contain=["Shear", "Vz"],
     )
 
@@ -4132,6 +4139,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
