@@ -3714,41 +3714,6 @@ zones are filled with fasteners.
     except at joints where EN 1993-1-8 applies.
     """)
     
-
-    # 6.3 Explanations & formulas (expander, with LaTeX)
-    with st.expander("6.3 Eurocode formulas for cross-section checks (1–14)", expanded=False):
-        # (1) Tension
-        st.markdown("### (1) Tension – EN 1993-1-1 §6.2.3")
-        st.latex(r"\frac{N_{Ed}}{N_{t,Rd}} \leq 1.0")
-        st.latex(r"N_{t,Rd} = N_{pl,Rd} = \frac{A\,f_y}{\gamma_{M0}}")
-        
-        # (2) Compression
-        st.markdown("### (2) Compression – EN 1993-1-1 §6.2.4")
-        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} \leq 1.0")
-        st.latex(r"N_{c,Rd} = \frac{A\,f_y}{\gamma_{M0}}")
-
-        st.markdown("### (3) Bending about major axis y – §6.2.5")
-        st.latex(r"M_{y,Ed} \leq M_{y,Rd} = \frac{W_{pl,y} f_y}{\gamma_{M0}}")
-
-        st.markdown("### (4) Bending about minor axis z – §6.2.5")
-        st.latex(r"M_{z,Ed} \leq M_{z,Rd} = \frac{W_{pl,z} f_y}{\gamma_{M0}}")
-
-        st.markdown("### (5–6) Shear – §6.2.6")
-        st.latex(r"V_{Ed} \leq V_{pl,Rd} = \frac{A_v f_y}{\sqrt{3}\,\gamma_{M0}}")
-
-        st.markdown("### (7–8) Bending with high shear – §6.2.8")
-        st.latex(r"V_{Ed} > 0.5\,V_{pl,Rd} \Rightarrow M_{Rd,\text{red}} = \rho\, M_{pl}")
-
-        st.markdown("### (9–11) Axial force + bending – §6.2.9")
-        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{y,Ed}}{M_{y,Rd}} \leq 1.0")
-        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{z,Ed}}{M_{z,Rd}} \leq 1.0")
-
-        st.markdown("### (12–14) Axial + shear + bending – §6.2.10")
-        st.latex(r" M_{Rd,\text{red}} = \rho\, M_{pl} ")
-        st.latex(r" \frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{Ed}}{M_{Rd,\text{red}}} \leq 1.0 ")
-
-    st.markdown("---")
-
     # ----------------------------------------------------
     # 8. References
     # ----------------------------------------------------
@@ -4063,6 +4028,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
