@@ -3382,6 +3382,14 @@ def render_report_tab():
 
     st.markdown("---")
 
+    # ----------------------------------------------------
+    # Result summary (same tables as in Results tab)
+    # ----------------------------------------------------
+    render_results(df_rows, overall_ok, governing, show_footer=False)
+
+    # Status from the checks table (row 'Tension (N≥0)')
+    status_ten = "n/a"
+    
     # 6.1.a Detailed explanation for check (1) Tension
     report_h4("(1) Tension – EN 1993-1-1 §6.2.3")
 
@@ -3411,14 +3419,6 @@ def render_report_tab():
     else:
         u_ten = None
         u_ten_str = "n/a"
-
-    # ----------------------------------------------------
-    # Result summary (same tables as in Results tab)
-    # ----------------------------------------------------
-    render_results(df_rows, overall_ok, governing, show_footer=False)
-
-    # Status from the checks table (row 'Tension (N≥0)')
-    status_ten = "n/a"
 
     try:
         row_ten = df_rows[df_rows["Check"] == "Tension (N≥0)"]
@@ -3989,6 +3989,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
