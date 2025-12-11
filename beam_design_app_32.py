@@ -2207,7 +2207,18 @@ def render_results(df_rows, overall_ok, governing):
         idx_out=5,
         must_contain=["Shear", "Vz"],
     )
-
+    # --- explicit override for pure bending rows -----------------
+    # Use the newly added dedicated bending rows if they exist,
+    # so the table always picks up the correct utilisation.
+    if df_rows is not None:
+        if "(3) Bending My (major)" in df_rows.index:
+            row = df_rows.loc["(3) Bending My (major)"]
+            cs_util[2] = row.get("Utilization", "")
+            cs_status[2] = row.get("Status", "")
+        if "(4) Bending Mz (minor)" in df_rows.index:
+            row = df_rows.loc["(4) Bending Mz (minor)"]
+            cs_util[3] = row.get("Utilization", "")
+            cs_status[3] = row.get("Status", "")
     # -------------------------------------------------
     # Helper to build one nice looking table
     # -------------------------------------------------
@@ -3703,26 +3714,6 @@ zones are filled with fasteners.
     except at joints where EN 1993-1-8 applies.
     """)
     
-        
-    st.markdown("### 6.2 Detailed checks table (1–14)")
-    # Row-highlighting for detailed check table
-    def _hl(row):
-        # make sure we pull a scalar, not a Series
-        s = row["Status"] if "Status" in row.index else ""
-        if s == "OK":
-            color = "background-color: #e6f7e6"
-        elif s == "EXCEEDS":
-            color = "background-color: #fde6e6"
-        else:
-            color = "background-color: #f0f0f0"
-        return [color] * len(row)
-
-    # Be defensive: if styling fails, fall back to plain table
-    try:
-        st.write(df_rows.style.apply(_hl, axis=1))
-    except Exception as e:
-        st.write(df_rows)
-        st.caption(f"(Row colouring disabled due to an internal error: {e})")
 
     # 6.3 Explanations & formulas (expander, with LaTeX)
     with st.expander("6.3 Eurocode formulas for cross-section checks (1–14)", expanded=False):
@@ -3755,73 +3746,6 @@ zones are filled with fasteners.
         st.markdown("### (12–14) Axial + shear + bending – §6.2.10")
         st.latex(r" M_{Rd,\text{red}} = \rho\, M_{pl} ")
         st.latex(r" \frac{N_{Ed}}{N_{c,Rd}} + \frac{M_{Ed}}{M_{Rd,\text{red}}} \leq 1.0 ")
-
-    st.markdown("---")
-
-    # ----------------------------------------------------
-    # 7. Member stability (buckling)
-    # ----------------------------------------------------
-    report_h3("7. Member stability (buckling)")
-
-    st.markdown("### 7.1 Buckling summary table")
-    buck_data = []
-    for axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status in buck_results or []:
-        if N_b_Rd_N is None:
-            continue
-        buck_data.append(
-            {
-                "Axis / mode": f"Flexural buckling {axis_label}",
-                "N_cr [kN]": f"{Ncr/1e3:.2f}" if Ncr is not None else "n/a",
-                "λ̄": f"{lambda_bar:.3f}" if lambda_bar is not None else "n/a",
-                "χ": f"{chi:.3f}" if chi is not None else "n/a",
-                "N_b,Rd [kN]": f"{N_b_Rd_N/1e3:.2f}",
-                "Status": status,
-            }
-        )
-
-    if buck_data:
-        df_buck = pd.DataFrame(buck_data)
-        st.table(df_buck)
-    else:
-        st.info("No buckling results available.")
-
-    st.markdown("### 7.2 Detailed buckling expressions (per axis)")
-    if buck_data:
-        for row in buck_data:
-            st.markdown(f"**Axis / mode:** {row['Axis / mode']}")
-            st.write(
-                f"N_cr = {row['N_cr [kN]']} kN, "
-                f"λ̄ = {row['λ̄']}, "
-                f"χ = {row['χ']}, "
-                f"N_b,Rd = {row['N_b,Rd [kN]']} kN → {row['Status']}"
-            )
-    else:
-        st.write("No detailed values to display.")
-
-    # 7.3 Buckling formulas expander
-    with st.expander("7.3 Eurocode formulas for member buckling", expanded=False):
-        st.markdown("### Flexural buckling – EN 1993-1-1 §6.3.1")
-
-        st.latex(r"N_{cr} = \frac{\pi^2 E I}{L_{eff}^2}")
-        st.latex(r"\bar{\lambda} = \sqrt{\frac{A f_y}{N_{cr}}}")
-
-        st.latex(
-            r"\phi = \frac{1}{2} \left[ 1 + \alpha \left( \bar{\lambda} - 0.2 \right) + \bar{\lambda}^2 \right]"
-        )
-        st.latex(
-            r"\chi = \frac{1}{\phi + \sqrt{\phi^2 - \bar{\lambda}^2}} \leq 1.0"
-        )
-        st.latex(
-            r"N_{b,Rd} = \frac{\chi A f_y}{\gamma_{M1}}"
-        )
-
-        st.markdown("### Lateral–torsional buckling (LTB) – simplified")
-        st.latex(
-            r"k_{yy}^* \frac{M_{y,Ed}}{\chi_{LT} \, M_{y,Rk} / \gamma_{M1}} \leq 1.0"
-        )
-        st.latex(
-            r"M_{b,Rd} = \frac{\chi_{LT} \, M_{y,Rk}}{\gamma_{M1}}"
-        )
 
     st.markdown("---")
 
@@ -4139,6 +4063,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
