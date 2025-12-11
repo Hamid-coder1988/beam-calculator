@@ -3566,20 +3566,20 @@ def render_report_tab():
     # General description + which modulus is used (plastic or elastic)
     st.markdown(
         f"""
-The design bending resistance is checked using:
-
-\\[
-\\frac{{M_{{Ed}}}}{{M_{{c,Rd}}}} \\le 1.0
-\\]
-
-For a **Class {section_class}** cross-section the **{W_text} section modulus** is used
-in accordance with EN 1993-1-1 §6.2.5:
-
-\\[
-M_{{c,Rd}} = W \\, \\frac{{f_y}}{{\\gamma_{{M0}}}}
-\\]
-"""
-    )
+    The design bending resistance is checked using:
+    
+    \\[
+    \\frac{{M_{{Ed}}}}{{M_{{c,Rd}}}} \\le 1.0
+    \\]
+    
+    For a **Class {section_class}** cross-section the **{W_text} section modulus** is used
+    in accordance with EN 1993-1-1 §6.2.5:
+    
+    \\[
+    M_{{c,Rd}} = W \\, \\frac{{f_y}}{{\\gamma_{{M0}}}}
+    \\]
+    """
+        )
 
     # Show computed resistances with the selected modulus (Wpl or Wel)
     st.latex(
@@ -4133,4 +4133,5 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
