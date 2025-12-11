@@ -2150,36 +2150,56 @@ def render_results(df_rows, overall_ok, governing):
     buck_util = ["" for _ in buck_checks]
     buck_status = ["" for _ in buck_checks]
     # -----------------------------
+    # -----------------------------
     # Map detailed check results into the summary table
     # -----------------------------
-    def fill_cs_from_df(idx_out, substrings):
-        """Find first check whose label contains all substrings."""
+    def fill_cs_from_df(idx_out, must_contain, must_not_contain=None):
+        """
+        Find the first df_rows index whose label contains all strings in must_contain
+        and none of the strings in must_not_contain.
+        """
         if df_rows is None:
             return
+        if must_not_contain is None:
+            must_not_contain = []
         for label, row in df_rows.iterrows():
             s = str(label)
-            if all(sub in s for sub in substrings):
+            if all(m in s for m in must_contain) and all(n not in s for n in must_not_contain):
                 cs_util[idx_out] = row.get("Utilization", "")
                 cs_status[idx_out] = row.get("Status", "")
                 break
 
     # 1) N (tension)
-    fill_cs_from_df(0, ["Tension", "N"])
+    fill_cs_from_df(0, must_contain=["Tension", "N"])
 
     # 2) N (compression)
-    fill_cs_from_df(1, ["Compression", "N"])
+    fill_cs_from_df(1, must_contain=["Compression", "N"])
 
-    # 3) My  (major-axis bending)
-    fill_cs_from_df(2, ["Bending", "My"])
+    # 3) My  – pure bending My only (no combos with N or V or Mz)
+    fill_cs_from_df(
+        2,
+        must_contain=["My"],
+        must_not_contain=["+", "N", "Vy", "Vz", "Mz"],
+    )
 
-    # 4) Mz  (minor-axis bending)
-    fill_cs_from_df(3, ["Bending", "Mz"])
+    # 4) Mz  – pure bending Mz only
+    fill_cs_from_df(
+        3,
+        must_contain=["Mz"],
+        must_not_contain=["+", "N", "Vy", "Vz", "My"],
+    )
 
-    # 5) Vy  (shear in y)
-    fill_cs_from_df(4, ["Shear", "Vy"])
+    # 5) Vy – shear in y
+    fill_cs_from_df(
+        4,
+        must_contain=["Shear", "Vy"],
+    )
 
-    # 6) Vz  (shear in z)
-    fill_cs_from_df(5, ["Shear", "Vz"])
+    # 6) Vz – shear in z
+    fill_cs_from_df(
+        5,
+        must_contain=["Shear", "Vz"],
+    )
 
     # -------------------------------------------------
     # Helper to build one nice looking table
@@ -4112,6 +4132,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
