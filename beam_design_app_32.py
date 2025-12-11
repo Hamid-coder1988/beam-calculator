@@ -3640,20 +3640,12 @@ zones are filled with fasteners.
         status_Vy = "n/a"
 
     report_h3("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
-    
-    st.markdown("""
-    The shear resistance check uses:
-    
-    \\[
-    \\frac{V_{Ed}}{V_{c,Rd}} \\le 1.0
-    \\]
-    
-    Plastic shear resistance:
-    
-    \\[
-    V_{c,Rd} = A_v \\, \\frac{f_y}{\\sqrt{3} \\, \\gamma_{M0}}
-    \\]
-    """)
+
+    st.markdown("The shear resistance check uses:")
+    st.latex(r"\frac{V_{Ed}}{V_{c,Rd}} \le 1.0")
+
+    st.markdown("Plastic shear resistance:")
+    st.latex(r"V_{c,Rd} = A_v \, \frac{f_y}{\sqrt{3}\,\gamma_{M0}}")
     
     # Shear resistances
     st.latex(
@@ -4124,6 +4116,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
