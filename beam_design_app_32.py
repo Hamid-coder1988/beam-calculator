@@ -1993,7 +1993,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     )
     return df_rows, overall_ok, governing, extras
 
-def render_results(df_rows, overall_ok, governing, show_footer=True):
+def render_results(df_rows, overall_ok, governing, show_footer=True, include_deflection=True):
     """
     Results tab: two aligned tables with color coding and bold governing row,
     nicer card-style formatting.
@@ -2016,67 +2016,40 @@ def render_results(df_rows, overall_ok, governing, show_footer=True):
         st.caption(f"Overall status: **{status_txt}**")
 
     # -------------------------------------------------
-    # Deflection summary (from diagrams)
+    # Deflection summary (serviceability) – Results tab only
     # -------------------------------------------------
-    diag_summary = st.session_state.get("diag_summary")
+    if include_deflection:
+        diag_summary = st.session_state.get("diag_summary")
 
-    if diag_summary and diag_summary.get("defl_available"):
-        w_max_mm   = diag_summary.get("w_max_mm")
-        limit_L300 = diag_summary.get("limit_L300")
-        limit_L600 = diag_summary.get("limit_L600")
-        limit_L900 = diag_summary.get("limit_L900")
+        if diag_summary and diag_summary.get("defl_available"):
+            w_max_mm   = diag_summary.get("w_max_mm")
+            limit_L300 = diag_summary.get("limit_L300")
+            limit_L600 = diag_summary.get("limit_L600")
+            limit_L900 = diag_summary.get("limit_L900")
 
-        # format as strings
-        val_delta = f"{w_max_mm:.3f}" if w_max_mm is not None else "n/a"
-        val_L300  = f"{limit_L300:.3f}" if limit_L300 is not None else "n/a"
-        val_L600  = f"{limit_L600:.3f}" if limit_L600 is not None else "n/a"
-        val_L900  = f"{limit_L900:.3f}" if limit_L900 is not None else "n/a"
+            # format as strings
+            val_delta = f"{w_max_mm:.3f}" if w_max_mm is not None else "n/a"
+            val_L300  = f"{limit_L300:.3f}" if limit_L300 is not None else "n/a"
+            val_L600  = f"{limit_L600:.3f}" if limit_L600 is not None else "n/a"
+            val_L900  = f"{limit_L900:.3f}" if limit_L900 is not None else "n/a"
 
-        # *** IMPORTANT ***
-        # overwrite widget state so text_inputs show the latest values
-        st.session_state["res_delta_max_mm"] = val_delta
-        st.session_state["res_L300_mm"]      = val_L300
-        st.session_state["res_L600_mm"]      = val_L600
-        st.session_state["res_L900_mm"]      = val_L900
+            # *** IMPORTANT ***
+            # overwrite widget state so text_inputs show the latest values
+            st.session_state["res_delta_max_mm"] = val_delta
+            st.session_state["res_L300_mm"]      = val_L300
+            st.session_state["res_L600_mm"]      = val_L600
+            st.session_state["res_L900_mm"]      = val_L900
 
-        small_title("Deflection (serviceability)")
+            small_title("Deflection (serviceability)")
 
-        d1, d2, d3, d4 = st.columns(4)
-        with d1:
-            st.text_input(
-                "δ_max [mm]",
-                value=st.session_state["res_delta_max_mm"],
-                disabled=True,
-                key="res_delta_max_mm",
+            d1, d2, d3, d4 = st.columns(4)
+            # ... your text_inputs here ...
+        else:
+            st.caption(
+                "Deflection summary (δ_max, L/300, L/600, L/900) will appear here "
+                "after running the diagrams in the Loads tab."
             )
-        with d2:
-            st.text_input(
-                "Limit L/300 [mm]",
-                value=st.session_state["res_L300_mm"],
-                disabled=True,
-                key="res_L300_mm",
-            )
-        with d3:
-            st.text_input(
-                "Limit L/600 [mm]",
-                value=st.session_state["res_L600_mm"],
-                disabled=True,
-                key="res_L600_mm",
-            )
-        with d4:
-            st.text_input(
-                "Limit L/900 [mm]",
-                value=st.session_state["res_L900_mm"],
-                disabled=True,
-                key="res_L900_mm",
-            )
-    else:
-        st.caption(
-            "Deflection summary (δ_max, L/300, L/600, L/900) will appear here "
-            "after running the diagrams in the Loads tab."
-        )
 
-    # -------------------------------------------------
     # -----------------------------------
     # Data for the two tables
     # -------------------------------------------------
@@ -3385,7 +3358,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # Result summary (same tables as in Results tab)
     # ----------------------------------------------------
-    render_results(df_rows, overall_ok, governing, show_footer=False)
+    render_results(df_rows, overall_ok, governing, show_footer=True, include_deflection=True)
 
     # Status from the checks table (row 'Tension (N≥0)')
     status_ten = "n/a"
@@ -3989,6 +3962,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
