@@ -1993,10 +1993,12 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     )
     return df_rows, overall_ok, governing, extras
 
-def render_results(df_rows, overall_ok, governing, show_footer=True, include_deflection=True):
+def render_results(df_rows, overall_ok, governing,
+                   show_footer=True,
+                   include_deflection=True,
+                   key_prefix="res_"):
     """
-    Results tab: two aligned tables with color coding and bold governing row,
-    nicer card-style formatting.
+    Results summary (can be used in Results tab and Report tab).
     """
 
     gov_check, gov_util = governing
@@ -2016,7 +2018,7 @@ def render_results(df_rows, overall_ok, governing, show_footer=True, include_def
         st.caption(f"Overall status: **{status_txt}**")
 
     # -------------------------------------------------
-    # Deflection summary (serviceability) – Results tab only
+    # Deflection summary (serviceability)
     # -------------------------------------------------
     if include_deflection:
         diag_summary = st.session_state.get("diag_summary")
@@ -2033,17 +2035,30 @@ def render_results(df_rows, overall_ok, governing, show_footer=True, include_def
             val_L600  = f"{limit_L600:.3f}" if limit_L600 is not None else "n/a"
             val_L900  = f"{limit_L900:.3f}" if limit_L900 is not None else "n/a"
 
-            # *** IMPORTANT ***
-            # overwrite widget state so text_inputs show the latest values
-            st.session_state["res_delta_max_mm"] = val_delta
-            st.session_state["res_L300_mm"]      = val_L300
-            st.session_state["res_L600_mm"]      = val_L600
-            st.session_state["res_L900_mm"]      = val_L900
+            # keys depend on context (Results vs Report)
+            k_delta = f"{key_prefix}delta_max_mm"
+            k_L300  = f"{key_prefix}L300_mm"
+            k_L600  = f"{key_prefix}L600_mm"
+            k_L900  = f"{key_prefix}L900_mm"
+
+            # update state so inputs show latest values
+            st.session_state[k_delta] = val_delta
+            st.session_state[k_L300]  = val_L300
+            st.session_state[k_L600]  = val_L600
+            st.session_state[k_L900]  = val_L900
 
             small_title("Deflection (serviceability)")
 
             d1, d2, d3, d4 = st.columns(4)
-            # ... your text_inputs here ...
+            with d1:
+                st.text_input("δ_max [mm]", value=val_delta, key=k_delta, disabled=True)
+            with d2:
+                st.text_input("Limit L/300 [mm]", value=val_L300, key=k_L300, disabled=True)
+            with d3:
+                st.text_input("Limit L/600 [mm]", value=val_L600, key=k_L600, disabled=True)
+            with d4:
+                st.text_input("Limit L/900 [mm]", value=val_L900, key=k_L900, disabled=True)
+
         else:
             st.caption(
                 "Deflection summary (δ_max, L/300, L/600, L/900) will appear here "
@@ -3930,6 +3945,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
