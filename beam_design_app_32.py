@@ -3020,6 +3020,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     return buffer
 
 def render_report_tab():
+    meta = st.session_state.get("meta", None)
     """
     ENGISNAP Report tab — structured as:
 
@@ -3761,9 +3762,8 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(
 )
 
 with tab1:
-    st.subheader("Project information")
-    meta = render_project_data()
-    st.session_state["meta"] = meta
+    meta = render_project_data()          # your existing function
+    st.session_state["meta"] = meta       # <-- this line is IMPORTANT
 
 with tab2:
     st.subheader("Loads settings")
@@ -3949,6 +3949,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
