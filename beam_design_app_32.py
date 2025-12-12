@@ -3312,9 +3312,6 @@ def render_report_tab():
     # ----------------------------------------------------
     report_h3("5. Applied actions & internal forces (ULS)")
 
-    # 5.1 Design forces & moments (ULS)
-    report_h4("5.1 Design forces & moments — INPUT")
-
     if ready_case:
         st.write(f"Load case type: **{ready_case.get('key','')} — {ready_case.get('label','')}**")
     else:
@@ -3952,6 +3949,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
