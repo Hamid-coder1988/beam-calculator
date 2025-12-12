@@ -3020,18 +3020,6 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     return buffer
 
 def render_report_tab():
-    """
-    ENGISNAP Report tab — structured as:
-
-    1. Project information
-    2. Material design values
-    3. Member & section data
-    4. Section classification
-    5. 
-    6. Verification of cross-section strength (ULS)
-    7. Member stability (buckling)
-    8. References
-    """
     sr_display = st.session_state.get("sr_display")
     inputs = st.session_state.get("inputs")
     df_rows = st.session_state.get("df_rows")
@@ -3948,6 +3936,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
