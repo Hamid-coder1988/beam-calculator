@@ -3341,8 +3341,15 @@ def render_report_tab():
     # ----------------------------------------------------
     # Result summary (same tables as in Results tab)
     # ----------------------------------------------------
-    render_results(df_rows, overall_ok, governing, show_footer=True, include_deflection=True)
-
+    report_h3("6. Result summary (ULS, buckling & deflection)")
+    render_results(
+        df_rows,
+        overall_ok,
+        governing,
+        show_footer=False,      # no bottom hints in Report
+        include_deflection=True,
+        key_prefix="rep_",      # different keys than Results tab
+    )
     # Status from the checks table (row 'Tension (N≥0)')
     status_ten = "n/a"
     
@@ -3945,6 +3952,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
