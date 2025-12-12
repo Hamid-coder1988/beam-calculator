@@ -3020,7 +3020,6 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     return buffer
 
 def render_report_tab():
-    meta = st.session_state.get("meta", None)
     """
     ENGISNAP Report tab — structured as:
 
@@ -3949,6 +3948,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
