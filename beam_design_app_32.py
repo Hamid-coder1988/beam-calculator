@@ -3324,38 +3324,6 @@ def render_report_tab():
         st.empty()   # clean layout (no empty grey box)
 
     # ----------------------------------------------------
-    # 5.2 Deflection summary
-    # ----------------------------------------------------
-    report_h4("5.2 Deflection summary")
-
-    L_mm = L * 1000 if L > 0 else 0
-    L_over_w = (L_mm / abs(delta_max_mm)) if (L_mm > 0 and delta_max_mm not in (None,0)) else None
-
-    limit_L300 = L_mm/300 if L_mm>0 else None
-    limit_L600 = L_mm/600 if L_mm>0 else None
-    limit_L900 = L_mm/900 if L_mm>0 else None
-
-    # --- Row 1: δmax, L/300, L/600 ---
-    d1, d2, d3 = st.columns(3)
-    with d1:
-        st.text_input("δ_max [mm]", f"{delta_max_mm:.3f}" if delta_max_mm is not None else "n/a", disabled=True)
-    with d2:
-        st.text_input("Limit L/300 [mm]", f"{limit_L300:.3f}" if limit_L300 else "n/a", disabled=True)
-    with d3:
-        st.text_input("Limit L/600 [mm]", f"{limit_L600:.3f}" if limit_L600 else "n/a", disabled=True)
-
-    # --- Row 2: L/900, span, ratio ---
-    e1, e2, e3 = st.columns(3)
-    with e1:
-        st.text_input("Limit L/900 [mm]", f"{limit_L900:.3f}" if limit_L900 else "n/a", disabled=True)
-    with e2:
-        st.text_input("Span L [mm]", f"{L_mm:.1f}" if L_mm>0 else "n/a", disabled=True)
-    with e3:
-        st.text_input("Deflection ratio L / δ_max", f"{L_over_w:.1f}" if L_over_w else "n/a", disabled=True)
-
-    st.markdown("---")
-
-    # ----------------------------------------------------
     # Result summary (same tables as in Results tab)
     # ----------------------------------------------------
     render_results(df_rows, overall_ok, governing, show_footer=True, include_deflection=True)
@@ -3962,6 +3930,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
