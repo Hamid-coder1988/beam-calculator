@@ -1,7 +1,4 @@
 # beam_design_app.py
-# EngiSnap — Beam Code 6 (DB-backed, wizard UI, gallery ready cases, pro report + PDF)
-# + V(x) & M(x) diagrams integrated (Beam-only for now)
-
 import streamlit as st
 import pandas as pd
 import math
@@ -3028,7 +3025,25 @@ def render_report_tab():
     extras = st.session_state.get("extras") or {}
     meta = st.session_state.get("meta")
     material = st.session_state.get("material", "S355")
+    # always rebuild project meta from Project tab widgets
+    doc_name     = st.session_state.get("doc_title_in",   "Beam check")
+    project_name = st.session_state.get("project_name_in","")
+    position     = st.session_state.get("position_in",    "")
+    requested_by = st.session_state.get("requested_by_in","")
+    revision     = st.session_state.get("revision_in",    "A")
+    run_date     = st.session_state.get("run_date_in",    date.today())
+    notes        = st.session_state.get("notes_in",       "")
 
+    meta = (doc_name, project_name, position, requested_by, revision, run_date, notes)
+    st.session_state["meta"] = meta
+
+    sigma_allow   = extras.get("sigma_allow_MPa")
+    sigma_eq      = extras.get("sigma_eq_MPa")
+    buck_results  = extras.get("buck_results", [])
+
+    if sr_display is None or inputs is None or df_rows is None:
+        st.info("To see the report: select a section, define loads, run the check, then return here.")
+        return
     # from extras (computed in compute_checks)
     sigma_allow = extras.get("sigma_allow_MPa")
     sigma_eq = extras.get("sigma_eq_MPa")
@@ -3936,6 +3951,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
