@@ -3141,28 +3141,28 @@ def render_report_tab():
     st.markdown("---")
 
     # ----------------------------------------------------
-    # 1. Project information
+    # 1. Project data (exact copy of Project tab, read-only)
     # ----------------------------------------------------
-    report_h3("1. Project information")
-    c1, c2, c3 = st.columns(3)
+    doc_name, project_name, position, requested_by, revision, run_date, notes = meta if meta and len(meta) == 7 else ("Beam check", "", "", "", "A", date.today(), "")
+
+    st.markdown("### Project data")
+
+    c1, c2, c3 = st.columns([1, 1, 1])
+
     with c1:
-        st.text_input("Project name", value=str(project_name), disabled=True, key="rpt_proj_name")
-        st.text_input("Designer", value=str(requested_by), disabled=True, key="rpt_designer")
+        st.text_input("Document title", value=str(doc_name), disabled=True, key="rpt_doc_title_in")
+        st.text_input("Project name", value=str(project_name), disabled=True, key="rpt_project_name_in")
+
     with c2:
-        st.text_input("Document title", value=str(doc_title), disabled=True, key="rpt_doc_title")
-        st.text_input("Revision", value=str(revision), disabled=True, key="rpt_revision")
+        st.text_input("Position / Location (Beam ID)", value=str(position), disabled=True, key="rpt_position_in")
+        st.text_input("Requested by", value=str(requested_by), disabled=True, key="rpt_requested_by_in")
+
     with c3:
-        st.text_input("Date", value=str(run_date), disabled=True, key="rpt_date")
-        st.text_input("App", value="EngiSnap – Beam design (prototype)", disabled=True, key="rpt_app")
+        st.text_input("Revision", value=str(revision), disabled=True, key="rpt_revision_in")
+        st.text_input("Date", value=str(run_date), disabled=True, key="rpt_run_date_in")
 
-    st.text_input("National Annex", value="(not specified)", disabled=True, key="rpt_na")
+    st.text_area("Notes / comments", value=str(notes), disabled=True, key="rpt_notes_in")
 
-    st.text_area(
-        "Notes / comments",
-        value=str(notes or ""),
-        disabled=True,
-        key="rpt_notes",
-    )
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -3949,6 +3949,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
