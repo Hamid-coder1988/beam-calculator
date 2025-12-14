@@ -2433,8 +2433,8 @@ def render_results(df_rows, overall_ok, governing,
         if must_not_contain is None:
             must_not_contain = []
 
-        for label, row in df_rows.iterrows():
-            s = str(label)
+        for _idx, row in df_rows.iterrows():
+            s = str(row.get("Check", ""))
             if all(m in s for m in must_contain) and all(n not in s for n in must_not_contain):
                 cs_util[idx_out] = row.get("Utilization", "")
                 cs_status[idx_out] = row.get("Status", "")
