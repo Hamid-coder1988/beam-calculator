@@ -2682,7 +2682,9 @@ def render_results(df_rows, overall_ok, governing,
   </tr>
 """
 
-        for i, (name, util, status) in enumerate(zip(names, utils, statuses)):
+        for i, name in enumerate(names):
+            util = utils[i] if i < len(utils) else ""
+            status = statuses[i] if i < len(statuses) else ""
             number = start_no + i
 
             # background color based on status
@@ -3523,6 +3525,10 @@ def render_report_tab():
     extras = st.session_state.get("extras") or {}
     meta = st.session_state.get("meta")
     material = st.session_state.get("material", "S355")
+    # Safety factors (use session state defaults)
+    gamma_M0 = float(st.session_state.get("gamma_M0", 1.00))
+    gamma_M1 = float(st.session_state.get("gamma_M1", 1.00))
+
     # always rebuild project meta from Project tab widgets
     doc_name     = st.session_state.get("doc_title_in",   "Beam check")
     project_name = st.session_state.get("project_name_in","")
@@ -4250,8 +4256,7 @@ If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must b
     Wpl_z_mm3 = float(use_props.get("Wpl_z_mm3", use_props.get("Wpl_z_cm3", 0.0) * 1e3))
 
     # Factors
-    gamma_M0 = float(st.session_state.get("gamma_M0", 1.00))
-    gamma_M1 = float(st.session_state.get("gamma_M1", 1.00))
+    # (gamma_M0, gamma_M1 already defined at top of render_report_tab)
 
     # Buckling curve letters inferred from alpha (if available)
     def _curve_from_alpha(a):
