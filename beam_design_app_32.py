@@ -3140,6 +3140,16 @@ def render_report_tab():
     # 1. Project data (exact copy of Project tab, read-only)
     # ----------------------------------------------------
 
+    # Keep read-only report widgets in sync: Streamlit widgets with keys keep their own state.
+    # So we push the latest Project-tab values into the report-widget keys *before* rendering them.
+    st.session_state["rpt_doc_title_in"]     = str(doc_name)
+    st.session_state["rpt_project_name_in"]  = str(project_name)
+    st.session_state["rpt_position_in"]      = str(position)
+    st.session_state["rpt_requested_by_in"]  = str(requested_by)
+    st.session_state["rpt_revision_in"]      = str(revision)
+    st.session_state["rpt_run_date_in"]      = str(run_date)
+    st.session_state["rpt_notes_in"]         = str(notes)
+
     c1, c2, c3 = st.columns([1, 1, 1])
 
     with c1:
@@ -3941,8 +3951,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
-
 
 
 
