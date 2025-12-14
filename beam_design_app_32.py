@@ -1911,6 +1911,59 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Status": status_Vy,
     })
 
+    # -------------------------------------------------
+    # Combined effects placeholders required for summary tables (checks 7–14)
+    # -------------------------------------------------
+    # Shear influence on bending (EN 1993-1-1 §6.2.8): if VEd <= 0.5*Vpl,Rd => ignore
+    shear_ratio_y = (Vy_Ed_kN / Vc_y_Rd_kN) if (Vc_y_Rd_kN and Vc_y_Rd_kN > 0) else None
+    shear_ratio_z = (Vz_Ed_kN / Vc_z_Rd_kN) if (Vc_z_Rd_kN and Vc_z_Rd_kN > 0) else None
+
+    shear_ok_y = (shear_ratio_y is not None) and (shear_ratio_y <= 0.50)
+    shear_ok_z = (shear_ratio_z is not None) and (shear_ratio_z <= 0.50)
+
+    # Axial influence on bending (EN 1993-1-1 §6.2.9): I/H doubly symmetric heuristic
+    # Pull basic geometric dims if present (used for hw*tw criteria)
+    h_mm = float(use_props.get("h_mm", use_props.get("h", 0.0)) or 0.0)
+    b_mm = float(use_props.get("b_mm", use_props.get("b", 0.0)) or 0.0)
+    tw_mm = float(use_props.get("tw_mm", use_props.get("tw", 0.0)) or 0.0)
+    tf_mm = float(use_props.get("tf_mm", use_props.get("tf", 0.0)) or 0.0)
+    r_mm  = float(use_props.get("r_mm",  use_props.get("r", 0.0))  or 0.0)
+
+    A_mm2 = A_m2 * 1e6
+    Npl_Rd_kN = (A_mm2 * fy / gamma_M0) / 1e3 if (A_mm2 > 0 and fy > 0) else 0.0
+
+    hw_mm = 0.0
+    if h_mm > 0 and tf_mm > 0:
+        # reasonable web height approximation
+        hw_mm = max(h_mm - 2.0 * tf_mm, 0.0)
+
+    crit_y_25 = 0.25 * Npl_Rd_kN
+    crit_y_web = (0.50 * hw_mm * tw_mm * fy / gamma_M0) / 1e3 if (hw_mm > 0 and tw_mm > 0 and fy > 0) else None
+    crit_z_web = (hw_mm * tw_mm * fy / gamma_M0) / 1e3 if (hw_mm > 0 and tw_mm > 0 and fy > 0) else None
+
+    NEd_kN = abs(N_kN)
+    axial_ok_y = (NEd_kN <= crit_y_25) and (crit_y_web is None or NEd_kN <= crit_y_web)
+    axial_ok_z = (crit_z_web is None) or (NEd_kN <= crit_z_web)
+
+    # Prepare detail values for report
+    cs_combo = dict(
+        shear_ratio_y=shear_ratio_y,
+        shear_ratio_z=shear_ratio_z,
+        shear_ok_y=shear_ok_y,
+        shear_ok_z=shear_ok_z,
+        Npl_Rd_kN=Npl_Rd_kN,
+        hw_mm=hw_mm,
+        tw_mm=tw_mm,
+        crit_y_25=crit_y_25,
+        crit_y_web=crit_y_web,
+        crit_z_web=crit_z_web,
+        NEd_kN=NEd_kN,
+        axial_ok_y=axial_ok_y,
+        axial_ok_z=axial_ok_z,
+        util_My=util_My,
+        util_Mz=util_Mz,
+    )
+
     # Indicative stress-based checks
     rows.append({
         "Check": "Bending y-y (σ_by)",
@@ -1937,36 +1990,305 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     })
 
     # -------------------------
-    # Buckling checks
+    # Buckling checks (EN 1993-1-1 §6.3)
     # -------------------------
     E = 210e9
+    nu = 0.30
+    G = E / (2.0 * (1.0 + nu))
+
+    # Pull basic geometric dims if present (used in curve selection and hw*tw criteria)
+    h_mm = float(use_props.get("h_mm", use_props.get("h", 0.0)) or 0.0)
+    b_mm = float(use_props.get("b_mm", use_props.get("b", 0.0)) or 0.0)
+    tw_mm = float(use_props.get("tw_mm", use_props.get("tw", 0.0)) or 0.0)
+    tf_mm = float(use_props.get("tf_mm", use_props.get("tf", 0.0)) or 0.0)
+    r_mm  = float(use_props.get("r_mm",  use_props.get("r", 0.0))  or 0.0)
+
+    # Warping constant (if available in DB)
+    Iw_m6 = use_props.get("Iw_mm6", None)
+    if Iw_m6 is None:
+        Iw_cm6 = use_props.get("Iw_cm6", None)
+        if Iw_cm6 is None:
+            Iw_m6 = 0.0
+        else:
+            Iw_m6 = float(Iw_cm6) * 1e-12  # cm^6 -> m^6
+    else:
+        Iw_m6 = float(Iw_m6) * 1e-18  # mm^6 -> m^6
+
+    # Plastic section moduli in m^3 (prefer plastic)
+    Wpl_y_m3 = (Wpl_y_cm3 or 0.0) * 1e-6
+    Wpl_z_m3 = (Wpl_z_cm3 or 0.0) * 1e-6
+    Wel_y_m3 = (Wel_y_cm3 or 0.0) * 1e-6
+    Wel_z_m3 = (Wel_z_cm3 or 0.0) * 1e-6
+
+    Wy_m3 = Wpl_y_m3 if Wpl_y_m3 > 0 else S_y_m3
+    Wz_m3 = Wpl_z_m3 if Wpl_z_m3 > 0 else S_z_m3
+
+    # Characteristic resistances (no material factors) for interaction checks
+    NRk_N = A_m2 * fy * 1e6
+    My_Rk_Nm = Wy_m3 * fy * 1e6
+    Mz_Rk_Nm = Wz_m3 * fy * 1e6
+
+    # Determine imperfection factors (rolled I/H heuristic; fallback to DB alpha)
+    alpha_y = float(alpha_curve_db) if alpha_curve_db is not None else 0.49
+    alpha_z = float(alpha_curve_db) if alpha_curve_db is not None else 0.49
+    alpha_LT = 0.34  # rolled I-sections curve b (common default)
+
+    if b_mm > 0 and h_mm > 0 and (h_mm / b_mm) > 1.2 and (tf_mm <= 40.0):
+        alpha_y = 0.21  # curve a
+        alpha_z = 0.34  # curve b
+
+    def chi_reduction(lambda_bar: float, alpha: float) -> float:
+        # EN 1993-1-1 §6.3.1.2
+        phi = 0.5 * (1.0 + alpha * (lambda_bar - 0.20) + lambda_bar**2)
+        sqrt_term = max(phi**2 - lambda_bar**2, 0.0)
+        denom = phi + math.sqrt(sqrt_term)
+        return min(1.0, 1.0 / denom) if denom > 0 else 0.0
+
+    # Flexural buckling about y and z
     buck_results = []
-    for axis_label, I_axis, K_axis in [("y", I_y_m4, K_y), ("z", I_z_m4, K_z)]:
+    buck_map = {}  # for report/results mapping
+    for axis_label, I_axis, K_axis, alpha_use in [
+        ("y", I_y_m4, K_y, alpha_y),
+        ("z", I_z_m4, K_z, alpha_z),
+    ]:
         if I_axis <= 0:
             buck_results.append((axis_label, None, None, None, None, "No I"))
+            buck_map[f"Ncr_{axis_label}"] = None
             continue
-        Leff_axis = K_axis * L
-        Ncr = (math.pi**2 * E * I_axis) / (Leff_axis**2)
-        lambda_bar = math.sqrt((A_m2 * fy * 1e6) / Ncr) if Ncr > 0 else float("inf")
-        alpha_use = alpha_curve_db if alpha_curve_db is not None else 0.49
-        phi = 0.5 * (1.0 + alpha_use * (lambda_bar**2))
-        sqrt_term = max(phi**2 - lambda_bar**2, 0.0)
-        chi = 1.0 / (phi + math.sqrt(sqrt_term)) if (phi + math.sqrt(sqrt_term)) > 0 else 0.0
-        N_b_Rd_N = chi * A_m2 * fy * 1e6 / gamma_M1
-        status = "OK" if abs(N_N) <= N_b_Rd_N else "EXCEEDS"
-        buck_results.append((axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status))
 
-    # Add flexural buckling rows
-    for axis_label, Ncr, lambda_bar, chi, N_b_Rd_N, status in buck_results:
-        if N_b_Rd_N:
-            util_buck = abs(N_N) / N_b_Rd_N
-            rows.append({
-                "Check": f"Flexural buckling {axis_label}",
-                "Applied": f"{abs(N_N)/1e3:.3f} kN",
-                "Resistance": f"{N_b_Rd_N/1e3:.3f} kN",
-                "Utilization": f"{util_buck:.3f}",
-                "Status": "OK" if util_buck <= 1.0 else "EXCEEDS",
-            })
+        Leff_axis = float(K_axis) * float(L)
+        Ncr = (math.pi**2 * E * I_axis) / (Leff_axis**2) if Leff_axis > 0 else 0.0
+        lambda_bar = math.sqrt(NRk_N / Ncr) if Ncr > 0 else float("inf")
+        chi = chi_reduction(lambda_bar, alpha_use)
+        Nb_Rd_N = chi * NRk_N / gamma_M1
+
+        util = (abs(N_N) / Nb_Rd_N) if Nb_Rd_N > 0 else float("inf")
+        status = "OK" if util <= 1.0 else "EXCEEDS"
+
+        buck_results.append((axis_label, Ncr, lambda_bar, chi, Nb_Rd_N, status))
+        buck_map[f"Ncr_{axis_label}"] = Ncr
+        buck_map[f"lambda_{axis_label}"] = lambda_bar
+        buck_map[f"chi_{axis_label}"] = chi
+        buck_map[f"Nb_Rd_{axis_label}"] = Nb_Rd_N
+        buck_map[f"util_buck_{axis_label}"] = util
+        buck_map[f"status_buck_{axis_label}"] = status
+
+        rows.append({
+            "Check": f"Flexural buckling {axis_label}",
+            "Applied": f"{abs(N_N)/1e3:.3f} kN",
+            "Resistance": f"{Nb_Rd_N/1e3:.3f} kN",
+            "Utilization": f"{util:.3f}",
+            "Status": status,
+        })
+
+    # (17) Torsional / torsional-flexural buckling (approx, doubly symmetric)
+    # Only meaningful if Iw is available.
+    i_y_m = math.sqrt(I_y_m4 / A_m2) if (A_m2 > 0 and I_y_m4 > 0) else 0.0
+    i_z_m = math.sqrt(I_z_m4 / A_m2) if (A_m2 > 0 and I_z_m4 > 0) else 0.0
+    i0_m = math.sqrt(i_y_m**2 + i_z_m**2)
+
+    K_T = float(inputs.get("K_T", 1.0))
+    Leff_T = K_T * L
+
+    Ncr_T = None
+    chi_T = None
+    Nb_Rd_T_N = None
+    util_T = None
+    status_T = "n/a"
+
+    if i0_m > 0 and J_m4 > 0 and Iw_m6 > 0 and Leff_T > 0:
+        Ncr_T = (1.0 / (i0_m**2)) * (G * J_m4 + (math.pi**2) * E * Iw_m6 / (Leff_T**2))
+        lambda_T = math.sqrt(NRk_N / Ncr_T) if Ncr_T > 0 else float("inf")
+        chi_T = chi_reduction(lambda_T, alpha_z)  # use minor-axis curve
+        Nb_Rd_T_N = chi_T * NRk_N / gamma_M1
+        util_T = abs(N_N) / Nb_Rd_T_N if Nb_Rd_T_N and Nb_Rd_T_N > 0 else float("inf")
+        status_T = "OK" if util_T <= 1.0 else "EXCEEDS"
+
+        rows.append({
+            "Check": "Torsional / torsional-flexural buckling",
+            "Applied": f"{abs(N_N)/1e3:.3f} kN",
+            "Resistance": f"{Nb_Rd_T_N/1e3:.3f} kN",
+            "Utilization": f"{util_T:.3f}",
+            "Status": status_T,
+        })
+
+    buck_map["i0_m"] = i0_m
+    buck_map["Ncr_T"] = Ncr_T
+    buck_map["chi_T"] = chi_T
+    buck_map["Nb_Rd_T"] = Nb_Rd_T_N
+    buck_map["util_T"] = util_T
+    buck_map["status_T"] = status_T
+
+    # (18) Lateral-torsional buckling (uniform moment, zg=0, k=kw=1; NCCI-style)
+    K_LT = float(inputs.get("K_LT", 1.0))
+    Leff_LT = K_LT * L
+
+    Mcr = None
+    lambda_LT = None
+    chi_LT = None
+    Mb_Rd_Nm = None
+    util_LT = None
+    status_LT = "n/a"
+
+    if Leff_LT > 0 and I_z_m4 > 0 and J_m4 > 0 and Iw_m6 > 0 and Wy_m3 > 0:
+        term = (Iw_m6 / I_z_m4) + (Leff_LT**2) * G * J_m4 / ((math.pi**2) * E * I_z_m4)
+        Mcr = (math.pi**2) * E * I_z_m4 / (Leff_LT**2) * math.sqrt(max(term, 0.0))
+        lambda_LT = math.sqrt((Wy_m3 * fy * 1e6) / Mcr) if Mcr > 0 else float("inf")
+
+        lambda_LT0 = 0.40
+        beta = 0.75
+        phi_LT = 0.5 * (1.0 + alpha_LT * (lambda_LT - lambda_LT0) + beta * lambda_LT**2)
+        sqrt_term = max(phi_LT**2 - beta * lambda_LT**2, 0.0)
+        chi_LT = min(
+            1.0,
+            (1.0 / (lambda_LT**2)) if lambda_LT > 0 else 1.0,
+            (1.0 / (phi_LT + math.sqrt(sqrt_term))) if (phi_LT + math.sqrt(sqrt_term)) > 0 else 0.0,
+        )
+
+        Mb_Rd_Nm = chi_LT * Wy_m3 * fy * 1e6 / gamma_M1
+        util_LT = abs(My_Ed_kNm * 1e3) / Mb_Rd_Nm if Mb_Rd_Nm and Mb_Rd_Nm > 0 else float("inf")
+        status_LT = "OK" if util_LT <= 1.0 else "EXCEEDS"
+
+        rows.append({
+            "Check": "Lateral-torsional buckling",
+            "Applied": f"{abs(My_Ed_kNm):.3f} kNm",
+            "Resistance": f"{Mb_Rd_Nm/1e3:.3f} kNm",
+            "Utilization": f"{util_LT:.3f}",
+            "Status": status_LT,
+        })
+
+    buck_map["Leff_LT"] = Leff_LT
+    buck_map["Mcr"] = Mcr
+    buck_map["lambda_LT"] = lambda_LT
+    buck_map["chi_LT"] = chi_LT
+    buck_map["Mb_Rd"] = Mb_Rd_Nm
+    buck_map["util_LT"] = util_LT
+    buck_map["status_LT"] = status_LT
+
+    # (19)/(20) Buckling interaction for bending + axial compression (Annex A / Annex B style)
+    # NOTE: We assume uniform moment diagram (ψ=1) since the app takes single My, Mz.
+    psi_y = 1.0
+    psi_z = 1.0
+    psi_LT = 1.0
+
+    # Pull flexural chi factors from buck_results (fallbacks)
+    chi_y = buck_map.get("chi_y", 1.0) or 1.0
+    chi_z = buck_map.get("chi_z", 1.0) or 1.0
+    chiLT = chi_LT if chi_LT is not None else 1.0
+
+    Ncr_y = buck_map.get("Ncr_y", None) or 0.0
+    Ncr_z = buck_map.get("Ncr_z", None) or 0.0
+    Ncr_T_use = Ncr_T if (Ncr_T is not None) else 0.0
+
+    lam_y = buck_map.get("lambda_y", None) or 0.0
+    lam_z = buck_map.get("lambda_z", None) or 0.0
+
+    # interaction utilities
+    util_int_A = None
+    util_int_B = None
+
+    if NRk_N > 0 and My_Rk_Nm > 0 and Mz_Rk_Nm > 0 and (Ncr_y > 0) and (Ncr_z > 0):
+        # --- Method 1 (Annex A inspired) ---
+        Cmy0 = 0.79 + 0.21 * psi_y + 0.36 * (psi_y - 0.33) * (abs(N_N) / Ncr_y) if Ncr_y > 0 else 1.0
+        Cmz0 = 0.79 + 0.21 * psi_z + 0.36 * (psi_z - 0.33) * (abs(N_N) / Ncr_z) if Ncr_z > 0 else 1.0
+
+        npl = abs(N_N) / (NRk_N / gamma_M0) if (NRk_N > 0) else 0.0
+
+        # epsilon_y (use elastic modulus if available)
+        eps_y = None
+        if Wel_y_m3 > 0 and abs(N_N) > 1e-9:
+            eps_y = (abs(My_Ed_kNm) * 1e3 / Wel_y_m3) / (abs(N_N) / A_m2) if A_m2 > 0 else None
+        elif Wel_y_m3 > 0:
+            eps_y = 1e9
+        else:
+            eps_y = 1.0
+
+        wy = min(1.5, (Wpl_y_m3 / Wel_y_m3)) if (Wpl_y_m3 > 0 and Wel_y_m3 > 0) else 1.0
+        wz = min(1.5, (Wpl_z_m3 / Wel_z_m3)) if (Wpl_z_m3 > 0 and Wel_z_m3 > 0) else 1.0
+
+        mu_y = (1 - abs(N_N)/Ncr_y) / (1 - chi_y*abs(N_N)/Ncr_y) if (Ncr_y > 0 and (1 - chi_y*abs(N_N)/Ncr_y) != 0) else 1.0
+        mu_z = (1 - abs(N_N)/Ncr_z) / (1 - chi_z*abs(N_N)/Ncr_z) if (Ncr_z > 0 and (1 - chi_z*abs(N_N)/Ncr_z) != 0) else 1.0
+
+        aLT = max(0.0, 1.0 - (J_m4 / I_y_m4)) if (I_y_m4 > 0 and J_m4 > 0) else 0.0
+
+        # Apply simple Cmy correction (as in your text)
+        if eps_y is None:
+            eps_y = 1.0
+        Cmy = Cmy0 + (1.0 - Cmy0) * (math.sqrt(max(eps_y, 0.0)) * aLT) / (1.0 + math.sqrt(max(eps_y, 0.0)) * aLT)
+        Cmz = Cmz0
+
+        denom_CM = math.sqrt(max((1 - abs(N_N)/Ncr_z) * (1 - abs(N_N)/max(Ncr_T_use, 1e-9)), 1e-9))
+        CmLT = max(1.0, (Cmy**2) * aLT / denom_CM)
+
+        # Table A.1 constants (class 1/2 I-sections, common values)
+        Cyy, Cyz, Czy, Czz = 0.973, 0.657, 0.939, 0.968
+
+        kyy = Cmy * CmLT * mu_y / max((1 - abs(N_N)/Ncr_y), 1e-9) * (1.0 / Cyy)
+        kyz = Cmz * mu_y / max((1 - abs(N_N)/Ncr_z), 1e-9) * (1.0 / Cyz) * 0.6 * math.sqrt(max(wz / max(wy, 1e-9), 0.0))
+        kzy = Cmy * CmLT * mu_z / max((1 - abs(N_N)/Ncr_y), 1e-9) * (1.0 / Czy) * 0.6 * math.sqrt(max(wy / max(wz, 1e-9), 0.0))
+        kzz = Cmz * mu_z / max((1 - abs(N_N)/Ncr_z), 1e-9) * (1.0 / Czz)
+
+        # Utilizations (6.61/6.62 simplified)
+        Ny = abs(N_N) / (chi_y * NRk_N / gamma_M1) if (chi_y * NRk_N) > 0 else float("inf")
+        Nz = abs(N_N) / (chi_z * NRk_N / gamma_M1) if (chi_z * NRk_N) > 0 else float("inf")
+
+        My_term = kyy * (abs(My_Ed_kNm) * 1e3) / (chiLT * My_Rk_Nm / gamma_M1) if (chiLT * My_Rk_Nm) > 0 else float("inf")
+        Mz_term = kyz * (abs(Mz_Ed_kNm) * 1e3) / (Mz_Rk_Nm / gamma_M1) if Mz_Rk_Nm > 0 else float("inf")
+        util_61 = Ny + My_term + Mz_term
+
+        My_term2 = kzy * (abs(My_Ed_kNm) * 1e3) / (chiLT * My_Rk_Nm / gamma_M1) if (chiLT * My_Rk_Nm) > 0 else float("inf")
+        Mz_term2 = kzz * (abs(Mz_Ed_kNm) * 1e3) / (Mz_Rk_Nm / gamma_M1) if Mz_Rk_Nm > 0 else float("inf")
+        util_62 = Nz + My_term2 + Mz_term2
+
+        util_int_A = max(util_61, util_62)
+
+        rows.append({
+            "Check": "Bending + axial compression (Method 1)",
+            "Applied": "Interaction",
+            "Resistance": "≤ 1.0",
+            "Utilization": f"{util_int_A:.3f}",
+            "Status": "OK" if util_int_A <= 1.0 else "EXCEEDS",
+        })
+
+        # --- Method 2 (Annex B inspired) ---
+        Cmy_B = max(0.4, 0.60 + 0.40 * psi_y)
+        Cmz_B = max(0.4, 0.60 + 0.40 * psi_z)
+        CmLT_B = max(0.4, 0.60 + 0.40 * psi_LT)
+
+        kyy_B = Cmy_B * (1.0 + (min(lam_y, 1.0) - 0.2) * abs(N_N) / (chi_y * NRk_N / gamma_M1)) if (chi_y * NRk_N) > 0 else 1.0
+        kzz_B = Cmz_B * (1.0 + (2.0 * min(lam_z, 1.0) - 0.6) * abs(N_N) / (chi_z * NRk_N / gamma_M1)) if (chi_z * NRk_N) > 0 else 1.0
+        kyz_B = 0.6 * kzz_B
+
+        if lam_z >= 0.4:
+            kzy_B = 1.0 - 0.1 * min(lam_z, 1.0) / max((CmLT_B - 0.25), 1e-9) * abs(N_N) / (chi_z * NRk_N / gamma_M1)
+        else:
+            kzy_B = 1.0
+
+        util_61_B = Ny + kyy_B * (abs(My_Ed_kNm) * 1e3) / (chiLT * My_Rk_Nm / gamma_M1) + kyz_B * (abs(Mz_Ed_kNm) * 1e3) / (Mz_Rk_Nm / gamma_M1)
+        util_62_B = Nz + kzy_B * (abs(My_Ed_kNm) * 1e3) / (chiLT * My_Rk_Nm / gamma_M1) + kzz_B * (abs(Mz_Ed_kNm) * 1e3) / (Mz_Rk_Nm / gamma_M1)
+
+        util_int_B = max(util_61_B, util_62_B)
+
+        rows.append({
+            "Check": "Bending + axial compression (Method 2)",
+            "Applied": "Interaction",
+            "Resistance": "≤ 1.0",
+            "Utilization": f"{util_int_B:.3f}",
+            "Status": "OK" if util_int_B <= 1.0 else "EXCEEDS",
+        })
+
+        buck_map.update({
+            "Cmy0": Cmy0, "Cmz0": Cmz0, "Cmy": Cmy, "Cmz": Cmz, "CmLT": CmLT,
+            "kyy": kyy, "kyz": kyz, "kzy": kzy, "kzz": kzz,
+            "util_int_method1": util_int_A,
+            "util_int_method2": util_int_B,
+            "status_int_method1": "OK" if util_int_A <= 1.0 else "EXCEEDS",
+            "status_int_method2": "OK" if util_int_B <= 1.0 else "EXCEEDS",
+        })
+
+    # Store detailed buckling numbers for report
+    
+    extras_buck_map = buck_map
 
     # Build DataFrame and summary
     df_rows = pd.DataFrame(rows).set_index("Check")
@@ -1984,6 +2306,8 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         sigma_allow_MPa=sigma_allow_MPa,
         sigma_eq_MPa=sigma_eq_MPa,
         buck_results=buck_results,
+        buck_map=extras_buck_map,
+        cs_combo=cs_combo,
         N_Rd_N=N_Rd_N,
         M_Rd_y_Nm=M_Rd_y_Nm,
         V_Rd_N=V_Rd_N,
@@ -2155,10 +2479,101 @@ def render_results(df_rows, overall_ok, governing,
         must_contain=["Vz"],
         must_not_contain=["+"],
     )
+# Helper to build one nice looking table
 
     # -------------------------------------------------
-    # Helper to build one nice looking table
+    # Fill combined checks (7–14) using stored combo flags
     # -------------------------------------------------
+    extras = st.session_state.get("extras") or {}
+    cs_combo = extras.get("cs_combo") or {}
+
+    def _fmt_util(x):
+        if x is None:
+            return ""
+        try:
+            return f"{float(x):.3f}"
+        except Exception:
+            return str(x)
+
+    def _ok(u):
+        try:
+            return "OK" if float(u) <= 1.0 else "EXCEEDS"
+        except Exception:
+            return ""
+
+    util_My = cs_combo.get("util_My", None)
+    util_Mz = cs_combo.get("util_Mz", None)
+
+    # (7) My + Vy : if Vy <= 0.5 Vpl,Rd,y => same as My
+    if cs_combo.get("shear_ratio_y", None) is not None and cs_combo.get("shear_ok_y", False):
+        cs_util[6] = _fmt_util(util_My)
+        cs_status[6] = _ok(util_My)
+    else:
+        cs_util[6] = _fmt_util(util_My)
+        cs_status[6] = _ok(util_My)
+
+    # (8) Mz + Vz : if Vz <= 0.5 Vpl,Rd,z => same as Mz
+    if cs_combo.get("shear_ratio_z", None) is not None and cs_combo.get("shear_ok_z", False):
+        cs_util[7] = _fmt_util(util_Mz)
+        cs_status[7] = _ok(util_Mz)
+    else:
+        cs_util[7] = _fmt_util(util_Mz)
+        cs_status[7] = _ok(util_Mz)
+
+    # (9)-(11) Bending + axial force : if axial criteria met => same as bending
+    if cs_combo.get("axial_ok_y", False):
+        cs_util[8] = _fmt_util(util_My)
+        cs_status[8] = _ok(util_My)
+    else:
+        cs_util[8] = _fmt_util(util_My)
+        cs_status[8] = _ok(util_My)
+
+    if cs_combo.get("axial_ok_z", False):
+        cs_util[9] = _fmt_util(util_Mz)
+        cs_status[9] = _ok(util_Mz)
+    else:
+        cs_util[9] = _fmt_util(util_Mz)
+        cs_status[9] = _ok(util_Mz)
+
+    cs_util[10] = _fmt_util(max([u for u in [util_My, util_Mz] if u is not None], default=None))
+    cs_status[10] = _ok(max([u for u in [util_My, util_Mz] if u is not None], default=0.0))
+
+    # (12)-(14) Bending + shear + axial : if shear <=0.5 => same as (9)-(11)
+    cs_util[11] = cs_util[8]
+    cs_status[11] = cs_status[8]
+    cs_util[12] = cs_util[9]
+    cs_status[12] = cs_status[9]
+    cs_util[13] = cs_util[10]
+    cs_status[13] = cs_status[10]
+
+    # -------------------------------------------------
+    # Fill member stability checks (15–20) from buckling results in df_rows / extras
+    # -------------------------------------------------
+    buck_map = extras.get("buck_map") or {}
+
+    # 15/16
+    buck_util[0] = _fmt_util(buck_map.get("util_buck_y", None))
+    buck_status[0] = buck_map.get("status_buck_y", "") or ""
+    buck_util[1] = _fmt_util(buck_map.get("util_buck_z", None))
+    buck_status[1] = buck_map.get("status_buck_z", "") or ""
+
+    # 17
+    buck_util[2] = _fmt_util(buck_map.get("util_T", None))
+    buck_status[2] = buck_map.get("status_T", "") or ""
+
+    # 18
+    buck_util[3] = _fmt_util(buck_map.get("util_LT", None))
+    buck_status[3] = buck_map.get("status_LT", "") or ""
+
+    # 19/20
+    buck_util[4] = _fmt_util(buck_map.get("util_int_method1", None))
+    buck_status[4] = buck_map.get("status_int_method1", "") or ""
+    buck_util[5] = _fmt_util(buck_map.get("util_int_method2", None))
+    buck_status[5] = buck_map.get("status_int_method2", "") or ""
+
+
+    # -------------------------------------------------
+    # Helper    # -------------------------------------------------
     def build_table_html(title, start_no, names, utils, statuses):
         card_open = """
 <div style="
@@ -3638,6 +4053,131 @@ zones are filled with fasteners.
     except at joints where EN 1993-1-8 applies.
     """)
     
+
+    # ----------------------------------------------------
+    # (6.2.7) Torsion
+    # ----------------------------------------------------
+    st.subheader("(6.2.7) Torsion (EN 1993-1-1 §6.2.7)")
+    st.markdown("""
+The verifications for torsional moment **T<sub>Ed</sub>** are **not examined** in this calculation.
+
+For open cross-sections without any directly applied torsional load the torsional moment occurs primarily as **warping torsion** due to:
+1. rotation compatibility due to bending of other transversely connected members, and  
+2. eccentricity of loading applied directly on the examined member.
+
+For this typical case the effects of warping torsion are small and can be ignored. However, if the steel member directly supports significant torsional loads then a **closed cross-section is recommended**.
+""", unsafe_allow_html=True)
+
+    # ----------------------------------------------------
+    # (6.2.8) Bending and shear
+    # ----------------------------------------------------
+    st.subheader("(6.2.8) Bending and shear (EN 1993-1-1 §6.2.8)")
+    cs_combo = (extras.get("cs_combo") or {})
+    shear_ratio_z = cs_combo.get("shear_ratio_z", None)
+    shear_ratio_y = cs_combo.get("shear_ratio_y", None)
+
+    if shear_ratio_z is not None and Vc_z_Rd_kN > 0:
+        st.markdown(f"- Shear force along axis z-z: Vz,Ed / Vpl,Rd,z = {Vz_Ed_kN:.2f} / {Vc_z_Rd_kN:.2f} = **{shear_ratio_z:.3f}**")
+    if shear_ratio_y is not None and Vc_y_Rd_kN > 0:
+        st.markdown(f"- Shear force along axis y-y: Vy,Ed / Vpl,Rd,y = {Vy_Ed_kN:.2f} / {Vc_y_Rd_kN:.2f} = **{shear_ratio_y:.3f}**")
+
+    if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
+        st.markdown("""
+The applied shear forces are **less than 50%** of the corresponding plastic shear resistances.  
+Therefore the effect of shear forces on the bending moment resistance may be **ignored**, and the bending utilization factors are unchanged.
+""")
+    else:
+        st.markdown("""
+At least one shear ratio exceeds **0.50**, therefore a reduction of bending resistance may be required per EN 1993-1-1 §6.2.8.
+""")
+
+    # ----------------------------------------------------
+    # (6.2.9) Bending and axial force
+    # ----------------------------------------------------
+    st.subheader("(6.2.9) Bending and axial force (EN 1993-1-1 §6.2.9)")
+    Npl_Rd_kN = cs_combo.get("Npl_Rd_kN", None)
+    crit_y_25 = cs_combo.get("crit_y_25", None)
+    crit_y_web = cs_combo.get("crit_y_web", None)
+    crit_z_web = cs_combo.get("crit_z_web", None)
+    NEd_kN = cs_combo.get("NEd_kN", None)
+
+    if Npl_Rd_kN is not None and NEd_kN is not None:
+        st.markdown(f"Design axial force: **NEd = {NEd_kN:.2f} kN**")
+        st.markdown(f"- 0.25·Npl,Rd = 0.25·{Npl_Rd_kN:.2f} = **{crit_y_25:.2f} kN**")
+        if crit_y_web is not None:
+            st.markdown(f"- 0.50·hw·tw·fy/γM0 = **{crit_y_web:.2f} kN**")
+        if crit_z_web is not None:
+            st.markdown(f"- hw·tw·fy/γM0 = **{crit_z_web:.2f} kN**")
+
+        if cs_combo.get("axial_ok_y", False) and cs_combo.get("axial_ok_z", False):
+            st.markdown("""
+The axial force satisfies the criteria for doubly-symmetric I/H sections, therefore allowance need **not** be made for the effect of axial force on the plastic resistance moments.  
+Bending utilization factors remain as in Sections (3) and (4).
+""")
+        else:
+            st.markdown("""
+The axial force criteria are **not** fully satisfied. A reduction / interaction should be applied per EN 1993-1-1 §6.2.9.  
+(This implementation reports the interaction results in the Results table.)
+""")
+
+    # ----------------------------------------------------
+    # (6.2.10) Bending, shear and axial force
+    # ----------------------------------------------------
+    st.subheader("(6.2.10) Bending, shear and axial force (EN 1993-1-1 §6.2.10)")
+    if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
+        st.markdown("""
+Since the applied shear forces are **≤ 0.50·Vpl,Rd**, the shear influence on the bending+axial resistance may be ignored.  
+Therefore the utilization factors are the same as in Section (6.2.9).
+""")
+    else:
+        st.markdown("""
+If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must be reduced per EN 1993-1-1 §6.2.10.
+""")
+
+    # ----------------------------------------------------
+    # (6.3) Member stability summary (checks 15–20)
+    # ----------------------------------------------------
+    st.subheader("Verification of member stability (buckling, checks 15–20)")
+    buck_map = (extras.get("buck_map") or {})
+
+    def _p(label, val, unit=""):
+        if val is None:
+            return f"- {label}: n/a"
+        return f"- {label}: **{val:.3f}**{unit}"
+
+    # Flexural buckling
+    if buck_map.get("Ncr_y") is not None:
+        st.markdown(_p("Ncr,y", buck_map.get("Ncr_y")/1e3, " kN"))
+        st.markdown(_p("λy", buck_map.get("lambda_y")))
+        st.markdown(_p("χy", buck_map.get("chi_y")))
+        st.markdown(_p("Nb,Rd,y", buck_map.get("Nb_Rd_y")/1e3 if buck_map.get("Nb_Rd_y") else None, " kN"))
+        st.markdown(_p("Utilization (y)", buck_map.get("util_buck_y")))
+    if buck_map.get("Ncr_z") is not None:
+        st.markdown(_p("Ncr,z", buck_map.get("Ncr_z")/1e3, " kN"))
+        st.markdown(_p("λz", buck_map.get("lambda_z")))
+        st.markdown(_p("χz", buck_map.get("chi_z")))
+        st.markdown(_p("Nb,Rd,z", buck_map.get("Nb_Rd_z")/1e3 if buck_map.get("Nb_Rd_z") else None, " kN"))
+        st.markdown(_p("Utilization (z)", buck_map.get("util_buck_z")))
+
+    # Torsional buckling
+    if buck_map.get("Ncr_T") is not None:
+        st.markdown(_p("Ncr,T", buck_map.get("Ncr_T")/1e3, " kN"))
+        st.markdown(_p("Utilization (torsional)", buck_map.get("util_T")))
+
+    # LTB
+    if buck_map.get("Mcr") is not None:
+        st.markdown(_p("Mcr", buck_map.get("Mcr")/1e3, " kNm"))
+        st.markdown(_p("λLT", buck_map.get("lambda_LT")))
+        st.markdown(_p("χLT", buck_map.get("chi_LT")))
+        st.markdown(_p("Mb,Rd", buck_map.get("Mb_Rd")/1e3 if buck_map.get("Mb_Rd") else None, " kNm"))
+        st.markdown(_p("Utilization (LTB)", buck_map.get("util_LT")))
+
+    # Interaction
+    if buck_map.get("util_int_method1") is not None:
+        st.markdown(_p("Interaction utilization (Method 1)", buck_map.get("util_int_method1")))
+    if buck_map.get("util_int_method2") is not None:
+        st.markdown(_p("Interaction utilization (Method 2)", buck_map.get("util_int_method2")))
+
     # ----------------------------------------------------
     # 8. References
     # ----------------------------------------------------
