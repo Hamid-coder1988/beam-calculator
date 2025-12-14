@@ -3060,13 +3060,6 @@ def render_report_tab():
     My_Ed_kNm = inputs.get("My_kNm", 0.0)
     Mz_Ed_kNm = inputs.get("Mz_kNm", 0.0)
 
-    # --- support old 6-item meta and new 7-item meta with notes ---
-    if len(meta) == 7:
-        doc_title, project_name, position, requested_by, revision, run_date, notes = meta
-    else:
-        doc_title, project_name, position, requested_by, revision, run_date = meta
-        notes = ""
-
     fam = sr_display.get("family", "")
     name = sr_display.get("name", "")
     fy = material_to_fy(material)
@@ -3146,9 +3139,6 @@ def render_report_tab():
     # ----------------------------------------------------
     # 1. Project data (exact copy of Project tab, read-only)
     # ----------------------------------------------------
-    doc_name, project_name, position, requested_by, revision, run_date, notes = meta if meta and len(meta) == 7 else ("Beam check", "", "", "", "A", date.today(), "")
-
-    st.markdown("### Project data")
 
     c1, c2, c3 = st.columns([1, 1, 1])
 
@@ -3951,6 +3941,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
