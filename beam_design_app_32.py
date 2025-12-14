@@ -2242,6 +2242,30 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
         util_int_A = max(util_61, util_62)
 
+
+        # Store Method 1 (Annex A) intermediate values for the Report tab
+        buck_map.update({
+            "Cmy0_A": Cmy0,
+            "Cmz0_A": Cmz0,
+            "npl_A": npl,
+            "eps_y_A": eps_y,
+            "wy_A": wy,
+            "wz_A": wz,
+            "mu_y_A": mu_y,
+            "mu_z_A": mu_z,
+            "aLT_A": aLT,
+            "Cmy_A": Cmy,
+            "Cmz_A": Cmz,
+            "CmLT_A": CmLT,
+            "kyy_A": kyy,
+            "kyz_A": kyz,
+            "kzy_A": kzy,
+            "kzz_A": kzz,
+            "util_61_A": util_61,
+            "util_62_A": util_62,
+            "util_int_A": util_int_A,
+        })
+
         rows.append({
             "Check": "Bending + axial compression (Method 1)",
             "Applied": "Interaction",
@@ -2268,6 +2292,21 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         util_62_B = Nz + kzy_B * (abs(My_Ed_kNm) * 1e3) / (chiLT * My_Rk_Nm / gamma_M1) + kzz_B * (abs(Mz_Ed_kNm) * 1e3) / (Mz_Rk_Nm / gamma_M1)
 
         util_int_B = max(util_61_B, util_62_B)
+
+
+        # Store Method 2 (Annex B) intermediate values for the Report tab
+        buck_map.update({
+            "Cmy_B": Cmy_B,
+            "Cmz_B": Cmz_B,
+            "CmLT_B": CmLT_B,
+            "kyy_B": kyy_B,
+            "kzz_B": kzz_B,
+            "kyz_B": kyz_B,
+            "kzy_B": kzy_B,
+            "util_61_B": util_61_B,
+            "util_62_B": util_62_B,
+            "util_int_B": util_int_B,
+        })
 
         rows.append({
             "Check": "Bending + axial compression (Method 2)",
@@ -2425,20 +2464,64 @@ def render_results(df_rows, overall_ok, governing,
     # -----------------------------
     def fill_cs_from_df(idx_out, must_contain, must_not_contain=None):
         """
-        Find the first df_rows index whose label contains all strings in must_contain
+        Find the first df_rows row whose "Check" text contains all strings in must_contain
         and none of the strings in must_not_contain.
+
+        NOTE: We normalize the text (lowercase + remove non-alphanumerics except '+')
+        so that labels like "Tension (N>0)" still match queries like ["tension","n"].
         """
         if df_rows is None:
             return
         if must_not_contain is None:
             must_not_contain = []
 
+        def _norm(x: str) -> str:
+            x = (x or "").lower()
+            # keep "+" because we use it as a filter; strip everything else non-alnum
+            return re.sub(r"[^a-z0-9+]+", "", x)
+
+        must_cont = [_norm(s) for s in must_contain]
+        must_not = [_norm(s) for s in must_not_contain]
+
         for _idx, row in df_rows.iterrows():
-            s = str(row.get("Check", ""))
-            if all(m in s for m in must_contain) and all(n not in s for n in must_not_contain):
+            s_raw = str(row.get("Check", ""))
+            s = _norm(s_raw)
+
+            if all(mc in s for mc in must_cont) and all(mn not in s for mn in must_not):
                 cs_util[idx_out] = row.get("Utilization", "")
                 cs_status[idx_out] = row.get("Status", "")
                 break
+
+        # Fallbacks for the first 6 checks (some apps use short labels like "My", "Vz", etc.)
+        if (cs_util[idx_out] == "" or cs_util[idx_out] is None) and idx_out in (0,1,2,3,4,5):
+            for _idx, row in df_rows.iterrows():
+                s_raw = str(row.get("Check", ""))
+                s = _norm(s_raw)
+                # Map by common Eurocode wording / your check titles
+                if idx_out == 0 and ("tension" in s):
+                    cs_util[idx_out] = row.get("Utilization", "")
+                    cs_status[idx_out] = row.get("Status", "")
+                    break
+                if idx_out == 1 and ("compression" in s) and ("buckling" not in s):
+                    cs_util[idx_out] = row.get("Utilization", "")
+                    cs_status[idx_out] = row.get("Status", "")
+                    break
+                if idx_out == 2 and ("my" in s) and ("+" not in s) and ("vy" not in s) and ("vz" not in s):
+                    cs_util[idx_out] = row.get("Utilization", "")
+                    cs_status[idx_out] = row.get("Status", "")
+                    break
+                if idx_out == 3 and ("mz" in s) and ("+" not in s) and ("vy" not in s) and ("vz" not in s):
+                    cs_util[idx_out] = row.get("Utilization", "")
+                    cs_status[idx_out] = row.get("Status", "")
+                    break
+                if idx_out == 4 and ("vy" in s) and ("+" not in s) and ("shear" in s):
+                    cs_util[idx_out] = row.get("Utilization", "")
+                    cs_status[idx_out] = row.get("Status", "")
+                    break
+                if idx_out == 5 and ("vz" in s) and ("+" not in s) and ("shear" in s):
+                    cs_util[idx_out] = row.get("Utilization", "")
+                    cs_status[idx_out] = row.get("Status", "")
+                    break
 
     # 1) N (tension)
     fill_cs_from_df(
@@ -4137,48 +4220,246 @@ If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must b
     # ----------------------------------------------------
     # (6.3) Member stability summary (checks 15–20)
     # ----------------------------------------------------
-    st.subheader("Verification of member stability (buckling, checks 15–20)")
+        # ----------------------------------------------------
+    # (6.3) Verification of member stability (buckling, checks 15–20)
+    # ----------------------------------------------------
     buck_map = (extras.get("buck_map") or {})
 
-    def _p(label, val, unit=""):
-        if val is None:
-            return f"- {label}: n/a"
-        return f"- {label}: **{val:.3f}**{unit}"
+    # Basic inputs
+    L = float(inputs.get("L", 0.0))
+    K_y = float(inputs.get("K_y", 1.0))
+    K_z = float(inputs.get("K_z", 1.0))
+    K_T = float(inputs.get("K_T", 1.0))
+    K_LT = float(inputs.get("K_LT", 1.0))
 
-    # Flexural buckling
-    if buck_map.get("Ncr_y") is not None:
-        st.markdown(_p("Ncr,y", buck_map.get("Ncr_y")/1e3, " kN"))
-        st.markdown(_p("λy", buck_map.get("lambda_y")))
-        st.markdown(_p("χy", buck_map.get("chi_y")))
-        st.markdown(_p("Nb,Rd,y", buck_map.get("Nb_Rd_y")/1e3 if buck_map.get("Nb_Rd_y") else None, " kN"))
-        st.markdown(_p("Utilization (y)", buck_map.get("util_buck_y")))
-    if buck_map.get("Ncr_z") is not None:
-        st.markdown(_p("Ncr,z", buck_map.get("Ncr_z")/1e3, " kN"))
-        st.markdown(_p("λz", buck_map.get("lambda_z")))
-        st.markdown(_p("χz", buck_map.get("chi_z")))
-        st.markdown(_p("Nb,Rd,z", buck_map.get("Nb_Rd_z")/1e3 if buck_map.get("Nb_Rd_z") else None, " kN"))
-        st.markdown(_p("Utilization (z)", buck_map.get("util_buck_z")))
+    NEd_kN = float(inputs.get("N_kN", 0.0))
+    MyEd_kNm = float(inputs.get("My_kNm", 0.0))
+    MzEd_kNm = float(inputs.get("Mz_kNm", 0.0))
 
-    # Torsional buckling
-    if buck_map.get("Ncr_T") is not None:
-        st.markdown(_p("Ncr,T", buck_map.get("Ncr_T")/1e3, " kN"))
-        st.markdown(_p("Utilization (torsional)", buck_map.get("util_T")))
+    # Section & material
+    A_mm2 = float(use_props.get("A_mm2", 0.0))
+    Iy_mm4 = float(use_props.get("Iy_mm4", use_props.get("Iy_cm4", 0.0) * 1e4))
+    Iz_mm4 = float(use_props.get("Iz_mm4", use_props.get("Iz_cm4", 0.0) * 1e4))
+    iy_mm = float(use_props.get("iy_mm", 0.0))
+    iz_mm = float(use_props.get("iz_mm", 0.0))
+    It_mm4 = float(use_props.get("It_mm4", use_props.get("It_cm4", 0.0) * 1e4))
+    Iw_mm6 = float(use_props.get("Iw_mm6", use_props.get("Iw_cm6", 0.0) * 1e6))
+    Wel_y_mm3 = float(use_props.get("Wel_y_mm3", use_props.get("Wel_y_cm3", 0.0) * 1e3))
+    Wpl_y_mm3 = float(use_props.get("Wpl_y_mm3", use_props.get("Wpl_y_cm3", 0.0) * 1e3))
+    Wel_z_mm3 = float(use_props.get("Wel_z_mm3", use_props.get("Wel_z_cm3", 0.0) * 1e3))
+    Wpl_z_mm3 = float(use_props.get("Wpl_z_mm3", use_props.get("Wpl_z_cm3", 0.0) * 1e3))
 
-    # LTB
-    if buck_map.get("Mcr") is not None:
-        st.markdown(_p("Mcr", buck_map.get("Mcr")/1e3, " kNm"))
-        st.markdown(_p("λLT", buck_map.get("lambda_LT")))
-        st.markdown(_p("χLT", buck_map.get("chi_LT")))
-        st.markdown(_p("Mb,Rd", buck_map.get("Mb_Rd")/1e3 if buck_map.get("Mb_Rd") else None, " kNm"))
-        st.markdown(_p("Utilization (LTB)", buck_map.get("util_LT")))
+    # Factors
+    gamma_M0 = float(st.session_state.get("gamma_M0", 1.00))
+    gamma_M1 = float(st.session_state.get("gamma_M1", 1.00))
 
-    # Interaction
-    if buck_map.get("util_int_method1") is not None:
-        st.markdown(_p("Interaction utilization (Method 1)", buck_map.get("util_int_method1")))
-    if buck_map.get("util_int_method2") is not None:
-        st.markdown(_p("Interaction utilization (Method 2)", buck_map.get("util_int_method2")))
+    # Buckling curve letters inferred from alpha (if available)
+    def _curve_from_alpha(a):
+        if a is None:
+            return "n/a"
+        a = float(a)
+        if abs(a - 0.21) < 1e-3: return "a"
+        if abs(a - 0.34) < 1e-3: return "b"
+        if abs(a - 0.49) < 1e-3: return "c"
+        if abs(a - 0.76) < 1e-3: return "d"
+        return "n/a"
 
-    # ----------------------------------------------------
+    alpha_y = float(buck_map.get("alpha_y", st.session_state.get("alpha_y", 0.21)))
+    alpha_z = float(buck_map.get("alpha_z", st.session_state.get("alpha_z", 0.34)))
+
+    curve_y = _curve_from_alpha(alpha_y)
+    curve_z = _curve_from_alpha(alpha_z)
+
+    # Extract buckling results
+    Ncr_y = buck_map.get("Ncr_y")
+    Ncr_z = buck_map.get("Ncr_z")
+    lam_y = buck_map.get("lambda_y")
+    lam_z = buck_map.get("lambda_z")
+    chi_y = buck_map.get("chi_y")
+    chi_z = buck_map.get("chi_z")
+    Nb_Rd_y = buck_map.get("Nb_Rd_y")
+    Nb_Rd_z = buck_map.get("Nb_Rd_z")
+    util_y = buck_map.get("util_y")
+    util_z = buck_map.get("util_z")
+
+    i0_m = buck_map.get("i0_m")
+    Ncr_T = buck_map.get("Ncr_T")
+    chi_T = buck_map.get("chi_T")
+    Nb_Rd_T = buck_map.get("Nb_Rd_T")
+    util_T = buck_map.get("util_T")
+
+    Mcr = buck_map.get("Mcr")
+    lam_LT = buck_map.get("lambda_LT")
+    chi_LT = buck_map.get("chi_LT")
+    Mb_Rd = buck_map.get("Mb_Rd")
+    util_LT = buck_map.get("util_LT")
+
+    # Interaction (methods)
+    util_int_A = buck_map.get("util_int_A")
+    util_int_B = buck_map.get("util_int_B")
+
+    # ----------------------------
+    # (15),(16) Flexural buckling
+    # ----------------------------
+    st.markdown(f"""(15),(16) Flexural buckling (EN1993-1-1 §6.3.1.3)  
+Back to contents  
+
+The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
+
+NEd / Nb,Rd ≤ 1.0
+
+where Nb,Rd is the design buckling resistance of the compression member given in EN1993-1-1 §6.3.1.1(3) for class 1, 2 and 3 cross-sections:
+
+Nb,Rd = χ⋅A⋅fy / γM1
+
+The reduction factor χ due to flexural buckling is calculated for the major and the minor bending axes.
+
+Flexural buckling about major axis y-y  
+The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_y}".
+
+The imperfection factor α corresponding to the buckling curve "{curve_y}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_y:.2f}.
+
+The critical buckling length Lcr,y for flexural buckling about the major axis y-y is considered as Lcr,y = {K_y:.3f}⋅L = {K_y:.3f}⋅{L:.3f} m = {K_y*L:.3f} m.
+
+According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
+
+Ncr,y = π2⋅E⋅Iy / Lcr,y2 = π2⋅210000 MPa⋅{Iy_mm4:,.0f} mm4 / ({K_y*L:.3f} m)2 = {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN
+
+The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,y = {abs(NEd_kN):.1f} kN / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_y/1e3) if Ncr_y else float('nan')):.3f}
+
+For class 1, 2 and 3 cross-section the non-dimensional slenderness λy for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
+
+λy = (A⋅fy / Ncr,y)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN)0.5 = {(lam_y if lam_y is not None else float('nan')):.3f}
+
+According to EN1993-1-1 §6.3.1.2(4) flexural buckling effects may be ignored when NEd/Ncr,y ≤ 0.04 or λy ≤ 0.20.
+
+The factors Φ and χy are calculated in accordance with EN1993-1-1 §6.3.1.2:
+
+Φ = 0.5⋅[1 + α⋅(λy - 0.20) + λy2]  
+χy = min[1.0, 1 / (Φ + [Φ2 - λy2]0.5)]
+
+The design buckling resistance of the compression member for flexural buckling about the major axis y-y is calculated as:
+
+Nb,Rd,y = χy ⋅ A ⋅ fy / γM1 = {(chi_y if chi_y is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN
+
+Therefore the utilization for the flexural buckling resistance about major axis y-y is:
+
+u = NEd / Nb,Rd,y = {abs(NEd_kN):.1f} kN / {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN = {(util_y if util_y is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_y is not None and util_y <= 1.0) else "exceeds"}
+
+Flexural buckling about minor axis z-z  
+The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_z}".
+
+The imperfection factor α corresponding to the buckling curve "{curve_z}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_z:.2f}.
+
+The critical buckling length Lcr,z for flexural buckling about the minor axis z-z is considered as Lcr,z = {K_z:.3f}⋅L = {K_z:.3f}⋅{L:.3f} m = {K_z*L:.3f} m.
+
+According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
+
+Ncr,z = π2⋅E⋅Iz / Lcr,z2 = π2⋅210000 MPa⋅{Iz_mm4:,.0f} mm4 / ({K_z*L:.3f} m)2 = {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN
+
+The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,z = {abs(NEd_kN):.1f} kN / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_z/1e3) if Ncr_z else float('nan')):.3f}
+
+For class 1, 2 and 3 cross-section the non-dimensional slenderness λz for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
+
+λz = (A⋅fy / Ncr,z)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN)0.5 = {(lam_z if lam_z is not None else float('nan')):.3f}
+
+The factors Φ and χz are calculated in accordance with EN1993-1-1 §6.3.1.2:
+
+Φ = 0.5⋅[1 + α⋅(λz - 0.20) + λz2]  
+χz = min[1.0, 1 / (Φ + [Φ2 - λz2]0.5)]
+
+The design buckling resistance of the compression member for flexural buckling about the minor axis z-z is calculated as:
+
+Nb,Rd,z = χz ⋅ A ⋅ fy / γM1 = {(chi_z if chi_z is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN
+
+Therefore the utilization for the flexural buckling resistance about minor axis z-z is:
+
+u = NEd / Nb,Rd,z = {abs(NEd_kN):.1f} kN / {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN = {(util_z if util_z is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_z is not None and util_z <= 1.0) else "exceeds"}
+
+According to EN1993-1-1 §6.3.1.1(4) the calculated flexural buckling resistance is also valid for members with holes for fasteners at the member ends.
+""")
+
+    # ----------------------------
+    # (17) Torsional & torsional-flexural buckling
+    # ----------------------------
+    st.markdown(f"""(17) Torsional and torsional-flexural buckling (EN1993-1-1 §6.3.1.4)  
+Back to contents  
+
+Typically for standard I- and H-sections the torsional and torsional-flexural buckling verifications are not critical as compared to the flexural buckling verification. For completeness of the calculation the torsional and torsional-flexural buckling loads are estimated below.
+
+The polar radius of gyration of the cross-section i0 is equal to:
+
+i0 = [iy2 + iz2 + y02 + z02]0.5
+
+For doubly symmetrical cross-sections the shear center and the centroid coincide, therefore y0 = 0 and z0 = 0 and:
+
+i0 = [iy2 + iz2]0.5 = [({iy_mm:.1f} mm)2 + ({iz_mm:.1f} mm)2]0.5 = {(i0_m*1e3 if i0_m else float('nan')):.1f} mm
+
+The critical buckling length Lcr,T for torsional buckling is considered as Lcr,T = {K_T:.3f}⋅L = {K_T*L:.3f} m.
+
+The elastic critical force Ncr,T for torsional buckling is estimated as:
+
+Ncr,T = (1 / i02)⋅(G⋅IT + π2⋅E⋅Iw / Lcr,T2) = {(Ncr_T/1e3 if Ncr_T else float('nan')):.1f} kN
+
+The design buckling resistance is:
+
+Nb,Rd,T = χ ⋅ A ⋅ fy / γM1 = {(Nb_Rd_T/1e3 if Nb_Rd_T else float('nan')):.1f} kN
+
+Therefore the utilization is:
+
+u = NEd / Nb,Rd,T = {(util_T if util_T is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_T is not None and util_T <= 1.0) else "exceeds"}
+""")
+
+    # ----------------------------
+    # (18) Lateral-torsional buckling
+    # ----------------------------
+    st.markdown(f"""(18) Lateral-torsional buckling (EN1993-1-1 §6.3.2)  
+Back to contents  
+
+Members with laterally unrestrained compression flange subject to bending about major axis y-y should be verified against lateral-torsional buckling in accordance with EN1993-1-1 §6.3.2 as follows:
+
+My,Ed / Mb,Rd ≤ 1.0
+
+where Mb,Rd is the design buckling resistance moment:
+
+Mb,Rd = χLT⋅Wy⋅fy / γM1
+
+For class 1 or 2 cross-sections: Wy = Wpl,y = {Wpl_y_mm3:,.0f} mm3
+
+Elastic critical moment (uniform moment, k=kw=1, zg=0) is calculated as:
+
+Mcr = {(Mcr/1e3 if Mcr else float('nan')):.1f} kNm
+
+The non-dimensional slenderness is:
+
+λLT = (Wy⋅fy / Mcr)0.5 = {(lam_LT if lam_LT is not None else float('nan')):.3f}
+
+The reduction factor is:
+
+χLT = {(chi_LT if chi_LT is not None else float('nan')):.3f}
+
+The design buckling resistance moment is:
+
+Mb,Rd = {(Mb_Rd/1e3 if Mb_Rd else float('nan')):.1f} kNm
+
+Therefore the utilization for the lateral-torsional buckling resistance is:
+
+u = My,Ed / Mb,Rd = {abs(MyEd_kNm):.1f} kNm / {(Mb_Rd/1e3 if Mb_Rd else float('nan')):.1f} kNm = {(util_LT if util_LT is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_LT is not None and util_LT <= 1.0) else "exceeds"}
+""")
+
+    # ----------------------------
+    # (19),(20) Buckling interaction (Methods 1 & 2)
+    # ----------------------------
+    st.markdown(f"""Buckling interaction for bending and axial compression (EN1993-1-1 §6.3.3)  
+Back to contents  
+
+The member subjected to axial compression and bending is verified using the interaction expressions based on EN1993-1-1 §6.3.3.
+
+(19),(20) Buckling interaction for bending and axial compression  
+- Method 1 (Annex A): utilization u = {(util_int_A if util_int_A is not None else float('nan')):.3f}  
+- Method 2 (Annex B): utilization u = {(util_int_B if util_int_B is not None else float('nan')):.3f}  
+""")
+# ----------------------------------------------------
     # 8. References
     # ----------------------------------------------------
     report_h3("8. References")
