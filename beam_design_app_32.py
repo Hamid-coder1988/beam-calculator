@@ -2485,6 +2485,10 @@ def render_results(df_rows, overall_ok, governing,
 
         for _idx, row in df_rows.iterrows():
             s_raw = str(row.get("Check", ""))
+            if not s_raw and hasattr(row, "name"):
+                s_raw = str(row.name)
+            if not s_raw:
+                s_raw = str(_idx)
             s = _norm(s_raw)
 
             if all(mc in s for mc in must_cont) and all(mn not in s for mn in must_not):
@@ -2496,6 +2500,10 @@ def render_results(df_rows, overall_ok, governing,
         if (cs_util[idx_out] == "" or cs_util[idx_out] is None) and idx_out in (0,1,2,3,4,5):
             for _idx, row in df_rows.iterrows():
                 s_raw = str(row.get("Check", ""))
+                if not s_raw and hasattr(row, "name"):
+                    s_raw = str(row.name)
+                if not s_raw:
+                    s_raw = str(_idx)
                 s = _norm(s_raw)
                 # Map by common Eurocode wording / your check titles
                 if idx_out == 0 and ("tension" in s):
