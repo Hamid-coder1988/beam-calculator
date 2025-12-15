@@ -94,12 +94,6 @@ def report_h3(title):
         unsafe_allow_html=True
     )
 
-def report_check_heading(title: str):
-    """Unified heading style for detailed calculation checks in Report tab.
-    Example: '(2) Compression – EN 1993-1-1 §6.2.4)'
-    """
-    report_h4(title)
-
 def report_h4(title):
     st.markdown(
         f"""
@@ -3927,8 +3921,13 @@ def render_report_tab():
     # Status from the checks table (row 'Tension (N≥0)')
     status_ten = "n/a"
     
+    # ----------------------------------------------------
+    # 6. Detailed calculations
+    # ----------------------------------------------------
+    report_h3("6. Detailed calculations")
+    report_group("6.1 Verification of cross-section strength (ULS, checks 1–14)")
     # 6.1.a Detailed explanation for check (1) Tension
-    report_check_heading("(1) Tension – EN 1993-1-1 §6.2.3")
+    report_h4("(1) Tension – EN 1993-1-1 §6.2.3")
 
     # Get section area and material
     A_mm2 = float(sr_display.get("A_mm2", 0.0))  # from DB
@@ -4006,7 +4005,7 @@ def render_report_tab():
 
 
         # 6.1.b Detailed explanation for check (2) Compression
-    report_check_heading("(2) Compression – EN 1993-1-1 §6.2.4")
+    report_h4("(2) Compression – EN 1993-1-1 §6.2.4")
 
     # design compressive axial force (take magnitude of N < 0)
     if N_kN < 0.0:
@@ -4093,7 +4092,7 @@ def render_report_tab():
         util_Mz = 0.0
         status_Mz = "n/a"
     
-    report_check_heading("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
+    report_h3("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
 
     st.markdown("The design bending resistance is checked using:")
     st.latex(r"\frac{M_{Ed}}{M_{c,Rd}} \le 1.0")
@@ -4171,7 +4170,7 @@ zones are filled with fasteners.
         util_Vy = 0.0
         status_Vy = "n/a"
 
-    report_check_heading("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
+    report_h3("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
 
     st.markdown("The shear resistance check uses:")
     st.latex(r"\frac{V_{Ed}}{V_{c,Rd}} \le 1.0")
@@ -4231,7 +4230,7 @@ For this typical case the effects of warping torsion are small and can be ignore
     # ----------------------------------------------------
     # (6.2.8) Bending and shear
     # ----------------------------------------------------
-    report_check_heading("(7), (8) Bending and shear (EN 1993-1-1 §6.2.8)")
+    st.markdown("**(7), (8) Bending and shear (EN 1993-1-1 §6.2.8)**")
     st.markdown("Back to contents")
     cs_combo = (extras.get("cs_combo") or {})
     shear_ratio_z = cs_combo.get("shear_ratio_z", None)
@@ -4255,7 +4254,7 @@ At least one shear ratio exceeds **0.50**, therefore a reduction of bending resi
     # ----------------------------------------------------
     # (6.2.9) Bending and axial force
     # ----------------------------------------------------
-    report_check_heading("(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)")
+    st.markdown("**(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)**")
     st.markdown("Back to contents")
     Npl_Rd_kN = cs_combo.get("Npl_Rd_kN", None)
     crit_y_25 = cs_combo.get("crit_y_25", None)
@@ -4285,7 +4284,7 @@ The axial force criteria are **not** fully satisfied. A reduction / interaction 
     # ----------------------------------------------------
     # (6.2.10) Bending, shear and axial force
     # ----------------------------------------------------
-    report_check_heading("(12), (13), (14) Bending, shear and axial force (EN 1993-1-1 §6.2.10)")
+    st.markdown("**(12), (13), (14) Bending, shear and axial force (EN 1993-1-1 §6.2.10)**")
     st.markdown("Back to contents")
     if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
         st.markdown("""
@@ -4380,8 +4379,10 @@ If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must b
     # ----------------------------
     # (15),(16) Flexural buckling
     # ----------------------------
-    st.markdown(f"""**(15), (16) Flexural buckling (EN 1993-1-1 §6.3.1.3)**  
-Back to contents  
+    
+    report_group("6.2 Verification of member stability (buckling, checks 15–20)")
+    report_h4("(15), (16) Flexural buckling – EN 1993-1-1 §6.3.1.3")
+    st.markdown(f"""Back to contents  
 
 The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
 
@@ -4455,14 +4456,13 @@ Therefore the utilization for the flexural buckling resistance about minor axis 
 
 u = NEd / Nb,Rd,z = {abs(NEd_kN):.1f} kN / {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN = {(util_z if util_z is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_z is not None and util_z <= 1.0) else "exceeds"}
 
-According to EN1993-1-1 §6.3.1.1(4) the calculated flexural buckling resistance is also valid for members with holes for fasteners at the member ends.
-""")
+According to EN1993-1-1 §6.3.1.1(4) the calculated flexural buckling resistance is also valid for members with holes for fasteners at the member ends.""")
 
     # ----------------------------
     # (17) Torsional & torsional-flexural buckling
     # ----------------------------
-    st.markdown(f"""**(17) Torsional and torsional-flexural buckling (EN 1993-1-1 §6.3.1.4)**  
-Back to contents  
+    report_h4("(17) Torsional and torsional-flexural buckling – EN 1993-1-1 §6.3.1.4")
+    st.markdown(f"""Back to contents  
 
 Typically for standard I- and H-sections the torsional and torsional-flexural buckling verifications are not critical as compared to the flexural buckling verification. For completeness of the calculation the torsional and torsional-flexural buckling loads are estimated below.
 
@@ -4486,8 +4486,7 @@ Nb,Rd,T = χ ⋅ A ⋅ fy / γM1 = {(Nb_Rd_T/1e3 if Nb_Rd_T else float('nan')):.
 
 Therefore the utilization is:
 
-u = NEd / Nb,Rd,T = {(util_T if util_T is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_T is not None and util_T <= 1.0) else "exceeds"}
-""")
+u = NEd / Nb,Rd,T = {(util_T if util_T is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_T is not None and util_T <= 1.0) else "exceeds"}""")
 
     # ----------------------------
     # (18) Lateral-torsional buckling
