@@ -2523,6 +2523,59 @@ def render_results(df_rows, overall_ok, governing,
                     cs_status[idx_out] = row.get("Status", "")
                     break
 
+        # ---- Fallback for checks 1–6 (robust) ----
+        # If matching fails for any reason (label variations), map directly using the first occurrences
+        # in df_rows by looking for key words.
+        if df_rows is not None:
+            def _pick_first(predicate):
+                for __i, __r in df_rows.iterrows():
+                    __s = str(__r.get("Check","")).lower()
+                    if predicate(__s):
+                        return __r
+                return None
+
+            # 1) tension
+            if cs_util[0] == "" and cs_status[0] == "":
+                r = _pick_first(lambda s: "tension" in s)
+                if r is not None:
+                    cs_util[0] = r.get("Utilization","")
+                    cs_status[0] = r.get("Status","")
+
+            # 2) compression
+            if cs_util[1] == "" and cs_status[1] == "":
+                r = _pick_first(lambda s: "compression" in s)
+                if r is not None:
+                    cs_util[1] = r.get("Utilization","")
+                    cs_status[1] = r.get("Status","")
+
+            # 3) My (pure bending)
+            if cs_util[2] == "" and cs_status[2] == "":
+                r = _pick_first(lambda s: ("my" in s) and ("+" not in s) and ("vy" not in s) and ("vz" not in s))
+                if r is not None:
+                    cs_util[2] = r.get("Utilization","")
+                    cs_status[2] = r.get("Status","")
+
+            # 4) Mz (pure bending)
+            if cs_util[3] == "" and cs_status[3] == "":
+                r = _pick_first(lambda s: ("mz" in s) and ("+" not in s) and ("vy" not in s) and ("vz" not in s))
+                if r is not None:
+                    cs_util[3] = r.get("Utilization","")
+                    cs_status[3] = r.get("Status","")
+
+            # 5) Vy (pure shear)
+            if cs_util[4] == "" and cs_status[4] == "":
+                r = _pick_first(lambda s: ("vy" in s) and ("+" not in s))
+                if r is not None:
+                    cs_util[4] = r.get("Utilization","")
+                    cs_status[4] = r.get("Status","")
+
+            # 6) Vz (pure shear)
+            if cs_util[5] == "" and cs_status[5] == "":
+                r = _pick_first(lambda s: ("vz" in s) and ("+" not in s))
+                if r is not None:
+                    cs_util[5] = r.get("Utilization","")
+                    cs_status[5] = r.get("Status","")
+
     # 1) N (tension)
     fill_cs_from_df(
         idx_out=0,
@@ -3518,6 +3571,9 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
 
 def render_report_tab():
     sr_display = st.session_state.get("sr_display")
+
+    # Alias: section properties used throughout the report
+    use_props = sr_display or {}
     inputs = st.session_state.get("inputs")
     df_rows = st.session_state.get("df_rows")
     overall_ok = st.session_state.get("overall_ok", True)
@@ -4146,7 +4202,8 @@ zones are filled with fasteners.
     # ----------------------------------------------------
     # (6.2.7) Torsion
     # ----------------------------------------------------
-    st.subheader("(6.2.7) Torsion (EN 1993-1-1 §6.2.7)")
+    st.markdown("**Torsion (EN 1993-1-1 §6.2.7)**")
+    st.markdown("Back to contents")
     st.markdown("""
 The verifications for torsional moment **T<sub>Ed</sub>** are **not examined** in this calculation.
 
@@ -4160,7 +4217,8 @@ For this typical case the effects of warping torsion are small and can be ignore
     # ----------------------------------------------------
     # (6.2.8) Bending and shear
     # ----------------------------------------------------
-    st.subheader("(6.2.8) Bending and shear (EN 1993-1-1 §6.2.8)")
+    st.markdown("**(7), (8) Bending and shear (EN 1993-1-1 §6.2.8)**")
+    st.markdown("Back to contents")
     cs_combo = (extras.get("cs_combo") or {})
     shear_ratio_z = cs_combo.get("shear_ratio_z", None)
     shear_ratio_y = cs_combo.get("shear_ratio_y", None)
@@ -4183,7 +4241,8 @@ At least one shear ratio exceeds **0.50**, therefore a reduction of bending resi
     # ----------------------------------------------------
     # (6.2.9) Bending and axial force
     # ----------------------------------------------------
-    st.subheader("(6.2.9) Bending and axial force (EN 1993-1-1 §6.2.9)")
+    st.markdown("**(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)**")
+    st.markdown("Back to contents")
     Npl_Rd_kN = cs_combo.get("Npl_Rd_kN", None)
     crit_y_25 = cs_combo.get("crit_y_25", None)
     crit_y_web = cs_combo.get("crit_y_web", None)
@@ -4212,7 +4271,8 @@ The axial force criteria are **not** fully satisfied. A reduction / interaction 
     # ----------------------------------------------------
     # (6.2.10) Bending, shear and axial force
     # ----------------------------------------------------
-    st.subheader("(6.2.10) Bending, shear and axial force (EN 1993-1-1 §6.2.10)")
+    st.markdown("**(12), (13), (14) Bending, shear and axial force (EN 1993-1-1 §6.2.10)**")
+    st.markdown("Back to contents")
     if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
         st.markdown("""
 Since the applied shear forces are **≤ 0.50·Vpl,Rd**, the shear influence on the bending+axial resistance may be ignored.  
@@ -4306,7 +4366,7 @@ If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must b
     # ----------------------------
     # (15),(16) Flexural buckling
     # ----------------------------
-    st.markdown(f"""(15),(16) Flexural buckling (EN1993-1-1 §6.3.1.3)  
+    st.markdown(f"""**(15), (16) Flexural buckling (EN 1993-1-1 §6.3.1.3)**  
 Back to contents  
 
 The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
@@ -4387,7 +4447,7 @@ According to EN1993-1-1 §6.3.1.1(4) the calculated flexural buckling resistance
     # ----------------------------
     # (17) Torsional & torsional-flexural buckling
     # ----------------------------
-    st.markdown(f"""(17) Torsional and torsional-flexural buckling (EN1993-1-1 §6.3.1.4)  
+    st.markdown(f"""**(17) Torsional and torsional-flexural buckling (EN 1993-1-1 §6.3.1.4)**  
 Back to contents  
 
 Typically for standard I- and H-sections the torsional and torsional-flexural buckling verifications are not critical as compared to the flexural buckling verification. For completeness of the calculation the torsional and torsional-flexural buckling loads are estimated below.
