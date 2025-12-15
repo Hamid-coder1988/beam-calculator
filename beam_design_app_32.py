@@ -3953,7 +3953,7 @@ def render_report_tab():
     # 6. Detailed calculations
     # ----------------------------------------------------
     report_h3("6. Detailed calculations")
-    report_group("6.1 Verification of cross-section strength (ULS, checks 1–14)")
+    st.markdown("### 6.1 Verification of cross-section strength (ULS, checks 1–14)")
     # 6.1.a Detailed explanation for check (1) Tension
     report_h4("(1) Tension – EN 1993-1-1 §6.2.3")
 
@@ -4404,7 +4404,7 @@ If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must b
     # (15),(16) Flexural buckling
     # ----------------------------
     
-    report_group("6.2 Verification of member stability (buckling, checks 15–22)")
+    st.markdown("### 6.2 Verification of member stability (buckling, checks 15–20)")
     report_h4("(15), (16) Flexural buckling – EN 1993-1-1 §6.3.1.3")
     st.markdown(f"""
 The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
@@ -4934,6 +4934,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
