@@ -94,6 +94,12 @@ def report_h3(title):
         unsafe_allow_html=True
     )
 
+def report_check_heading(title: str):
+    """Unified heading style for detailed calculation checks in Report tab.
+    Example: '(2) Compression – EN 1993-1-1 §6.2.4)'
+    """
+    report_h4(title)
+
 def report_h4(title):
     st.markdown(
         f"""
@@ -3922,7 +3928,7 @@ def render_report_tab():
     status_ten = "n/a"
     
     # 6.1.a Detailed explanation for check (1) Tension
-    report_h4("(1) Tension – EN 1993-1-1 §6.2.3")
+    report_check_heading("(1) Tension – EN 1993-1-1 §6.2.3")
 
     # Get section area and material
     A_mm2 = float(sr_display.get("A_mm2", 0.0))  # from DB
@@ -4000,7 +4006,7 @@ def render_report_tab():
 
 
         # 6.1.b Detailed explanation for check (2) Compression
-    report_h4("(2) Compression – EN 1993-1-1 §6.2.4")
+    report_check_heading("(2) Compression – EN 1993-1-1 §6.2.4")
 
     # design compressive axial force (take magnitude of N < 0)
     if N_kN < 0.0:
@@ -4087,7 +4093,7 @@ def render_report_tab():
         util_Mz = 0.0
         status_Mz = "n/a"
     
-    report_h3("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
+    report_check_heading("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
 
     st.markdown("The design bending resistance is checked using:")
     st.latex(r"\frac{M_{Ed}}{M_{c,Rd}} \le 1.0")
@@ -4165,7 +4171,7 @@ zones are filled with fasteners.
         util_Vy = 0.0
         status_Vy = "n/a"
 
-    report_h3("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
+    report_check_heading("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
 
     st.markdown("The shear resistance check uses:")
     st.latex(r"\frac{V_{Ed}}{V_{c,Rd}} \le 1.0")
@@ -4225,7 +4231,7 @@ For this typical case the effects of warping torsion are small and can be ignore
     # ----------------------------------------------------
     # (6.2.8) Bending and shear
     # ----------------------------------------------------
-    st.markdown("**(7), (8) Bending and shear (EN 1993-1-1 §6.2.8)**")
+    report_check_heading("(7), (8) Bending and shear (EN 1993-1-1 §6.2.8)")
     st.markdown("Back to contents")
     cs_combo = (extras.get("cs_combo") or {})
     shear_ratio_z = cs_combo.get("shear_ratio_z", None)
@@ -4249,7 +4255,7 @@ At least one shear ratio exceeds **0.50**, therefore a reduction of bending resi
     # ----------------------------------------------------
     # (6.2.9) Bending and axial force
     # ----------------------------------------------------
-    st.markdown("**(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)**")
+    report_check_heading("(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)")
     st.markdown("Back to contents")
     Npl_Rd_kN = cs_combo.get("Npl_Rd_kN", None)
     crit_y_25 = cs_combo.get("crit_y_25", None)
@@ -4279,7 +4285,7 @@ The axial force criteria are **not** fully satisfied. A reduction / interaction 
     # ----------------------------------------------------
     # (6.2.10) Bending, shear and axial force
     # ----------------------------------------------------
-    st.markdown("**(12), (13), (14) Bending, shear and axial force (EN 1993-1-1 §6.2.10)**")
+    report_check_heading("(12), (13), (14) Bending, shear and axial force (EN 1993-1-1 §6.2.10)")
     st.markdown("Back to contents")
     if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
         st.markdown("""
@@ -4845,3 +4851,29 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
