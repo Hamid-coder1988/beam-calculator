@@ -156,6 +156,8 @@ def run_sql(sql, params=None):
             cols = [c[0] for c in cur.description]
             rows = cur.fetchall()
             df = pd.DataFrame(rows, columns=cols)
+        else:
+            df = pd.DataFrame()
         return df, None
     except Exception as e:
         return None, str(e)
@@ -1995,9 +1997,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     nu = 0.30
     G = E / (2.0 * (1.0 + nu))
 
-    # Compression magnitude for stability checks (ignore tension)
-    Ncomp_N = max(-N_N, 0.0)
-
     # Pull basic geometric dims if present (used in curve selection and hw*tw criteria)
     h_mm = float(use_props.get("h_mm", use_props.get("h", 0.0)) or 0.0)
     b_mm = float(use_props.get("b_mm", use_props.get("b", 0.0)) or 0.0)
@@ -2064,13 +2063,8 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         chi = chi_reduction(lambda_bar, alpha_use)
         Nb_Rd_N = chi * NRk_N / gamma_M1
 
-        # For flexural buckling checks, consider compression only (tension -> not applicable)
-        if Ncomp_N <= 0:
-            util = None
-            status = "n/a"
-        else:
-            util = (Ncomp_N / Nb_Rd_N) if Nb_Rd_N > 0 else None
-            status = "OK" if (util is not None and util <= 1.0) else ("EXCEEDS" if util is not None else "n/a")
+        util = (abs(N_N) / Nb_Rd_N) if Nb_Rd_N > 0 else float("inf")
+        status = "OK" if util <= 1.0 else "EXCEEDS"
 
         buck_results.append((axis_label, Ncr, lambda_bar, chi, Nb_Rd_N, status))
         buck_map[f"Ncr_{axis_label}"] = Ncr
@@ -2079,15 +2073,12 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         buck_map[f"Nb_Rd_{axis_label}"] = Nb_Rd_N
         buck_map[f"util_buck_{axis_label}"] = util
         buck_map[f"status_buck_{axis_label}"] = status
-        # Aliases used by the Report tab
-        buck_map[f"util_{axis_label}"] = util
-        buck_map[f"status_{axis_label}"] = status
 
         rows.append({
             "Check": f"Flexural buckling {axis_label}",
-            "Applied": f"{Ncomp_N/1e3:.3f} kN",
+            "Applied": f"{abs(N_N)/1e3:.3f} kN",
             "Resistance": f"{Nb_Rd_N/1e3:.3f} kN",
-            "Utilization": f"{util:.3f}" if util is not None else "n/a",
+            "Utilization": f"{util:.3f}",
             "Status": status,
         })
 
@@ -2116,9 +2107,9 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
         rows.append({
             "Check": "Torsional / torsional-flexural buckling",
-            "Applied": f"{Ncomp_N/1e3:.3f} kN",
+            "Applied": f"{abs(N_N)/1e3:.3f} kN",
             "Resistance": f"{Nb_Rd_T_N/1e3:.3f} kN",
-            "Utilization": f"{util_T:.3f}" if util_T is not None else "n/a",
+            "Utilization": f"{util_T:.3f}",
             "Status": status_T,
         })
 
@@ -2163,7 +2154,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             "Check": "Lateral-torsional buckling",
             "Applied": f"{abs(My_Ed_kNm):.3f} kNm",
             "Resistance": f"{Mb_Rd_Nm/1e3:.3f} kNm",
-            "Utilization": f"{util_LT:.3f}" if util_LT is not None else "n/a",
+            "Utilization": f"{util_LT:.3f}",
             "Status": status_LT,
         })
 
@@ -2197,21 +2188,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     util_int_A = None
     util_int_B = None
 
-
-    # Interaction checks (Annex A / Annex B) are only relevant when the member is in axial compression.
-    if Ncomp_N <= 0:
-        buck_map.update({
-            "util_int_A_y": None, "util_int_A_z": None,
-            "status_int_A_y": "n/a", "status_int_A_z": "n/a",
-            "util_int_B_y": None, "util_int_B_z": None,
-            "status_int_B_y": "n/a", "status_int_B_z": "n/a",
-        })
-        # Populate rows so the summary tables remain complete
-        rows.append({"Check": "Buckling interaction (Method 1, Annex A) — Eq. (y)", "Applied": "Interaction", "Resistance": "≤ 1.0", "Utilization": "n/a", "Status": "n/a"})
-        rows.append({"Check": "Buckling interaction (Method 1, Annex A) — Eq. (z)", "Applied": "Interaction", "Resistance": "≤ 1.0", "Utilization": "n/a", "Status": "n/a"})
-        rows.append({"Check": "Buckling interaction (Method 2, Annex B) — Eq. (y)", "Applied": "Interaction", "Resistance": "≤ 1.0", "Utilization": "n/a", "Status": "n/a"})
-        rows.append({"Check": "Buckling interaction (Method 2, Annex B) — Eq. (z)", "Applied": "Interaction", "Resistance": "≤ 1.0", "Utilization": "n/a", "Status": "n/a"})
-    if (Ncomp_N > 0) and (NRk_N > 0) and (My_Rk_Nm > 0) and (Mz_Rk_Nm > 0) and (Ncr_y > 0) and (Ncr_z > 0):
+    if NRk_N > 0 and My_Rk_Nm > 0 and Mz_Rk_Nm > 0 and (Ncr_y > 0) and (Ncr_z > 0):
         # --- Method 1 (Annex A inspired) ---
         Cmy0 = 0.79 + 0.21 * psi_y + 0.36 * (psi_y - 0.33) * (abs(N_N) / Ncr_y) if Ncr_y > 0 else 1.0
         Cmz0 = 0.79 + 0.21 * psi_z + 0.36 * (psi_z - 0.33) * (abs(N_N) / Ncr_z) if Ncr_z > 0 else 1.0
@@ -2299,14 +2276,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             "Check": "Buckling interaction (Method 1, Annex A) — Eq. (y)",
             "Applied": "Interaction",
             "Resistance": "≤ 1.0",
-            "Utilization": f"{util_61:.3f}" if util_61 is not None else "n/a",
+            "Utilization": f"{util_61:.3f}",
             "Status": "OK" if util_61 <= 1.0 else "EXCEEDS",
         })
         rows.append({
             "Check": "Buckling interaction (Method 1, Annex A) — Eq. (z)",
             "Applied": "Interaction",
             "Resistance": "≤ 1.0",
-            "Utilization": f"{util_62:.3f}" if util_62 is not None else "n/a",
+            "Utilization": f"{util_62:.3f}",
             "Status": "OK" if util_62 <= 1.0 else "EXCEEDS",
         })
 
@@ -2353,14 +2330,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             "Check": "Buckling interaction (Method 2, Annex B) — Eq. (y)",
             "Applied": "Interaction",
             "Resistance": "≤ 1.0",
-            "Utilization": f"{util_61_B:.3f}" if util_61_B is not None else "n/a",
+            "Utilization": f"{util_61_B:.3f}",
             "Status": "OK" if util_61_B <= 1.0 else "EXCEEDS",
         })
         rows.append({
             "Check": "Buckling interaction (Method 2, Annex B) — Eq. (z)",
             "Applied": "Interaction",
             "Resistance": "≤ 1.0",
-            "Utilization": f"{util_62_B:.3f}" if util_62_B is not None else "n/a",
+            "Utilization": f"{util_62_B:.3f}",
             "Status": "OK" if util_62_B <= 1.0 else "EXCEEDS",
         })
 
@@ -4438,119 +4415,113 @@ The axial force criteria are **not** fully satisfied. A reduction / interaction 
     
         report_h4("6.2 Verification of member stability (buckling, checks 15–22)")
         report_h4("(15), (16) Flexural buckling – EN 1993-1-1 §6.3.1.3")
-        do_comp_buckling = (N_kN < 0) and (abs(N_kN) > 1e-9)
+        st.markdown(f"""
+    The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
 
-if not do_comp_buckling:
-    st.markdown("*Flexural buckling and buckling interaction checks apply only for axial compression. NEd is not compression → n/a.*")
-else:
-    st.markdown(f"""
-        The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
+    NEd / Nb,Rd ≤ 1.0
 
-        NEd / Nb,Rd ≤ 1.0
+    where Nb,Rd is the design buckling resistance of the compression member given in EN1993-1-1 §6.3.1.1(3) for class 1, 2 and 3 cross-sections:
 
-        where Nb,Rd is the design buckling resistance of the compression member given in EN1993-1-1 §6.3.1.1(3) for class 1, 2 and 3 cross-sections:
+    Nb,Rd = χ⋅A⋅fy / γM1
 
-        Nb,Rd = χ⋅A⋅fy / γM1
+    The reduction factor χ due to flexural buckling is calculated for the major and the minor bending axes.
 
-        The reduction factor χ due to flexural buckling is calculated for the major and the minor bending axes.
+    Flexural buckling about major axis y-y  
+    The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_y}".
 
-        Flexural buckling about major axis y-y  
-        The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_y}".
+    The imperfection factor α corresponding to the buckling curve "{curve_y}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_y:.2f}.
 
-        The imperfection factor α corresponding to the buckling curve "{curve_y}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_y:.2f}.
+    The critical buckling length Lcr,y for flexural buckling about the major axis y-y is considered as Lcr,y = {K_y:.3f}⋅L = {K_y:.3f}⋅{L:.3f} m = {K_y*L:.3f} m.
 
-        The critical buckling length Lcr,y for flexural buckling about the major axis y-y is considered as Lcr,y = {K_y:.3f}⋅L = {K_y:.3f}⋅{L:.3f} m = {K_y*L:.3f} m.
+    According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
 
-        According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
+    Ncr,y = π2⋅E⋅Iy / Lcr,y2 = π2⋅210000 MPa⋅{Iy_mm4:,.0f} mm4 / ({K_y*L:.3f} m)2 = {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN
 
-        Ncr,y = π2⋅E⋅Iy / Lcr,y2 = π2⋅210000 MPa⋅{Iy_mm4:,.0f} mm4 / ({K_y*L:.3f} m)2 = {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN
+    The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,y = {abs(NEd_kN):.1f} kN / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_y/1e3) if Ncr_y else float('nan')):.3f}
 
-        The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,y = {abs(NEd_kN):.1f} kN / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_y/1e3) if Ncr_y else float('nan')):.3f}
+    For class 1, 2 and 3 cross-section the non-dimensional slenderness λy for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
 
-        For class 1, 2 and 3 cross-section the non-dimensional slenderness λy for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
+    λy = (A⋅fy / Ncr,y)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN)0.5 = {(lam_y if lam_y is not None else float('nan')):.3f}
 
-        λy = (A⋅fy / Ncr,y)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN)0.5 = {(lam_y if lam_y is not None else float('nan')):.3f}
+    According to EN1993-1-1 §6.3.1.2(4) flexural buckling effects may be ignored when NEd/Ncr,y ≤ 0.04 or λy ≤ 0.20.
 
-        According to EN1993-1-1 §6.3.1.2(4) flexural buckling effects may be ignored when NEd/Ncr,y ≤ 0.04 or λy ≤ 0.20.
+    The factors Φ and χy are calculated in accordance with EN1993-1-1 §6.3.1.2:
 
-        The factors Φ and χy are calculated in accordance with EN1993-1-1 §6.3.1.2:
+    Φ = 0.5⋅[1 + α⋅(λy - 0.20) + λy2]  
+    χy = min[1.0, 1 / (Φ + [Φ2 - λy2]0.5)]
 
-        Φ = 0.5⋅[1 + α⋅(λy - 0.20) + λy2]  
-        χy = min[1.0, 1 / (Φ + [Φ2 - λy2]0.5)]
+    The design buckling resistance of the compression member for flexural buckling about the major axis y-y is calculated as:
 
-        The design buckling resistance of the compression member for flexural buckling about the major axis y-y is calculated as:
+    Nb,Rd,y = χy ⋅ A ⋅ fy / γM1 = {(chi_y if chi_y is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN
 
-        Nb,Rd,y = χy ⋅ A ⋅ fy / γM1 = {(chi_y if chi_y is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN
+    Therefore the utilization for the flexural buckling resistance about major axis y-y is:
 
-        Therefore the utilization for the flexural buckling resistance about major axis y-y is:
+    u = NEd / Nb,Rd,y = {abs(NEd_kN):.1f} kN / {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN = {(util_y if util_y is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_y is not None and util_y <= 1.0) else "exceeds"}
 
-        u = NEd / Nb,Rd,y = {abs(NEd_kN):.1f} kN / {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN = {(util_y if util_y is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_y is not None and util_y <= 1.0) else "exceeds"}
+    Flexural buckling about minor axis z-z  
+    The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_z}".
 
-        Flexural buckling about minor axis z-z  
-        The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_z}".
+    The imperfection factor α corresponding to the buckling curve "{curve_z}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_z:.2f}.
 
-        The imperfection factor α corresponding to the buckling curve "{curve_z}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_z:.2f}.
+    The critical buckling length Lcr,z for flexural buckling about the minor axis z-z is considered as Lcr,z = {K_z:.3f}⋅L = {K_z:.3f}⋅{L:.3f} m = {K_z*L:.3f} m.
 
-        The critical buckling length Lcr,z for flexural buckling about the minor axis z-z is considered as Lcr,z = {K_z:.3f}⋅L = {K_z:.3f}⋅{L:.3f} m = {K_z*L:.3f} m.
+    According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
 
-        According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
+    Ncr,z = π2⋅E⋅Iz / Lcr,z2 = π2⋅210000 MPa⋅{Iz_mm4:,.0f} mm4 / ({K_z*L:.3f} m)2 = {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN
 
-        Ncr,z = π2⋅E⋅Iz / Lcr,z2 = π2⋅210000 MPa⋅{Iz_mm4:,.0f} mm4 / ({K_z*L:.3f} m)2 = {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN
+    The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,z = {abs(NEd_kN):.1f} kN / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_z/1e3) if Ncr_z else float('nan')):.3f}
 
-        The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,z = {abs(NEd_kN):.1f} kN / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_z/1e3) if Ncr_z else float('nan')):.3f}
+    For class 1, 2 and 3 cross-section the non-dimensional slenderness λz for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
 
-        For class 1, 2 and 3 cross-section the non-dimensional slenderness λz for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
+    λz = (A⋅fy / Ncr,z)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN)0.5 = {(lam_z if lam_z is not None else float('nan')):.3f}
 
-        λz = (A⋅fy / Ncr,z)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN)0.5 = {(lam_z if lam_z is not None else float('nan')):.3f}
+    The factors Φ and χz are calculated in accordance with EN1993-1-1 §6.3.1.2:
 
-        The factors Φ and χz are calculated in accordance with EN1993-1-1 §6.3.1.2:
+    Φ = 0.5⋅[1 + α⋅(λz - 0.20) + λz2]  
+    χz = min[1.0, 1 / (Φ + [Φ2 - λz2]0.5)]
 
-        Φ = 0.5⋅[1 + α⋅(λz - 0.20) + λz2]  
-        χz = min[1.0, 1 / (Φ + [Φ2 - λz2]0.5)]
+    The design buckling resistance of the compression member for flexural buckling about the minor axis z-z is calculated as:
 
-        The design buckling resistance of the compression member for flexural buckling about the minor axis z-z is calculated as:
+    Nb,Rd,z = χz ⋅ A ⋅ fy / γM1 = {(chi_z if chi_z is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN
 
-        Nb,Rd,z = χz ⋅ A ⋅ fy / γM1 = {(chi_z if chi_z is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN
+    Therefore the utilization for the flexural buckling resistance about minor axis z-z is:
 
-        Therefore the utilization for the flexural buckling resistance about minor axis z-z is:
+    u = NEd / Nb,Rd,z = {abs(NEd_kN):.1f} kN / {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN = {(util_z if util_z is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_z is not None and util_z <= 1.0) else "exceeds"}
 
-        u = NEd / Nb,Rd,z = {abs(NEd_kN):.1f} kN / {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN = {(util_z if util_z is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_z is not None and util_z <= 1.0) else "exceeds"}
+    According to EN1993-1-1 §6.3.1.1(4) the calculated flexural buckling resistance is also valid for members with holes for fasteners at the member ends.""")
 
-        According to EN1993-1-1 §6.3.1.1(4) the calculated flexural buckling resistance is also valid for members with holes for fasteners at the member ends.""")
+        # ----------------------------
+        # (17) Torsional & torsional-flexural buckling
+        # ----------------------------
+        report_h4("(17) Torsional and torsional-flexural buckling – EN 1993-1-1 §6.3.1.4")
+        st.markdown(f"""
+    Typically for standard I- and H-sections the torsional and torsional-flexural buckling verifications are not critical as compared to the flexural buckling verification. For completeness of the calculation the torsional and torsional-flexural buckling loads are estimated below.
 
-            # ----------------------------
-            # (17) Torsional & torsional-flexural buckling
-            # ----------------------------
-            report_h4("(17) Torsional and torsional-flexural buckling – EN 1993-1-1 §6.3.1.4")
-            st.markdown(f"""
-        Typically for standard I- and H-sections the torsional and torsional-flexural buckling verifications are not critical as compared to the flexural buckling verification. For completeness of the calculation the torsional and torsional-flexural buckling loads are estimated below.
+    The polar radius of gyration of the cross-section i0 is equal to:
 
-        The polar radius of gyration of the cross-section i0 is equal to:
+    i0 = [iy2 + iz2 + y02 + z02]0.5
 
-        i0 = [iy2 + iz2 + y02 + z02]0.5
+    For doubly symmetrical cross-sections the shear center and the centroid coincide, therefore y0 = 0 and z0 = 0 and:
 
-        For doubly symmetrical cross-sections the shear center and the centroid coincide, therefore y0 = 0 and z0 = 0 and:
+    i0 = [iy2 + iz2]0.5 = [({iy_mm:.1f} mm)2 + ({iz_mm:.1f} mm)2]0.5 = {(i0_m*1e3 if i0_m else float('nan')):.1f} mm
 
-        i0 = [iy2 + iz2]0.5 = [({iy_mm:.1f} mm)2 + ({iz_mm:.1f} mm)2]0.5 = {(i0_m*1e3 if i0_m else float('nan')):.1f} mm
+    The critical buckling length Lcr,T for torsional buckling is considered as Lcr,T = {K_T:.3f}⋅L = {K_T*L:.3f} m.
 
-        The critical buckling length Lcr,T for torsional buckling is considered as Lcr,T = {K_T:.3f}⋅L = {K_T*L:.3f} m.
+    The elastic critical force Ncr,T for torsional buckling is estimated as:
 
-        The elastic critical force Ncr,T for torsional buckling is estimated as:
+    Ncr,T = (1 / i02)⋅(G⋅IT + π2⋅E⋅Iw / Lcr,T2) = {(Ncr_T/1e3 if Ncr_T else float('nan')):.1f} kN
 
-        Ncr,T = (1 / i02)⋅(G⋅IT + π2⋅E⋅Iw / Lcr,T2) = {(Ncr_T/1e3 if Ncr_T else float('nan')):.1f} kN
+    The design buckling resistance is:
 
-        The design buckling resistance is:
+    Nb,Rd,T = χ ⋅ A ⋅ fy / γM1 = {(Nb_Rd_T/1e3 if Nb_Rd_T else float('nan')):.1f} kN
 
-        Nb,Rd,T = χ ⋅ A ⋅ fy / γM1 = {(Nb_Rd_T/1e3 if Nb_Rd_T else float('nan')):.1f} kN
+    Therefore the utilization is:
 
-        Therefore the utilization is:
+    u = NEd / Nb,Rd,T = {(util_T if util_T is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_T is not None and util_T <= 1.0) else "exceeds"}""")
 
-        u = NEd / Nb,Rd,T = {(util_T if util_T is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_T is not None and util_T <= 1.0) else "exceeds"}""")
-
-            # ----------------------------
-            # (18) Lateral-torsional buckling
-            # ----------------------------
-
+        # ----------------------------
+        # (18) Lateral-torsional buckling
+        # ----------------------------
         report_h4("(18) Lateral-torsional buckling – EN 1993-1-1 §6.3.2")
         st.markdown(f"""
     Members with laterally unrestrained compression flange subject to bending about major axis y-y should be verified against lateral-torsional buckling in accordance with EN1993-1-1 §6.3.2 as follows:
@@ -4595,160 +4566,153 @@ else:
         util_62_B = buck_map.get("util_62_B")
 
         # ---- Method 1 (Annex A) ----
-        if not do_comp_buckling:
-    st.markdown("*Not applicable (buckling interaction requires axial compression).*")
-else:
-    report_h4("(19),(20) Buckling interaction for bending and axial compression - Method 1 (EN1993-1-1 Annex A)")
+        report_h4("(19),(20) Buckling interaction for bending and axial compression - Method 1 (EN1993-1-1 Annex A)")
 
-            st.markdown("Equivalent uniform moment factors for flexural buckling.")
-            st.markdown("The equivalent uniform moment factors **Cmi,0** are obtained from **EN 1993-1-1 Table A.2**.")
+        st.markdown("Equivalent uniform moment factors for flexural buckling.")
+        st.markdown("The equivalent uniform moment factors **Cmi,0** are obtained from **EN 1993-1-1 Table A.2**.")
 
-            st.markdown("- For flexural buckling about major axis **y–y**, the moment diagram **My,Ed** is considered between points braced along **z–z** direction.")
-            st.markdown("For uniform or linearly varying bending moment diagram:")
-            st.latex(rf"C_{{my,0}} = 0.79 + 0.21\,\psi_y + 0.36\,(\psi_y-0.33)\,\frac{{N_{{Ed}}}}{{N_{{cr,y}}}} = {buck_map.get('Cmy0_A', float('nan')):.3f}")
+        st.markdown("- For flexural buckling about major axis **y–y**, the moment diagram **My,Ed** is considered between points braced along **z–z** direction.")
+        st.markdown("For uniform or linearly varying bending moment diagram:")
+        st.latex(rf"C_{{my,0}} = 0.79 + 0.21\,\psi_y + 0.36\,(\psi_y-0.33)\,\frac{{N_{{Ed}}}}{{N_{{cr,y}}}} = {buck_map.get('Cmy0_A', float('nan')):.3f}")
 
-            st.markdown("- For flexural buckling about minor axis **z–z**, the moment diagram **Mz,Ed** is considered between points braced along **y–y** direction.")
-            st.markdown("For uniform or linearly varying bending moment diagram:")
-            st.latex(rf"C_{{mz,0}} = 0.79 + 0.21\,\psi_z + 0.36\,(\psi_z-0.33)\,\frac{{N_{{Ed}}}}{{N_{{cr,z}}}} = {buck_map.get('Cmz0_A', float('nan')):.3f}")
+        st.markdown("- For flexural buckling about minor axis **z–z**, the moment diagram **Mz,Ed** is considered between points braced along **y–y** direction.")
+        st.markdown("For uniform or linearly varying bending moment diagram:")
+        st.latex(rf"C_{{mz,0}} = 0.79 + 0.21\,\psi_z + 0.36\,(\psi_z-0.33)\,\frac{{N_{{Ed}}}}{{N_{{cr,z}}}} = {buck_map.get('Cmz0_A', float('nan')):.3f}")
 
-            st.markdown("Intermediate factors and coefficients:")
-            st.markdown(textwrap.dedent(f"""        - Normalized axial force: **npl = {buck_map.get('npl_A', float('nan')):.3f}**
-            - λLT (from Section 18): **{buck_map.get('lambdaLT_A', float('nan')):.3f}**
-            - λmax = max(λy, λz): **{buck_map.get('lambda_max_A', float('nan')):.3f}**
-            - εy: **{buck_map.get('eps_y_A', float('nan')):.3f}**
-            - wy: **{buck_map.get('wy_A', float('nan')):.3f}**, wz: **{buck_map.get('wz_A', float('nan')):.3f}**
-            """))
+        st.markdown("Intermediate factors and coefficients:")
+        st.markdown(textwrap.dedent(f"""        - Normalized axial force: **npl = {buck_map.get('npl_A', float('nan')):.3f}**
+        - λLT (from Section 18): **{buck_map.get('lambdaLT_A', float('nan')):.3f}**
+        - λmax = max(λy, λz): **{buck_map.get('lambda_max_A', float('nan')):.3f}**
+        - εy: **{buck_map.get('eps_y_A', float('nan')):.3f}**
+        - wy: **{buck_map.get('wy_A', float('nan')):.3f}**, wz: **{buck_map.get('wz_A', float('nan')):.3f}**
+        """))
 
-            st.markdown("Interaction factors (EN 1993-1-1 Table A.1):")
-            st.markdown(textwrap.dedent(f"""        - kyy = **{buck_map.get('kyy_A', float('nan')):.3f}**
-            - kyz = **{buck_map.get('kyz_A', float('nan')):.3f}**
-            - kzy = **{buck_map.get('kzy_A', float('nan')):.3f}**
-            - kzz = **{buck_map.get('kzz_A', float('nan')):.3f}**
-            """))
+        st.markdown("Interaction factors (EN 1993-1-1 Table A.1):")
+        st.markdown(textwrap.dedent(f"""        - kyy = **{buck_map.get('kyy_A', float('nan')):.3f}**
+        - kyz = **{buck_map.get('kyz_A', float('nan')):.3f}**
+        - kzy = **{buck_map.get('kzy_A', float('nan')):.3f}**
+        - kzz = **{buck_map.get('kzz_A', float('nan')):.3f}**
+        """))
 
 
-            st.markdown(f"""Verification of member resistance — Equation (y)  
-        u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
-        u = **{(util_61_A if util_61_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_A is not None and util_61_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
-            st.markdown(f"""Verification of member resistance — Equation (z)  
-        u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
-        u = **{(util_62_A if util_62_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_A is not None and util_62_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+        st.markdown(f"""Verification of member resistance — Equation (y)  
+    u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
+    u = **{(util_61_A if util_61_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_A is not None and util_61_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+        st.markdown(f"""Verification of member resistance — Equation (z)  
+    u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
+    u = **{(util_62_A if util_62_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_A is not None and util_62_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
 
-            # ---- Method 2 (Annex B) ----
-        
-if not do_comp_buckling:
-    st.markdown("*Not applicable (buckling interaction requires axial compression).*")
-else:
-    report_h4("(21),(22) Buckling interaction for bending and axial compression - Method 2 (EN1993-1-1 Annex B)")
+        # ---- Method 2 (Annex B) ----
+        report_h4("(21),(22) Buckling interaction for bending and axial compression - Method 2 (EN1993-1-1 Annex B)")
 
-            st.markdown("Equivalent uniform moment factors for flexural buckling.")
-            st.markdown("The equivalent uniform moment factors **Cmi** are obtained from **EN 1993-1-1 Table B.3**.")
+        st.markdown("Equivalent uniform moment factors for flexural buckling.")
+        st.markdown("The equivalent uniform moment factors **Cmi** are obtained from **EN 1993-1-1 Table B.3**.")
 
-            st.latex(rf"C_{{my}} = \max(0.4,\,0.60 + 0.40\,\psi_y) = {buck_map.get('Cmy_B', float('nan')):.3f}")
-            st.latex(rf"C_{{mz}} = \max(0.4,\,0.60 + 0.40\,\psi_z) = {buck_map.get('Cmz_B', float('nan')):.3f}")
-            st.latex(rf"C_{{mLT}} = \max(0.4,\,0.60 + 0.40\,\psi_{{LT}}) = {buck_map.get('CmLT_B', float('nan')):.3f}")
+        st.latex(rf"C_{{my}} = \max(0.4,\,0.60 + 0.40\,\psi_y) = {buck_map.get('Cmy_B', float('nan')):.3f}")
+        st.latex(rf"C_{{mz}} = \max(0.4,\,0.60 + 0.40\,\psi_z) = {buck_map.get('Cmz_B', float('nan')):.3f}")
+        st.latex(rf"C_{{mLT}} = \max(0.4,\,0.60 + 0.40\,\psi_{{LT}}) = {buck_map.get('CmLT_B', float('nan')):.3f}")
 
-            st.markdown("Interaction factors (EN 1993-1-1 Annex B):")
-            st.markdown(textwrap.dedent(f"""        - kyy = **{buck_map.get('kyy_B', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_B', float('nan')):.3f}**
-            - kzy = **{buck_map.get('kzy_B', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_B', float('nan')):.3f}**
-            """))
+        st.markdown("Interaction factors (EN 1993-1-1 Annex B):")
+        st.markdown(textwrap.dedent(f"""        - kyy = **{buck_map.get('kyy_B', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_B', float('nan')):.3f}**
+        - kzy = **{buck_map.get('kzy_B', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_B', float('nan')):.3f}**
+        """))
 
 
-            st.markdown(f"""Verification of member resistance — Equation (y)  
-        u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
-        u = **{(util_61_B if util_61_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_B is not None and util_61_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
-            st.markdown(f"""Verification of member resistance — Equation (z)  
-        u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
-        u = **{(util_62_B if util_62_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_B is not None and util_62_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+        st.markdown(f"""Verification of member resistance — Equation (y)  
+    u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
+    u = **{(util_61_B if util_61_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_B is not None and util_61_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+        st.markdown(f"""Verification of member resistance — Equation (z)  
+    u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
+    u = **{(util_62_B if util_62_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_B is not None and util_62_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
 
 
+    # ----------------------------------------------------
+        # 8. References
         # ----------------------------------------------------
-            # 8. References
-            # ----------------------------------------------------
-        report_h3("8. References")
+    report_h3("8. References")
 
-        st.markdown(
-            """
-    - EN 1993-1-1: Eurocode 3 – Design of steel structures – Part 1-1  
-    - EN 1990: Basis of structural design  
-    - EN 1991 series: Actions on structures  
-    - National Annex to EN 1993-1-1 (where applicable)  
-    - EngiSnap – Standard steel beam design & selection (this prototype)
-    """
-        )
-
-
-    # =========================================================
-    # APP ENTRY
-    # =========================================================
-    # --- PAGE CONFIG ---
-    st.set_page_config(
-        page_title="EngiSnap Beam Design Eurocode Checker",
-        page_icon="EngiSnap-Logo.png",
-        layout="wide"
+    st.markdown(
+        """
+- EN 1993-1-1: Eurocode 3 – Design of steel structures – Part 1-1  
+- EN 1990: Basis of structural design  
+- EN 1991 series: Actions on structures  
+- National Annex to EN 1993-1-1 (where applicable)  
+- EngiSnap – Standard steel beam design & selection (this prototype)
+"""
     )
 
-    # --- CUSTOM GLOBAL CSS ---
-    custom_css = """
-    <style>
-    html, body, [class*="css"]  {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
 
-    /* Headings */
-    h1 {font-size: 1.6rem !important; font-weight: 650 !important;}
-    h2 {font-size: 1.25rem !important; font-weight: 600 !important;}
-    h3 {font-size: 1.05rem !important; font-weight: 600 !important;}
+# =========================================================
+# APP ENTRY
+# =========================================================
+# --- PAGE CONFIG ---
+st.set_page_config(
+    page_title="EngiSnap Beam Design Eurocode Checker",
+    page_icon="EngiSnap-Logo.png",
+    layout="wide"
+)
 
-    /* Main container – enough top padding so header isn't clipped */
-    div.block-container {
-        padding-top: 1.6rem;
-        max-width: 1200px;
-    }
+# --- CUSTOM GLOBAL CSS ---
+custom_css = """
+<style>
+html, body, [class*="css"]  {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
 
-    /* Expander look */
-    .stExpander {
-        border-radius: 8px !important;
-        border: 1px solid #e0e0e0 !important;
-    }
+/* Headings */
+h1 {font-size: 1.6rem !important; font-weight: 650 !important;}
+h2 {font-size: 1.25rem !important; font-weight: 600 !important;}
+h3 {font-size: 1.05rem !important; font-weight: 600 !important;}
 
-    /* Labels a bit smaller & bolder */
-    .stNumberInput > label {
-        font-size: 0.85rem;
-        font-weight: 500;
-    }
+/* Main container – enough top padding so header isn't clipped */
+div.block-container {
+    padding-top: 1.6rem;
+    max-width: 1200px;
+}
 
-    /* Hide Streamlit default menu & footer */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    </style>
-    """
-    st.markdown(custom_css, unsafe_allow_html=True)
+/* Expander look */
+.stExpander {
+    border-radius: 8px !important;
+    border: 1px solid #e0e0e0 !important;
+}
 
-    # --- SMALL SPACER SO NOTHING TOUCHES TOP EDGE ---
-    st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
+/* Labels a bit smaller & bolder */
+.stNumberInput > label {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
 
-    # --- HEADER WITH LOGO + TITLE ---
-    header_col1, header_col2 = st.columns([1, 4])
+/* Hide Streamlit default menu & footer */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+</style>
+"""
+st.markdown(custom_css, unsafe_allow_html=True)
 
-    with header_col1:
-        st.image("EngiSnap-Logo.png", width=140)
+# --- SMALL SPACER SO NOTHING TOUCHES TOP EDGE ---
+st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
 
-    with header_col2:
-        st.markdown(
-            """
-            <div style="padding-top:10px;">
-                <div style="font-size:1.5rem;font-weight:650;margin-bottom:0.1rem;">
-                    EngiSnap — Standard steel beam design & selection
-                </div>
-                <div style="color:#555;font-size:0.9rem;">
-                    Eurocode-based analysis and member selection for rolled steel sections
-                    <br/>
-                </div>
+# --- HEADER WITH LOGO + TITLE ---
+header_col1, header_col2 = st.columns([1, 4])
+
+with header_col1:
+    st.image("EngiSnap-Logo.png", width=140)
+
+with header_col2:
+    st.markdown(
+        """
+        <div style="padding-top:10px;">
+            <div style="font-size:1.5rem;font-weight:650;margin-bottom:0.1rem;">
+                EngiSnap — Standard steel beam design & selection
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            <div style="color:#555;font-size:0.9rem;">
+                Eurocode-based analysis and member selection for rolled steel sections
+                <br/>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_section_preview_placeholder(title="Cross-section preview", key_prefix="prev"):
@@ -4975,6 +4939,8 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
+
 
 
 
