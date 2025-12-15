@@ -2264,14 +2264,26 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             "util_61_A": util_61,
             "util_62_A": util_62,
             "util_int_A": util_int_A,
+            "util_int_A_y": util_61,
+            "util_int_A_z": util_62,
+            "status_int_A_y": "OK" if util_61 <= 1.0 else "EXCEEDS",
+            "status_int_A_z": "OK" if util_62 <= 1.0 else "EXCEEDS",
         })
 
+        # (19) / (20) — Method 1 (Annex A): two interaction expressions
         rows.append({
-            "Check": "Bending + axial compression (Method 1)",
+            "Check": "Buckling interaction (Method 1, Annex A) — Eq. (y)",
             "Applied": "Interaction",
             "Resistance": "≤ 1.0",
-            "Utilization": f"{util_int_A:.3f}",
-            "Status": "OK" if util_int_A <= 1.0 else "EXCEEDS",
+            "Utilization": f"{util_61:.3f}",
+            "Status": "OK" if util_61 <= 1.0 else "EXCEEDS",
+        })
+        rows.append({
+            "Check": "Buckling interaction (Method 1, Annex A) — Eq. (z)",
+            "Applied": "Interaction",
+            "Resistance": "≤ 1.0",
+            "Utilization": f"{util_62:.3f}",
+            "Status": "OK" if util_62 <= 1.0 else "EXCEEDS",
         })
 
         # --- Method 2 (Annex B inspired) ---
@@ -2306,14 +2318,26 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             "util_61_B": util_61_B,
             "util_62_B": util_62_B,
             "util_int_B": util_int_B,
+            "util_int_B_y": util_61_B,
+            "util_int_B_z": util_62_B,
+            "status_int_B_y": "OK" if util_61_B <= 1.0 else "EXCEEDS",
+            "status_int_B_z": "OK" if util_62_B <= 1.0 else "EXCEEDS",
         })
 
+        # (21) / (22) — Method 2 (Annex B): two interaction expressions
         rows.append({
-            "Check": "Bending + axial compression (Method 2)",
+            "Check": "Buckling interaction (Method 2, Annex B) — Eq. (y)",
             "Applied": "Interaction",
             "Resistance": "≤ 1.0",
-            "Utilization": f"{util_int_B:.3f}",
-            "Status": "OK" if util_int_B <= 1.0 else "EXCEEDS",
+            "Utilization": f"{util_61_B:.3f}",
+            "Status": "OK" if util_61_B <= 1.0 else "EXCEEDS",
+        })
+        rows.append({
+            "Check": "Buckling interaction (Method 2, Annex B) — Eq. (z)",
+            "Applied": "Interaction",
+            "Resistance": "≤ 1.0",
+            "Utilization": f"{util_62_B:.3f}",
+            "Status": "OK" if util_62_B <= 1.0 else "EXCEEDS",
         })
 
         buck_map.update({
@@ -2445,12 +2469,14 @@ def render_results(df_rows, overall_ok, governing,
         "My + Mz + N + V",              # 14
     ]
     buck_checks = [
-        "Flexural buckling y–y",                         # 15
-        "Flexural buckling z–z",                         # 16
-        "Torsional / torsional-flexural buckling z",     # 17
-        "Lateral-torsional buckling",                    # 18
-        "Bending + axial compression (Method 1)",        # 19
-        "Bending + axial compression (Method 2)",        # 20
+        "Flexural buckling y–y",                                              # 15
+        "Flexural buckling z–z",                                              # 16
+        "Torsional / torsional-flexural buckling z",                          # 17
+        "Lateral-torsional buckling",                                         # 18
+        "Buckling interaction (Method 1, Annex A) — Eq. (y)",                 # 19
+        "Buckling interaction (Method 1, Annex A) — Eq. (z)",                 # 20
+        "Buckling interaction (Method 2, Annex B) — Eq. (y)",                 # 21
+        "Buckling interaction (Method 2, Annex B) — Eq. (z)",                 # 22
     ]
 
     # For now: placeholders (you'll later replace with real values)
@@ -2709,13 +2735,15 @@ def render_results(df_rows, overall_ok, governing,
     buck_util[3] = _fmt_util(buck_map.get("util_LT", None))
     buck_status[3] = buck_map.get("status_LT", "") or ""
 
-    # 19/20
-    buck_util[4] = _fmt_util(buck_map.get("util_int_method1", None))
-    buck_status[4] = buck_map.get("status_int_method1", "") or ""
-    buck_util[5] = _fmt_util(buck_map.get("util_int_method2", None))
-    buck_status[5] = buck_map.get("status_int_method2", "") or ""
-
-
+    # 19–22
+    buck_util[4] = _fmt_util(buck_map.get("util_int_A_y", None))
+    buck_status[4] = buck_map.get("status_int_A_y", "") or ""
+    buck_util[5] = _fmt_util(buck_map.get("util_int_A_z", None))
+    buck_status[5] = buck_map.get("status_int_A_z", "") or ""
+    buck_util[6] = _fmt_util(buck_map.get("util_int_B_y", None))
+    buck_status[6] = buck_map.get("status_int_B_y", "") or ""
+    buck_util[7] = _fmt_util(buck_map.get("util_int_B_z", None))
+    buck_status[7] = buck_map.get("status_int_B_z", "") or ""
     # -------------------------------------------------
     # Helper    # -------------------------------------------------
     def build_table_html(title, start_no, names, utils, statuses):
@@ -2796,7 +2824,7 @@ def render_results(df_rows, overall_ok, governing,
     # TABLE 2: Buckling
     # -------------------------------------------------
     buck_html = build_table_html(
-        "Verification of member stability (buckling, checks 15–20)",
+        "Verification of member stability (buckling, checks 15–22)",
         15,
         buck_checks,
         buck_util,
@@ -3925,7 +3953,7 @@ def render_report_tab():
     # 6. Detailed calculations
     # ----------------------------------------------------
     report_h3("6. Detailed calculations")
-    st.markdown("### 6.1 Verification of cross-section strength (ULS, checks 1–14)")
+    report_group("6.1 Verification of cross-section strength (ULS, checks 1–14)")
     # 6.1.a Detailed explanation for check (1) Tension
     report_h4("(1) Tension – EN 1993-1-1 §6.2.3")
 
@@ -4216,7 +4244,6 @@ zones are filled with fasteners.
     # (6.2.7) Torsion
     # ----------------------------------------------------
     st.markdown("**Torsion (EN 1993-1-1 §6.2.7)**")
-    st.markdown("Back to contents")
     st.markdown("""
 The verifications for torsional moment **T<sub>Ed</sub>** are **not examined** in this calculation.
 
@@ -4231,7 +4258,6 @@ For this typical case the effects of warping torsion are small and can be ignore
     # (6.2.8) Bending and shear
     # ----------------------------------------------------
     st.markdown("**(7), (8) Bending and shear (EN 1993-1-1 §6.2.8)**")
-    st.markdown("Back to contents")
     cs_combo = (extras.get("cs_combo") or {})
     shear_ratio_z = cs_combo.get("shear_ratio_z", None)
     shear_ratio_y = cs_combo.get("shear_ratio_y", None)
@@ -4255,7 +4281,6 @@ At least one shear ratio exceeds **0.50**, therefore a reduction of bending resi
     # (6.2.9) Bending and axial force
     # ----------------------------------------------------
     st.markdown("**(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)**")
-    st.markdown("Back to contents")
     Npl_Rd_kN = cs_combo.get("Npl_Rd_kN", None)
     crit_y_25 = cs_combo.get("crit_y_25", None)
     crit_y_web = cs_combo.get("crit_y_web", None)
@@ -4285,7 +4310,6 @@ The axial force criteria are **not** fully satisfied. A reduction / interaction 
     # (6.2.10) Bending, shear and axial force
     # ----------------------------------------------------
     st.markdown("**(12), (13), (14) Bending, shear and axial force (EN 1993-1-1 §6.2.10)**")
-    st.markdown("Back to contents")
     if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
         st.markdown("""
 Since the applied shear forces are **≤ 0.50·Vpl,Rd**, the shear influence on the bending+axial resistance may be ignored.  
@@ -4297,10 +4321,10 @@ If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must b
 """)
 
     # ----------------------------------------------------
-    # (6.3) Member stability summary (checks 15–20)
+    # (6.3) Member stability summary (checks 15–22)
     # ----------------------------------------------------
         # ----------------------------------------------------
-    # (6.3) Verification of member stability (buckling, checks 15–20)
+    # (6.3) Verification of member stability (buckling, checks 15–22)
     # ----------------------------------------------------
     buck_map = (extras.get("buck_map") or {})
 
@@ -4380,10 +4404,9 @@ If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must b
     # (15),(16) Flexural buckling
     # ----------------------------
     
-    st.markdown("### 6.2 Verification of member stability (buckling, checks 15–20)")
+    report_group("6.2 Verification of member stability (buckling, checks 15–22)")
     report_h4("(15), (16) Flexural buckling – EN 1993-1-1 §6.3.1.3")
-    st.markdown(f"""Back to contents  
-
+    st.markdown(f"""
 The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
 
 NEd / Nb,Rd ≤ 1.0
@@ -4462,8 +4485,7 @@ According to EN1993-1-1 §6.3.1.1(4) the calculated flexural buckling resistance
     # (17) Torsional & torsional-flexural buckling
     # ----------------------------
     report_h4("(17) Torsional and torsional-flexural buckling – EN 1993-1-1 §6.3.1.4")
-    st.markdown(f"""Back to contents  
-
+    st.markdown(f"""
 Typically for standard I- and H-sections the torsional and torsional-flexural buckling verifications are not critical as compared to the flexural buckling verification. For completeness of the calculation the torsional and torsional-flexural buckling loads are estimated below.
 
 The polar radius of gyration of the cross-section i0 is equal to:
@@ -4491,9 +4513,8 @@ u = NEd / Nb,Rd,T = {(util_T if util_T is not None else float('nan')):.3f} ≤ 1
     # ----------------------------
     # (18) Lateral-torsional buckling
     # ----------------------------
-    st.markdown(f"""(18) Lateral-torsional buckling (EN1993-1-1 §6.3.2)  
-Back to contents  
-
+    report_h4("(18) Lateral-torsional buckling – EN 1993-1-1 §6.3.2")
+    st.markdown(f"""
 Members with laterally unrestrained compression flange subject to bending about major axis y-y should be verified against lateral-torsional buckling in accordance with EN1993-1-1 §6.3.2 as follows:
 
 My,Ed / Mb,Rd ≤ 1.0
@@ -4526,17 +4547,80 @@ u = My,Ed / Mb,Rd = {abs(MyEd_kNm):.1f} kNm / {(Mb_Rd/1e3 if Mb_Rd else float('n
 """)
 
     # ----------------------------
-    # (19),(20) Buckling interaction (Methods 1 & 2)
+
     # ----------------------------
-    st.markdown(f"""Buckling interaction for bending and axial compression (EN1993-1-1 §6.3.3)  
-Back to contents  
+    # (19)–(22) Buckling interaction for bending and axial compression
+    # ----------------------------
+    util_61_A = buck_map.get("util_61_A")
+    util_62_A = buck_map.get("util_62_A")
+    util_61_B = buck_map.get("util_61_B")
+    util_62_B = buck_map.get("util_62_B")
 
-The member subjected to axial compression and bending is verified using the interaction expressions based on EN1993-1-1 §6.3.3.
+    # ---- Method 1 (Annex A) ----
+    report_h4("(19) Buckling interaction for bending and axial compression – Method 1 (EN 1993-1-1 Annex A)")
+    st.markdown(f"""Equivalent uniform moment factors for flexural buckling  
+The equivalent uniform moment factors **Cmi,0** are obtained from **EN 1993-1-1 Table A.2**.
 
-(19),(20) Buckling interaction for bending and axial compression  
-- Method 1 (Annex A): utilization u = {(util_int_A if util_int_A is not None else float('nan')):.3f}  
-- Method 2 (Annex B): utilization u = {(util_int_B if util_int_B is not None else float('nan')):.3f}  
-""")
+- For flexural buckling about major axis **y–y**, the moment diagram **My,Ed** is considered between points braced along **z–z** direction.
+
+For uniform or linearly varying bending moment diagram:
+
+Cmy,0 = 0.79 + 0.21⋅ψy + 0.36⋅(ψy - 0.33)⋅NEd / Ncr,y = **{buck_map.get('Cmy0_A', float('nan')):.3f}**
+
+- For flexural buckling about minor axis **z–z**, the moment diagram **Mz,Ed** is considered between points braced along **y–y** direction.
+
+For uniform or linearly varying bending moment diagram:
+
+Cmz,0 = 0.79 + 0.21⋅ψz + 0.36⋅(ψz - 0.33)⋅NEd / Ncr,z = **{buck_map.get('Cmz0_A', float('nan')):.3f}**
+
+Intermediate factors and coefficients  
+- Normalized axial force: npl = **{buck_map.get('npl_A', float('nan')):.3f}**  
+- λLT (from Section 18): **{lam_LT if lam_LT is not None else float('nan'):.3f}**  
+- λmax = max(λy, λz) = **{max((lam_y or 0.0),(lam_z or 0.0)):.3f}**  
+- εy = **{buck_map.get('eps_y_A', float('nan')):.3f}**  
+- wy = **{buck_map.get('wy_A', float('nan')):.3f}**, wz = **{buck_map.get('wz_A', float('nan')):.3f}**  
+- μy = **{buck_map.get('mu_y_A', float('nan')):.3f}**, μz = **{buck_map.get('mu_z_A', float('nan')):.3f}**  
+- aLT = **{buck_map.get('aLT_A', float('nan')):.3f}**
+
+Equivalent uniform moment factors for lateral-torsional buckling  
+Cmy = **{buck_map.get('Cmy_A', float('nan')):.3f}**, Cmz = **{buck_map.get('Cmz_A', float('nan')):.3f}**, CmLT = **{buck_map.get('CmLT_A', float('nan')):.3f}**
+
+Interaction factors (EN 1993-1-1 Table A.1)  
+kyy = **{buck_map.get('kyy_A', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_A', float('nan')):.3f}**  
+kzy = **{buck_map.get('kzy_A', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_A', float('nan')):.3f}**""")
+
+    st.markdown(f"""Verification of member resistance — Equation (y)  
+u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
+u = **{(util_61_A if util_61_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_A is not None and util_61_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+
+    report_h4("(20) Buckling interaction for bending and axial compression – Method 1 (EN 1993-1-1 Annex A)")
+    st.markdown(f"""Verification of member resistance — Equation (z)  
+u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
+u = **{(util_62_A if util_62_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_A is not None and util_62_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+
+    # ---- Method 2 (Annex B) ----
+    report_h4("(21) Buckling interaction for bending and axial compression – Method 2 (EN 1993-1-1 Annex B)")
+    st.markdown(f"""Equivalent uniform moment factors for flexural buckling  
+The equivalent uniform moment factors **Cmi** are obtained from **EN 1993-1-1 Table B.3**.
+
+Cmy = max(0.4, 0.60 + 0.40⋅ψy) = **{buck_map.get('Cmy_B', float('nan')):.3f}**  
+Cmz = max(0.4, 0.60 + 0.40⋅ψz) = **{buck_map.get('Cmz_B', float('nan')):.3f}**  
+CmLT = max(0.4, 0.60 + 0.40⋅ψLT) = **{buck_map.get('CmLT_B', float('nan')):.3f}**
+
+Interaction factors (EN 1993-1-1 Annex B)  
+kyy = **{buck_map.get('kyy_B', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_B', float('nan')):.3f}**  
+kzy = **{buck_map.get('kzy_B', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_B', float('nan')):.3f}**""")
+
+    st.markdown(f"""Verification of member resistance — Equation (y)  
+u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
+u = **{(util_61_B if util_61_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_B is not None and util_61_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+
+    report_h4("(22) Buckling interaction for bending and axial compression – Method 2 (EN 1993-1-1 Annex B)")
+    st.markdown(f"""Verification of member resistance — Equation (z)  
+u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
+u = **{(util_62_B if util_62_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_B is not None and util_62_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+
+
 # ----------------------------------------------------
     # 8. References
     # ----------------------------------------------------
@@ -4850,7 +4934,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
 
 
 
