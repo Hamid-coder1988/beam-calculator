@@ -3952,674 +3952,675 @@ def render_report_tab():
     # ----------------------------------------------------
     # 6. Detailed calculations
     # ----------------------------------------------------
-    report_h3("6. Detailed calculations")
-    report_h4("6.1 Verification of cross-section strength (ULS, checks 1–14)")
-    # 6.1.a Detailed explanation for check (1) Tension
-    report_h4("(1) Tension – EN 1993-1-1 §6.2.3")
+    with st.expander("Detailed calculations", expanded=False):
+        report_h3("6. Detailed calculations")
+        report_h4("6.1 Verification of cross-section strength (ULS, checks 1–14)")
+        # 6.1.a Detailed explanation for check (1) Tension
+        report_h4("(1) Tension – EN 1993-1-1 §6.2.3")
 
-    # Get section area and material
-    A_mm2 = float(sr_display.get("A_mm2", 0.0))  # from DB
-    fy = material_to_fy(material)
+        # Get section area and material
+        A_mm2 = float(sr_display.get("A_mm2", 0.0))  # from DB
+        fy = material_to_fy(material)
 
-    # Design axial force N (tension positive)
-    N_kN = float(inputs.get("N_kN", 0.0))
+        # Design axial force N (tension positive)
+        N_kN = float(inputs.get("N_kN", 0.0))
 
-    # Tension: N > 0
-    if N_kN > 0.0:
-        NEd_ten_kN = N_kN
-    else:
-        NEd_ten_kN = 0.0
+        # Tension: N > 0
+        if N_kN > 0.0:
+            NEd_ten_kN = N_kN
+        else:
+            NEd_ten_kN = 0.0
 
-    # Plastic tension resistance Npl,Rd = A * fy / γM0  (convert to kN)
-    if A_mm2 > 0.0 and fy > 0.0:
-        Npl_Rd_kN = A_mm2 * fy / (gamma_M0 * 1e3)  # N → kN
-    else:
-        Npl_Rd_kN = 0.0
+        # Plastic tension resistance Npl,Rd = A * fy / γM0  (convert to kN)
+        if A_mm2 > 0.0 and fy > 0.0:
+            Npl_Rd_kN = A_mm2 * fy / (gamma_M0 * 1e3)  # N → kN
+        else:
+            Npl_Rd_kN = 0.0
 
-    # Utilisation from our own numbers
-    if Npl_Rd_kN > 0.0:
-        u_ten = NEd_ten_kN / Npl_Rd_kN
-        u_ten_str = f"{u_ten:.3f}"
-    else:
-        u_ten = None
-        u_ten_str = "n/a"
+        # Utilisation from our own numbers
+        if Npl_Rd_kN > 0.0:
+            u_ten = NEd_ten_kN / Npl_Rd_kN
+            u_ten_str = f"{u_ten:.3f}"
+        else:
+            u_ten = None
+            u_ten_str = "n/a"
 
-    try:
-        row_ten = df_rows[df_rows["Check"] == "Tension (N≥0)"]
-        if not row_ten.empty:
-            status_ten = str(row_ten.iloc[0]["Status"])
-    except Exception:
-        pass
+        try:
+            row_ten = df_rows[df_rows["Check"] == "Tension (N≥0)"]
+            if not row_ten.empty:
+                status_ten = str(row_ten.iloc[0]["Status"])
+        except Exception:
+            pass
 
-    # --- Text + equations in math format ---
+        # --- Text + equations in math format ---
 
-    st.markdown(
-        "The critical cross-section is verified for tensile axial force "
-        "in accordance with EN 1993-1-1 §6.2.3:"
-    )
-    st.latex(r"\frac{N_{Ed}}{N_{t,Rd}} \le 1.0")
-
-    st.markdown("Design tensile axial force is taken as:")
-    st.latex(rf"N_{{Ed}} = {NEd_ten_kN:.3f}\,\text{{kN}}")
-
-    if Npl_Rd_kN > 0.0:
         st.markdown(
-            "The plastic tension resistance of the gross cross-section is estimated as:"
+            "The critical cross-section is verified for tensile axial force "
+            "in accordance with EN 1993-1-1 §6.2.3:"
         )
-        st.latex(
-            rf"N_{{pl,Rd}} = \frac{{A f_y}}{{\gamma_{{M0}}}}"
-            rf" = {A_mm2:.1f}\,\text{{mm}}^2 \cdot {fy:.0f}\,\text{{MPa}}"
-            rf" / {gamma_M0:.2f}"
-            rf" = {Npl_Rd_kN:.3f}\,\text{{kN}}"
-        )
+        st.latex(r"\frac{N_{Ed}}{N_{t,Rd}} \le 1.0")
 
-        st.markdown("Hence the utilisation for the tension verification is:")
-        st.latex(
-            rf"u = \frac{{N_{{Ed}}}}{{N_{{pl,Rd}}}}"
-            rf" = \frac{{{NEd_ten_kN:.3f}}}{{{Npl_Rd_kN:.3f}}}"
-            rf" = {u_ten_str} \le 1.0"
-            rf" \Rightarrow \mathbf{{{status_ten}}}."
-        )
-    else:
-        st.markdown(
-            "Tension resistance could not be evaluated because cross-section area or "
-            "material data is missing in the DB."
-        )
+        st.markdown("Design tensile axial force is taken as:")
+        st.latex(rf"N_{{Ed}} = {NEd_ten_kN:.3f}\,\text{{kN}}")
 
-    st.caption(
-        "Net-section tension per EN 1993-1-1 §6.2.3(2)b) (holes, openings) "
-        "is not yet implemented in this prototype."
-    )
-
-
-        # 6.1.b Detailed explanation for check (2) Compression
-    report_h4("(2) Compression – EN 1993-1-1 §6.2.4")
-
-    # design compressive axial force (take magnitude of N < 0)
-    if N_kN < 0.0:
-        NEd_comp_kN = -N_kN
-    else:
-        NEd_comp_kN = 0.0
-
-    # compression resistance (class 1–3): Nc,Rd = A fy / γM0
-    Nc_Rd_kN = Npl_Rd_kN  # same expression for gross section
-
-    # utilisation u = NEd / Nc,Rd from our own numbers
-    if Nc_Rd_kN > 0.0:
-        u_comp = NEd_comp_kN / Nc_Rd_kN
-        u_comp_str = f"{u_comp:.3f}"
-    else:
-        u_comp = None
-        u_comp_str = "n/a"
-
-    # status from results table row "Compression (N<0)"
-    status_comp = "n/a"
-    try:
-        row_comp = df_rows[df_rows["Check"] == "Compression (N<0)"]
-        if not row_comp.empty:
-            status_comp = str(row_comp.iloc[0]["Status"])
-            # if you want, you can also overwrite u_comp_str from the table
-    except Exception:
-        pass
-
-    # --- text + equations in math format ---
-    st.markdown(
-        "The critical cross-section is verified for compressive axial force "
-        "in accordance with EN 1993-1-1 §6.2.4:"
-    )
-    st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} \le 1.0")
-
-    st.markdown("Design compressive axial force (compression taken as negative in the global sign convention):")
-    st.latex(rf"N_{{Ed}} = {NEd_comp_kN:.3f}\,\text{{kN}}")
-
-    if Nc_Rd_kN > 0.0:
-        st.markdown("Compression resistance of the gross cross-section (class 1–3):")
-        st.latex(
-            rf"N_{{c,Rd}} = \frac{{A f_y}}{{\gamma_{{M0}}}}"
-            rf" = {A_mm2:.1f}\,\text{{mm}}^2 \cdot {fy:.0f}\,\text{{MPa}}"
-            rf" / {gamma_M0:.2f}"
-            rf" = {Nc_Rd_kN:.3f}\,\text{{kN}}"
-        )
-
-        if u_comp is not None:
-            st.markdown("Therefore the utilisation for the compression verification is:")
-            st.latex(
-                rf"u = \frac{{N_{{Ed}}}}{{N_{{c,Rd}}}}"
-                rf" = \frac{{{NEd_comp_kN:.3f}}}{{{Nc_Rd_kN:.3f}}}"
-                rf" = {u_comp_str} \le 1.0"
-                rf" \Rightarrow \mathbf{{{status_comp}}}."
+        if Npl_Rd_kN > 0.0:
+            st.markdown(
+                "The plastic tension resistance of the gross cross-section is estimated as:"
             )
-    else:
-        st.markdown(
-            "Compression resistance could not be evaluated because cross-section area "
-            "or material data is missing in the DB."
+            st.latex(
+                rf"N_{{pl,Rd}} = \frac{{A f_y}}{{\gamma_{{M0}}}}"
+                rf" = {A_mm2:.1f}\,\text{{mm}}^2 \cdot {fy:.0f}\,\text{{MPa}}"
+                rf" / {gamma_M0:.2f}"
+                rf" = {Npl_Rd_kN:.3f}\,\text{{kN}}"
+            )
+
+            st.markdown("Hence the utilisation for the tension verification is:")
+            st.latex(
+                rf"u = \frac{{N_{{Ed}}}}{{N_{{pl,Rd}}}}"
+                rf" = \frac{{{NEd_ten_kN:.3f}}}{{{Npl_Rd_kN:.3f}}}"
+                rf" = {u_ten_str} \le 1.0"
+                rf" \Rightarrow \mathbf{{{status_ten}}}."
+            )
+        else:
+            st.markdown(
+                "Tension resistance could not be evaluated because cross-section area or "
+                "material data is missing in the DB."
+            )
+
+        st.caption(
+            "Net-section tension per EN 1993-1-1 §6.2.3(2)b) (holes, openings) "
+            "is not yet implemented in this prototype."
         )
-        # ---- Bending resistances for report (using selected Wpl/Wel) ----
-    if Wpl_y_mm3 > 0 and fy > 0:
-        Mc_y_Rd_kNm = (Wpl_y_mm3 * fy / gamma_M0) / 1e6  # mm³*MPa → Nmm → kNm
-    else:
-        Mc_y_Rd_kNm = 0.0
 
-    if Wpl_z_mm3 > 0 and fy > 0:
-        Mc_z_Rd_kNm = (Wpl_z_mm3 * fy / gamma_M0) / 1e6
-    else:
-        Mc_z_Rd_kNm = 0.0
 
-    # Utilizations in bending for the equations
-    if Mc_y_Rd_kNm > 0:
-        util_My = My_Ed_kNm / Mc_y_Rd_kNm
-        status_My = "OK" if util_My <= 1.0 else "EXCEEDS"
-    else:
-        util_My = 0.0
-        status_My = "n/a"
+            # 6.1.b Detailed explanation for check (2) Compression
+        report_h4("(2) Compression – EN 1993-1-1 §6.2.4")
 
-    if Mc_z_Rd_kNm > 0:
-        util_Mz = Mz_Ed_kNm / Mc_z_Rd_kNm
-        status_Mz = "OK" if util_Mz <= 1.0 else "EXCEEDS"
-    else:
-        util_Mz = 0.0
-        status_Mz = "n/a"
+        # design compressive axial force (take magnitude of N < 0)
+        if N_kN < 0.0:
+            NEd_comp_kN = -N_kN
+        else:
+            NEd_comp_kN = 0.0
+
+        # compression resistance (class 1–3): Nc,Rd = A fy / γM0
+        Nc_Rd_kN = Npl_Rd_kN  # same expression for gross section
+
+        # utilisation u = NEd / Nc,Rd from our own numbers
+        if Nc_Rd_kN > 0.0:
+            u_comp = NEd_comp_kN / Nc_Rd_kN
+            u_comp_str = f"{u_comp:.3f}"
+        else:
+            u_comp = None
+            u_comp_str = "n/a"
+
+        # status from results table row "Compression (N<0)"
+        status_comp = "n/a"
+        try:
+            row_comp = df_rows[df_rows["Check"] == "Compression (N<0)"]
+            if not row_comp.empty:
+                status_comp = str(row_comp.iloc[0]["Status"])
+                # if you want, you can also overwrite u_comp_str from the table
+        except Exception:
+            pass
+
+        # --- text + equations in math format ---
+        st.markdown(
+            "The critical cross-section is verified for compressive axial force "
+            "in accordance with EN 1993-1-1 §6.2.4:"
+        )
+        st.latex(r"\frac{N_{Ed}}{N_{c,Rd}} \le 1.0")
+
+        st.markdown("Design compressive axial force (compression taken as negative in the global sign convention):")
+        st.latex(rf"N_{{Ed}} = {NEd_comp_kN:.3f}\,\text{{kN}}")
+
+        if Nc_Rd_kN > 0.0:
+            st.markdown("Compression resistance of the gross cross-section (class 1–3):")
+            st.latex(
+                rf"N_{{c,Rd}} = \frac{{A f_y}}{{\gamma_{{M0}}}}"
+                rf" = {A_mm2:.1f}\,\text{{mm}}^2 \cdot {fy:.0f}\,\text{{MPa}}"
+                rf" / {gamma_M0:.2f}"
+                rf" = {Nc_Rd_kN:.3f}\,\text{{kN}}"
+            )
+
+            if u_comp is not None:
+                st.markdown("Therefore the utilisation for the compression verification is:")
+                st.latex(
+                    rf"u = \frac{{N_{{Ed}}}}{{N_{{c,Rd}}}}"
+                    rf" = \frac{{{NEd_comp_kN:.3f}}}{{{Nc_Rd_kN:.3f}}}"
+                    rf" = {u_comp_str} \le 1.0"
+                    rf" \Rightarrow \mathbf{{{status_comp}}}."
+                )
+        else:
+            st.markdown(
+                "Compression resistance could not be evaluated because cross-section area "
+                "or material data is missing in the DB."
+            )
+            # ---- Bending resistances for report (using selected Wpl/Wel) ----
+        if Wpl_y_mm3 > 0 and fy > 0:
+            Mc_y_Rd_kNm = (Wpl_y_mm3 * fy / gamma_M0) / 1e6  # mm³*MPa → Nmm → kNm
+        else:
+            Mc_y_Rd_kNm = 0.0
+
+        if Wpl_z_mm3 > 0 and fy > 0:
+            Mc_z_Rd_kNm = (Wpl_z_mm3 * fy / gamma_M0) / 1e6
+        else:
+            Mc_z_Rd_kNm = 0.0
+
+        # Utilizations in bending for the equations
+        if Mc_y_Rd_kNm > 0:
+            util_My = My_Ed_kNm / Mc_y_Rd_kNm
+            status_My = "OK" if util_My <= 1.0 else "EXCEEDS"
+        else:
+            util_My = 0.0
+            status_My = "n/a"
+
+        if Mc_z_Rd_kNm > 0:
+            util_Mz = Mz_Ed_kNm / Mc_z_Rd_kNm
+            status_Mz = "OK" if util_Mz <= 1.0 else "EXCEEDS"
+        else:
+            util_Mz = 0.0
+            status_Mz = "n/a"
     
-    report_h4("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
+        report_h4("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
 
-    st.markdown("The design bending resistance is checked using:")
-    st.latex(r"\frac{M_{Ed}}{M_{c,Rd}} \le 1.0")
+        st.markdown("The design bending resistance is checked using:")
+        st.latex(r"\frac{M_{Ed}}{M_{c,Rd}} \le 1.0")
 
-    st.markdown(
-        f"For a **Class {section_class}** cross-section the "
-        f"**{W_text} section modulus** is used in accordance with EN 1993-1-1 §6.2.5:"
-    )
-    st.latex(r"M_{c,Rd} = W \, \frac{f_y}{\gamma_{M0}}")
+        st.markdown(
+            f"For a **Class {section_class}** cross-section the "
+            f"**{W_text} section modulus** is used in accordance with EN 1993-1-1 §6.2.5:"
+        )
+        st.latex(r"M_{c,Rd} = W \, \frac{f_y}{\gamma_{M0}}")
 
-    # Show computed resistances with the selected modulus (Wpl or Wel)
-    st.latex(
-        rf"M_{{c,y,Rd}} = W_{{y}} \frac{{f_y}}{{\gamma_{{M0}}}}"
-        rf" = {W_y_mm3:.0f} \; mm^3 \cdot {fy:.0f} \, MPa / {gamma_M0}"
-        rf" = {Mc_y_Rd_kNm:.2f} \; kNm"
-    )
+        # Show computed resistances with the selected modulus (Wpl or Wel)
+        st.latex(
+            rf"M_{{c,y,Rd}} = W_{{y}} \frac{{f_y}}{{\gamma_{{M0}}}}"
+            rf" = {W_y_mm3:.0f} \; mm^3 \cdot {fy:.0f} \, MPa / {gamma_M0}"
+            rf" = {Mc_y_Rd_kNm:.2f} \; kNm"
+        )
 
-    st.latex(
-        rf"M_{{c,z,Rd}} = W_{{z}} \frac{{f_y}}{{\gamma_{{M0}}}}"
-        rf" = {W_z_mm3:.0f} \; mm^3 \cdot {fy:.0f} \, MPa / {gamma_M0}"
-        rf" = {Mc_z_Rd_kNm:.2f} \; kNm"
-    )
+        st.latex(
+            rf"M_{{c,z,Rd}} = W_{{z}} \frac{{f_y}}{{\gamma_{{M0}}}}"
+            rf" = {W_z_mm3:.0f} \; mm^3 \cdot {fy:.0f} \, MPa / {gamma_M0}"
+            rf" = {Mc_z_Rd_kNm:.2f} \; kNm"
+        )
 
-    # Utilization results
-    report_h4("Utilization for bending resistance")
+        # Utilization results
+        report_h4("Utilization for bending resistance")
 
-    st.latex(
-        rf"u_y = \frac{{M_{{y,Ed}}}}{{M_{{c,y,Rd}}}}"
-        rf" = \frac{{{My_Ed_kNm:.2f}}}{{{Mc_y_Rd_kNm:.2f}}}"
-        rf" = {util_My:.3f} \Rightarrow \textbf{{{status_My}}}"
-    )
+        st.latex(
+            rf"u_y = \frac{{M_{{y,Ed}}}}{{M_{{c,y,Rd}}}}"
+            rf" = \frac{{{My_Ed_kNm:.2f}}}{{{Mc_y_Rd_kNm:.2f}}}"
+            rf" = {util_My:.3f} \Rightarrow \textbf{{{status_My}}}"
+        )
 
-    st.latex(
-        rf"u_z = \frac{{M_{{z,Ed}}}}{{M_{{c,z,Rd}}}}"
-        rf" = \frac{{{Mz_Ed_kNm:.2f}}}{{{Mc_z_Rd_kNm:.2f}}}"
-        rf" = {util_Mz:.3f} \Rightarrow \textbf{{{status_Mz}}}"
-    )
+        st.latex(
+            rf"u_z = \frac{{M_{{z,Ed}}}}{{M_{{c,z,Rd}}}}"
+            rf" = \frac{{{Mz_Ed_kNm:.2f}}}{{{Mc_z_Rd_kNm:.2f}}}"
+            rf" = {util_Mz:.3f} \Rightarrow \textbf{{{status_Mz}}}"
+        )
 
-    st.markdown(
-        """
-According to EN 1993-1-1 §6.2.5(4–6), holes may be neglected in bending resistance
-provided the tensile and compression areas satisfy Eq. (6.16) and the holes in compression
-zones are filled with fasteners.
-"""
-    )
+        st.markdown(
+            """
+    According to EN 1993-1-1 §6.2.5(4–6), holes may be neglected in bending resistance
+    provided the tensile and compression areas satisfy Eq. (6.16) and the holes in compression
+    zones are filled with fasteners.
+    """
+        )
 
-        # ---- Shear resistances and utilizations for report ----
-    # Design shear forces from inputs
-    Vz_Ed_kN = Vz_Ed_kN  # already set at top, just documenting
-    Vy_Ed_kN = Vy_Ed_kN
+            # ---- Shear resistances and utilizations for report ----
+        # Design shear forces from inputs
+        Vz_Ed_kN = Vz_Ed_kN  # already set at top, just documenting
+        Vy_Ed_kN = Vy_Ed_kN
 
-    # Shear resistances
-    if Av_z_mm2 > 0 and fy > 0:
-        Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1000.0
-    else:
-        Vc_z_Rd_kN = 0.0
+        # Shear resistances
+        if Av_z_mm2 > 0 and fy > 0:
+            Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1000.0
+        else:
+            Vc_z_Rd_kN = 0.0
 
-    if Av_y_mm2 > 0 and fy > 0:
-        Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1000.0
-    else:
-        Vc_y_Rd_kN = 0.0
+        if Av_y_mm2 > 0 and fy > 0:
+            Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1000.0
+        else:
+            Vc_y_Rd_kN = 0.0
 
-    # Utilizations
-    if Vc_z_Rd_kN > 0:
-        util_Vz = Vz_Ed_kN / Vc_z_Rd_kN
-        status_Vz = "OK" if util_Vz <= 1.0 else "EXCEEDS"
-    else:
-        util_Vz = 0.0
-        status_Vz = "n/a"
+        # Utilizations
+        if Vc_z_Rd_kN > 0:
+            util_Vz = Vz_Ed_kN / Vc_z_Rd_kN
+            status_Vz = "OK" if util_Vz <= 1.0 else "EXCEEDS"
+        else:
+            util_Vz = 0.0
+            status_Vz = "n/a"
 
-    if Vc_y_Rd_kN > 0:
-        util_Vy = Vy_Ed_kN / Vc_y_Rd_kN
-        status_Vy = "OK" if util_Vy <= 1.0 else "EXCEEDS"
-    else:
-        util_Vy = 0.0
-        status_Vy = "n/a"
+        if Vc_y_Rd_kN > 0:
+            util_Vy = Vy_Ed_kN / Vc_y_Rd_kN
+            status_Vy = "OK" if util_Vy <= 1.0 else "EXCEEDS"
+        else:
+            util_Vy = 0.0
+            status_Vy = "n/a"
 
-    report_h4("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
+        report_h4("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
 
-    st.markdown("The shear resistance check uses:")
-    st.latex(r"\frac{V_{Ed}}{V_{c,Rd}} \le 1.0")
+        st.markdown("The shear resistance check uses:")
+        st.latex(r"\frac{V_{Ed}}{V_{c,Rd}} \le 1.0")
 
-    st.markdown("Plastic shear resistance:")
-    st.latex(r"V_{c,Rd} = A_v \, \frac{f_y}{\sqrt{3}\,\gamma_{M0}}")
+        st.markdown("Plastic shear resistance:")
+        st.latex(r"V_{c,Rd} = A_v \, \frac{f_y}{\sqrt{3}\,\gamma_{M0}}")
     
-    # Shear resistances
-    st.latex(
-        rf"V_{{c,z,Rd}} = A_{{v,z}} \frac{{f_y}}{{\sqrt 3 \gamma_{{M0}}}}"
-        rf" = {Av_z_mm2:.0f} \, mm^2 \cdot ({fy:.0f} / \sqrt 3) / {gamma_M0}"
-        rf" = {Vc_z_Rd_kN:.2f} \, kN"
-    )
+        # Shear resistances
+        st.latex(
+            rf"V_{{c,z,Rd}} = A_{{v,z}} \frac{{f_y}}{{\sqrt 3 \gamma_{{M0}}}}"
+            rf" = {Av_z_mm2:.0f} \, mm^2 \cdot ({fy:.0f} / \sqrt 3) / {gamma_M0}"
+            rf" = {Vc_z_Rd_kN:.2f} \, kN"
+        )
     
-    st.latex(
-        rf"V_{{c,y,Rd}} = A_{{v,y}} \frac{{f_y}}{{\sqrt 3 \gamma_{{M0}}}}"
-        rf" = {Av_y_mm2:.0f} \, mm^2 \cdot ({fy:.0f} / \sqrt 3) / {gamma_M0}"
-        rf" = {Vc_y_Rd_kN:.2f} \, kN"
-    )
+        st.latex(
+            rf"V_{{c,y,Rd}} = A_{{v,y}} \frac{{f_y}}{{\sqrt 3 \gamma_{{M0}}}}"
+            rf" = {Av_y_mm2:.0f} \, mm^2 \cdot ({fy:.0f} / \sqrt 3) / {gamma_M0}"
+            rf" = {Vc_y_Rd_kN:.2f} \, kN"
+        )
     
-    # Utilization
-    report_h4("Utilization checks")
+        # Utilization
+        report_h4("Utilization checks")
     
-    st.latex(
-        rf"u_z = \frac{{V_{{z,Ed}}}}{{V_{{c,z,Rd}}}}"
-        rf" = \frac{{{Vz_Ed_kN:.2f}}}{{{Vc_z_Rd_kN:.2f}}}"
-        rf" = {util_Vz:.3f} \Rightarrow \textbf{{{status_Vz}}}"
-    )
+        st.latex(
+            rf"u_z = \frac{{V_{{z,Ed}}}}{{V_{{c,z,Rd}}}}"
+            rf" = \frac{{{Vz_Ed_kN:.2f}}}{{{Vc_z_Rd_kN:.2f}}}"
+            rf" = {util_Vz:.3f} \Rightarrow \textbf{{{status_Vz}}}"
+        )
     
-    st.latex(
-        rf"u_y = \frac{{V_{{y,Ed}}}}{{V_{{c,y,Rd}}}}"
-        rf" = \frac{{{Vy_Ed_kN:.2f}}}{{{Vc_y_Rd_kN:.2f}}}"
-        rf" = {util_Vy:.3f} \Rightarrow \textbf{{{status_Vy}}}"
-    )
+        st.latex(
+            rf"u_y = \frac{{V_{{y,Ed}}}}{{V_{{c,y,Rd}}}}"
+            rf" = \frac{{{Vy_Ed_kN:.2f}}}{{{Vc_y_Rd_kN:.2f}}}"
+            rf" = {util_Vy:.3f} \Rightarrow \textbf{{{status_Vy}}}"
+        )
     
-    st.markdown("""
-    Per EN 1993-1-1 §6.2.6(7), shear resistance does not need to account for fastener holes
-    except at joints where EN 1993-1-8 applies.
-    """)
-    
-
-    # ----------------------------------------------------
-    # (6.2.7) Torsion
-    # ----------------------------------------------------
-    st.markdown("**Torsion (EN 1993-1-1 §6.2.7)**")
-    st.markdown("""
-The verifications for torsional moment **T<sub>Ed</sub>** are **not examined** in this calculation.
-
-For open cross-sections without any directly applied torsional load the torsional moment occurs primarily as **warping torsion** due to:
-1. rotation compatibility due to bending of other transversely connected members, and  
-2. eccentricity of loading applied directly on the examined member.
-
-For this typical case the effects of warping torsion are small and can be ignored. However, if the steel member directly supports significant torsional loads then a **closed cross-section is recommended**.
-""", unsafe_allow_html=True)
-
-    # ----------------------------------------------------
-    # (6.2.8) Bending and shear
-    # ----------------------------------------------------
-    st.markdown("**(7), (8) Bending and shear (EN 1993-1-1 §6.2.8)**")
-    cs_combo = (extras.get("cs_combo") or {})
-    shear_ratio_z = cs_combo.get("shear_ratio_z", None)
-    shear_ratio_y = cs_combo.get("shear_ratio_y", None)
-
-    if shear_ratio_z is not None and Vc_z_Rd_kN > 0:
-        st.markdown(f"- Shear force along axis z-z: Vz,Ed / Vpl,Rd,z = {Vz_Ed_kN:.2f} / {Vc_z_Rd_kN:.2f} = **{shear_ratio_z:.3f}**")
-    if shear_ratio_y is not None and Vc_y_Rd_kN > 0:
-        st.markdown(f"- Shear force along axis y-y: Vy,Ed / Vpl,Rd,y = {Vy_Ed_kN:.2f} / {Vc_y_Rd_kN:.2f} = **{shear_ratio_y:.3f}**")
-
-    if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
         st.markdown("""
-The applied shear forces are **less than 50%** of the corresponding plastic shear resistances.  
-Therefore the effect of shear forces on the bending moment resistance may be **ignored**, and the bending utilization factors are unchanged.
-""")
-    else:
+        Per EN 1993-1-1 §6.2.6(7), shear resistance does not need to account for fastener holes
+        except at joints where EN 1993-1-8 applies.
+        """)
+    
+
+        # ----------------------------------------------------
+        # (6.2.7) Torsion
+        # ----------------------------------------------------
+        st.markdown("**Torsion (EN 1993-1-1 §6.2.7)**")
         st.markdown("""
-At least one shear ratio exceeds **0.50**, therefore a reduction of bending resistance may be required per EN 1993-1-1 §6.2.8.
-""")
+    The verifications for torsional moment **T<sub>Ed</sub>** are **not examined** in this calculation.
 
-    # ----------------------------------------------------
-    # (6.2.9) Bending and axial force
-    # ----------------------------------------------------
-    st.markdown("**(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)**")
-    Npl_Rd_kN = cs_combo.get("Npl_Rd_kN", None)
-    crit_y_25 = cs_combo.get("crit_y_25", None)
-    crit_y_web = cs_combo.get("crit_y_web", None)
-    crit_z_web = cs_combo.get("crit_z_web", None)
-    NEd_kN = cs_combo.get("NEd_kN", None)
+    For open cross-sections without any directly applied torsional load the torsional moment occurs primarily as **warping torsion** due to:
+    1. rotation compatibility due to bending of other transversely connected members, and  
+    2. eccentricity of loading applied directly on the examined member.
 
-    if Npl_Rd_kN is not None and NEd_kN is not None:
-        st.markdown(f"Design axial force: **NEd = {NEd_kN:.2f} kN**")
-        st.markdown(f"- 0.25·Npl,Rd = 0.25·{Npl_Rd_kN:.2f} = **{crit_y_25:.2f} kN**")
-        if crit_y_web is not None:
-            st.markdown(f"- 0.50·hw·tw·fy/γM0 = **{crit_y_web:.2f} kN**")
-        if crit_z_web is not None:
-            st.markdown(f"- hw·tw·fy/γM0 = **{crit_z_web:.2f} kN**")
+    For this typical case the effects of warping torsion are small and can be ignored. However, if the steel member directly supports significant torsional loads then a **closed cross-section is recommended**.
+    """, unsafe_allow_html=True)
 
-        if cs_combo.get("axial_ok_y", False) and cs_combo.get("axial_ok_z", False):
+        # ----------------------------------------------------
+        # (6.2.8) Bending and shear
+        # ----------------------------------------------------
+        st.markdown("**(7), (8) Bending and shear (EN 1993-1-1 §6.2.8)**")
+        cs_combo = (extras.get("cs_combo") or {})
+        shear_ratio_z = cs_combo.get("shear_ratio_z", None)
+        shear_ratio_y = cs_combo.get("shear_ratio_y", None)
+
+        if shear_ratio_z is not None and Vc_z_Rd_kN > 0:
+            st.markdown(f"- Shear force along axis z-z: Vz,Ed / Vpl,Rd,z = {Vz_Ed_kN:.2f} / {Vc_z_Rd_kN:.2f} = **{shear_ratio_z:.3f}**")
+        if shear_ratio_y is not None and Vc_y_Rd_kN > 0:
+            st.markdown(f"- Shear force along axis y-y: Vy,Ed / Vpl,Rd,y = {Vy_Ed_kN:.2f} / {Vc_y_Rd_kN:.2f} = **{shear_ratio_y:.3f}**")
+
+        if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
             st.markdown("""
-The axial force satisfies the criteria for doubly-symmetric I/H sections, therefore allowance need **not** be made for the effect of axial force on the plastic resistance moments.  
-Bending utilization factors remain as in Sections (3) and (4).
-""")
+    The applied shear forces are **less than 50%** of the corresponding plastic shear resistances.  
+    Therefore the effect of shear forces on the bending moment resistance may be **ignored**, and the bending utilization factors are unchanged.
+    """)
         else:
             st.markdown("""
-The axial force criteria are **not** fully satisfied. A reduction / interaction should be applied per EN 1993-1-1 §6.2.9.  
-(This implementation reports the interaction results in the Results table.)
-""")
+    At least one shear ratio exceeds **0.50**, therefore a reduction of bending resistance may be required per EN 1993-1-1 §6.2.8.
+    """)
 
-    # ----------------------------------------------------
-    # (6.2.10) Bending, shear and axial force
-    # ----------------------------------------------------
-    st.markdown("**(12), (13), (14) Bending, shear and axial force (EN 1993-1-1 §6.2.10)**")
-    if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
-        st.markdown("""
-Since the applied shear forces are **≤ 0.50·Vpl,Rd**, the shear influence on the bending+axial resistance may be ignored.  
-Therefore the utilization factors are the same as in Section (6.2.9).
-""")
-    else:
-        st.markdown("""
-If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must be reduced per EN 1993-1-1 §6.2.10.
-""")
-
-    # ----------------------------------------------------
-    # (6.3) Member stability summary (checks 15–22)
-    # ----------------------------------------------------
         # ----------------------------------------------------
-    # (6.3) Verification of member stability (buckling, checks 15–22)
-    # ----------------------------------------------------
-    buck_map = (extras.get("buck_map") or {})
+        # (6.2.9) Bending and axial force
+        # ----------------------------------------------------
+        st.markdown("**(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)**")
+        Npl_Rd_kN = cs_combo.get("Npl_Rd_kN", None)
+        crit_y_25 = cs_combo.get("crit_y_25", None)
+        crit_y_web = cs_combo.get("crit_y_web", None)
+        crit_z_web = cs_combo.get("crit_z_web", None)
+        NEd_kN = cs_combo.get("NEd_kN", None)
 
-    # Basic inputs
-    L = float(inputs.get("L", 0.0))
-    K_y = float(inputs.get("K_y", 1.0))
-    K_z = float(inputs.get("K_z", 1.0))
-    K_T = float(inputs.get("K_T", 1.0))
-    K_LT = float(inputs.get("K_LT", 1.0))
+        if Npl_Rd_kN is not None and NEd_kN is not None:
+            st.markdown(f"Design axial force: **NEd = {NEd_kN:.2f} kN**")
+            st.markdown(f"- 0.25·Npl,Rd = 0.25·{Npl_Rd_kN:.2f} = **{crit_y_25:.2f} kN**")
+            if crit_y_web is not None:
+                st.markdown(f"- 0.50·hw·tw·fy/γM0 = **{crit_y_web:.2f} kN**")
+            if crit_z_web is not None:
+                st.markdown(f"- hw·tw·fy/γM0 = **{crit_z_web:.2f} kN**")
 
-    NEd_kN = float(inputs.get("N_kN", 0.0))
-    MyEd_kNm = float(inputs.get("My_kNm", 0.0))
-    MzEd_kNm = float(inputs.get("Mz_kNm", 0.0))
+            if cs_combo.get("axial_ok_y", False) and cs_combo.get("axial_ok_z", False):
+                st.markdown("""
+    The axial force satisfies the criteria for doubly-symmetric I/H sections, therefore allowance need **not** be made for the effect of axial force on the plastic resistance moments.  
+    Bending utilization factors remain as in Sections (3) and (4).
+    """)
+            else:
+                st.markdown("""
+    The axial force criteria are **not** fully satisfied. A reduction / interaction should be applied per EN 1993-1-1 §6.2.9.  
+    (This implementation reports the interaction results in the Results table.)
+    """)
 
-    # Section & material
-    A_mm2 = float(use_props.get("A_mm2", 0.0))
-    Iy_mm4 = float(use_props.get("Iy_mm4", use_props.get("Iy_cm4", 0.0) * 1e4))
-    Iz_mm4 = float(use_props.get("Iz_mm4", use_props.get("Iz_cm4", 0.0) * 1e4))
-    iy_mm = float(use_props.get("iy_mm", 0.0))
-    iz_mm = float(use_props.get("iz_mm", 0.0))
-    It_mm4 = float(use_props.get("It_mm4", use_props.get("It_cm4", 0.0) * 1e4))
-    Iw_mm6 = float(use_props.get("Iw_mm6", use_props.get("Iw_cm6", 0.0) * 1e6))
-    Wel_y_mm3 = float(use_props.get("Wel_y_mm3", use_props.get("Wel_y_cm3", 0.0) * 1e3))
-    Wpl_y_mm3 = float(use_props.get("Wpl_y_mm3", use_props.get("Wpl_y_cm3", 0.0) * 1e3))
-    Wel_z_mm3 = float(use_props.get("Wel_z_mm3", use_props.get("Wel_z_cm3", 0.0) * 1e3))
-    Wpl_z_mm3 = float(use_props.get("Wpl_z_mm3", use_props.get("Wpl_z_cm3", 0.0) * 1e3))
+        # ----------------------------------------------------
+        # (6.2.10) Bending, shear and axial force
+        # ----------------------------------------------------
+        st.markdown("**(12), (13), (14) Bending, shear and axial force (EN 1993-1-1 §6.2.10)**")
+        if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
+            st.markdown("""
+    Since the applied shear forces are **≤ 0.50·Vpl,Rd**, the shear influence on the bending+axial resistance may be ignored.  
+    Therefore the utilization factors are the same as in Section (6.2.9).
+    """)
+        else:
+            st.markdown("""
+    If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must be reduced per EN 1993-1-1 §6.2.10.
+    """)
 
-    # Factors
-    # (gamma_M0, gamma_M1 already defined at top of render_report_tab)
+        # ----------------------------------------------------
+        # (6.3) Member stability summary (checks 15–22)
+        # ----------------------------------------------------
+            # ----------------------------------------------------
+        # (6.3) Verification of member stability (buckling, checks 15–22)
+        # ----------------------------------------------------
+        buck_map = (extras.get("buck_map") or {})
 
-    # Buckling curve letters inferred from alpha (if available)
-    def _curve_from_alpha(a):
-        if a is None:
+        # Basic inputs
+        L = float(inputs.get("L", 0.0))
+        K_y = float(inputs.get("K_y", 1.0))
+        K_z = float(inputs.get("K_z", 1.0))
+        K_T = float(inputs.get("K_T", 1.0))
+        K_LT = float(inputs.get("K_LT", 1.0))
+
+        NEd_kN = float(inputs.get("N_kN", 0.0))
+        MyEd_kNm = float(inputs.get("My_kNm", 0.0))
+        MzEd_kNm = float(inputs.get("Mz_kNm", 0.0))
+
+        # Section & material
+        A_mm2 = float(use_props.get("A_mm2", 0.0))
+        Iy_mm4 = float(use_props.get("Iy_mm4", use_props.get("Iy_cm4", 0.0) * 1e4))
+        Iz_mm4 = float(use_props.get("Iz_mm4", use_props.get("Iz_cm4", 0.0) * 1e4))
+        iy_mm = float(use_props.get("iy_mm", 0.0))
+        iz_mm = float(use_props.get("iz_mm", 0.0))
+        It_mm4 = float(use_props.get("It_mm4", use_props.get("It_cm4", 0.0) * 1e4))
+        Iw_mm6 = float(use_props.get("Iw_mm6", use_props.get("Iw_cm6", 0.0) * 1e6))
+        Wel_y_mm3 = float(use_props.get("Wel_y_mm3", use_props.get("Wel_y_cm3", 0.0) * 1e3))
+        Wpl_y_mm3 = float(use_props.get("Wpl_y_mm3", use_props.get("Wpl_y_cm3", 0.0) * 1e3))
+        Wel_z_mm3 = float(use_props.get("Wel_z_mm3", use_props.get("Wel_z_cm3", 0.0) * 1e3))
+        Wpl_z_mm3 = float(use_props.get("Wpl_z_mm3", use_props.get("Wpl_z_cm3", 0.0) * 1e3))
+
+        # Factors
+        # (gamma_M0, gamma_M1 already defined at top of render_report_tab)
+
+        # Buckling curve letters inferred from alpha (if available)
+        def _curve_from_alpha(a):
+            if a is None:
+                return "n/a"
+            a = float(a)
+            if abs(a - 0.21) < 1e-3: return "a"
+            if abs(a - 0.34) < 1e-3: return "b"
+            if abs(a - 0.49) < 1e-3: return "c"
+            if abs(a - 0.76) < 1e-3: return "d"
             return "n/a"
-        a = float(a)
-        if abs(a - 0.21) < 1e-3: return "a"
-        if abs(a - 0.34) < 1e-3: return "b"
-        if abs(a - 0.49) < 1e-3: return "c"
-        if abs(a - 0.76) < 1e-3: return "d"
-        return "n/a"
 
-    alpha_y = float(buck_map.get("alpha_y", st.session_state.get("alpha_y", 0.21)))
-    alpha_z = float(buck_map.get("alpha_z", st.session_state.get("alpha_z", 0.34)))
+        alpha_y = float(buck_map.get("alpha_y", st.session_state.get("alpha_y", 0.21)))
+        alpha_z = float(buck_map.get("alpha_z", st.session_state.get("alpha_z", 0.34)))
 
-    curve_y = _curve_from_alpha(alpha_y)
-    curve_z = _curve_from_alpha(alpha_z)
+        curve_y = _curve_from_alpha(alpha_y)
+        curve_z = _curve_from_alpha(alpha_z)
 
-    # Extract buckling results
-    Ncr_y = buck_map.get("Ncr_y")
-    Ncr_z = buck_map.get("Ncr_z")
-    lam_y = buck_map.get("lambda_y")
-    lam_z = buck_map.get("lambda_z")
-    chi_y = buck_map.get("chi_y")
-    chi_z = buck_map.get("chi_z")
-    Nb_Rd_y = buck_map.get("Nb_Rd_y")
-    Nb_Rd_z = buck_map.get("Nb_Rd_z")
-    util_y = buck_map.get("util_y")
-    util_z = buck_map.get("util_z")
+        # Extract buckling results
+        Ncr_y = buck_map.get("Ncr_y")
+        Ncr_z = buck_map.get("Ncr_z")
+        lam_y = buck_map.get("lambda_y")
+        lam_z = buck_map.get("lambda_z")
+        chi_y = buck_map.get("chi_y")
+        chi_z = buck_map.get("chi_z")
+        Nb_Rd_y = buck_map.get("Nb_Rd_y")
+        Nb_Rd_z = buck_map.get("Nb_Rd_z")
+        util_y = buck_map.get("util_y")
+        util_z = buck_map.get("util_z")
 
-    i0_m = buck_map.get("i0_m")
-    Ncr_T = buck_map.get("Ncr_T")
-    chi_T = buck_map.get("chi_T")
-    Nb_Rd_T = buck_map.get("Nb_Rd_T")
-    util_T = buck_map.get("util_T")
+        i0_m = buck_map.get("i0_m")
+        Ncr_T = buck_map.get("Ncr_T")
+        chi_T = buck_map.get("chi_T")
+        Nb_Rd_T = buck_map.get("Nb_Rd_T")
+        util_T = buck_map.get("util_T")
 
-    Mcr = buck_map.get("Mcr")
-    lam_LT = buck_map.get("lambda_LT")
-    chi_LT = buck_map.get("chi_LT")
-    Mb_Rd = buck_map.get("Mb_Rd")
-    util_LT = buck_map.get("util_LT")
+        Mcr = buck_map.get("Mcr")
+        lam_LT = buck_map.get("lambda_LT")
+        chi_LT = buck_map.get("chi_LT")
+        Mb_Rd = buck_map.get("Mb_Rd")
+        util_LT = buck_map.get("util_LT")
 
-    # Interaction (methods)
-    util_int_A = buck_map.get("util_int_A")
-    util_int_B = buck_map.get("util_int_B")
+        # Interaction (methods)
+        util_int_A = buck_map.get("util_int_A")
+        util_int_B = buck_map.get("util_int_B")
 
-    # ----------------------------
-    # (15),(16) Flexural buckling
-    # ----------------------------
+        # ----------------------------
+        # (15),(16) Flexural buckling
+        # ----------------------------
     
-    report_h4("6.2 Verification of member stability (buckling, checks 15–22)")
-    report_h4("(15), (16) Flexural buckling – EN 1993-1-1 §6.3.1.3")
-    st.markdown(f"""
-The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
+        report_h4("6.2 Verification of member stability (buckling, checks 15–22)")
+        report_h4("(15), (16) Flexural buckling – EN 1993-1-1 §6.3.1.3")
+        st.markdown(f"""
+    The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
 
-NEd / Nb,Rd ≤ 1.0
+    NEd / Nb,Rd ≤ 1.0
 
-where Nb,Rd is the design buckling resistance of the compression member given in EN1993-1-1 §6.3.1.1(3) for class 1, 2 and 3 cross-sections:
+    where Nb,Rd is the design buckling resistance of the compression member given in EN1993-1-1 §6.3.1.1(3) for class 1, 2 and 3 cross-sections:
 
-Nb,Rd = χ⋅A⋅fy / γM1
+    Nb,Rd = χ⋅A⋅fy / γM1
 
-The reduction factor χ due to flexural buckling is calculated for the major and the minor bending axes.
+    The reduction factor χ due to flexural buckling is calculated for the major and the minor bending axes.
 
-Flexural buckling about major axis y-y  
-The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_y}".
+    Flexural buckling about major axis y-y  
+    The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_y}".
 
-The imperfection factor α corresponding to the buckling curve "{curve_y}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_y:.2f}.
+    The imperfection factor α corresponding to the buckling curve "{curve_y}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_y:.2f}.
 
-The critical buckling length Lcr,y for flexural buckling about the major axis y-y is considered as Lcr,y = {K_y:.3f}⋅L = {K_y:.3f}⋅{L:.3f} m = {K_y*L:.3f} m.
+    The critical buckling length Lcr,y for flexural buckling about the major axis y-y is considered as Lcr,y = {K_y:.3f}⋅L = {K_y:.3f}⋅{L:.3f} m = {K_y*L:.3f} m.
 
-According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
+    According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
 
-Ncr,y = π2⋅E⋅Iy / Lcr,y2 = π2⋅210000 MPa⋅{Iy_mm4:,.0f} mm4 / ({K_y*L:.3f} m)2 = {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN
+    Ncr,y = π2⋅E⋅Iy / Lcr,y2 = π2⋅210000 MPa⋅{Iy_mm4:,.0f} mm4 / ({K_y*L:.3f} m)2 = {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN
 
-The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,y = {abs(NEd_kN):.1f} kN / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_y/1e3) if Ncr_y else float('nan')):.3f}
+    The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,y = {abs(NEd_kN):.1f} kN / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_y/1e3) if Ncr_y else float('nan')):.3f}
 
-For class 1, 2 and 3 cross-section the non-dimensional slenderness λy for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
+    For class 1, 2 and 3 cross-section the non-dimensional slenderness λy for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
 
-λy = (A⋅fy / Ncr,y)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN)0.5 = {(lam_y if lam_y is not None else float('nan')):.3f}
+    λy = (A⋅fy / Ncr,y)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN)0.5 = {(lam_y if lam_y is not None else float('nan')):.3f}
 
-According to EN1993-1-1 §6.3.1.2(4) flexural buckling effects may be ignored when NEd/Ncr,y ≤ 0.04 or λy ≤ 0.20.
+    According to EN1993-1-1 §6.3.1.2(4) flexural buckling effects may be ignored when NEd/Ncr,y ≤ 0.04 or λy ≤ 0.20.
 
-The factors Φ and χy are calculated in accordance with EN1993-1-1 §6.3.1.2:
+    The factors Φ and χy are calculated in accordance with EN1993-1-1 §6.3.1.2:
 
-Φ = 0.5⋅[1 + α⋅(λy - 0.20) + λy2]  
-χy = min[1.0, 1 / (Φ + [Φ2 - λy2]0.5)]
+    Φ = 0.5⋅[1 + α⋅(λy - 0.20) + λy2]  
+    χy = min[1.0, 1 / (Φ + [Φ2 - λy2]0.5)]
 
-The design buckling resistance of the compression member for flexural buckling about the major axis y-y is calculated as:
+    The design buckling resistance of the compression member for flexural buckling about the major axis y-y is calculated as:
 
-Nb,Rd,y = χy ⋅ A ⋅ fy / γM1 = {(chi_y if chi_y is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN
+    Nb,Rd,y = χy ⋅ A ⋅ fy / γM1 = {(chi_y if chi_y is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN
 
-Therefore the utilization for the flexural buckling resistance about major axis y-y is:
+    Therefore the utilization for the flexural buckling resistance about major axis y-y is:
 
-u = NEd / Nb,Rd,y = {abs(NEd_kN):.1f} kN / {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN = {(util_y if util_y is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_y is not None and util_y <= 1.0) else "exceeds"}
+    u = NEd / Nb,Rd,y = {abs(NEd_kN):.1f} kN / {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN = {(util_y if util_y is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_y is not None and util_y <= 1.0) else "exceeds"}
 
-Flexural buckling about minor axis z-z  
-The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_z}".
+    Flexural buckling about minor axis z-z  
+    The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_z}".
 
-The imperfection factor α corresponding to the buckling curve "{curve_z}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_z:.2f}.
+    The imperfection factor α corresponding to the buckling curve "{curve_z}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_z:.2f}.
 
-The critical buckling length Lcr,z for flexural buckling about the minor axis z-z is considered as Lcr,z = {K_z:.3f}⋅L = {K_z:.3f}⋅{L:.3f} m = {K_z*L:.3f} m.
+    The critical buckling length Lcr,z for flexural buckling about the minor axis z-z is considered as Lcr,z = {K_z:.3f}⋅L = {K_z:.3f}⋅{L:.3f} m = {K_z*L:.3f} m.
 
-According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
+    According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
 
-Ncr,z = π2⋅E⋅Iz / Lcr,z2 = π2⋅210000 MPa⋅{Iz_mm4:,.0f} mm4 / ({K_z*L:.3f} m)2 = {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN
+    Ncr,z = π2⋅E⋅Iz / Lcr,z2 = π2⋅210000 MPa⋅{Iz_mm4:,.0f} mm4 / ({K_z*L:.3f} m)2 = {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN
 
-The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,z = {abs(NEd_kN):.1f} kN / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_z/1e3) if Ncr_z else float('nan')):.3f}
+    The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,z = {abs(NEd_kN):.1f} kN / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_z/1e3) if Ncr_z else float('nan')):.3f}
 
-For class 1, 2 and 3 cross-section the non-dimensional slenderness λz for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
+    For class 1, 2 and 3 cross-section the non-dimensional slenderness λz for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
 
-λz = (A⋅fy / Ncr,z)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN)0.5 = {(lam_z if lam_z is not None else float('nan')):.3f}
+    λz = (A⋅fy / Ncr,z)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN)0.5 = {(lam_z if lam_z is not None else float('nan')):.3f}
 
-The factors Φ and χz are calculated in accordance with EN1993-1-1 §6.3.1.2:
+    The factors Φ and χz are calculated in accordance with EN1993-1-1 §6.3.1.2:
 
-Φ = 0.5⋅[1 + α⋅(λz - 0.20) + λz2]  
-χz = min[1.0, 1 / (Φ + [Φ2 - λz2]0.5)]
+    Φ = 0.5⋅[1 + α⋅(λz - 0.20) + λz2]  
+    χz = min[1.0, 1 / (Φ + [Φ2 - λz2]0.5)]
 
-The design buckling resistance of the compression member for flexural buckling about the minor axis z-z is calculated as:
+    The design buckling resistance of the compression member for flexural buckling about the minor axis z-z is calculated as:
 
-Nb,Rd,z = χz ⋅ A ⋅ fy / γM1 = {(chi_z if chi_z is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN
+    Nb,Rd,z = χz ⋅ A ⋅ fy / γM1 = {(chi_z if chi_z is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN
 
-Therefore the utilization for the flexural buckling resistance about minor axis z-z is:
+    Therefore the utilization for the flexural buckling resistance about minor axis z-z is:
 
-u = NEd / Nb,Rd,z = {abs(NEd_kN):.1f} kN / {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN = {(util_z if util_z is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_z is not None and util_z <= 1.0) else "exceeds"}
+    u = NEd / Nb,Rd,z = {abs(NEd_kN):.1f} kN / {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN = {(util_z if util_z is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_z is not None and util_z <= 1.0) else "exceeds"}
 
-According to EN1993-1-1 §6.3.1.1(4) the calculated flexural buckling resistance is also valid for members with holes for fasteners at the member ends.""")
+    According to EN1993-1-1 §6.3.1.1(4) the calculated flexural buckling resistance is also valid for members with holes for fasteners at the member ends.""")
 
-    # ----------------------------
-    # (17) Torsional & torsional-flexural buckling
-    # ----------------------------
-    report_h4("(17) Torsional and torsional-flexural buckling – EN 1993-1-1 §6.3.1.4")
-    st.markdown(f"""
-Typically for standard I- and H-sections the torsional and torsional-flexural buckling verifications are not critical as compared to the flexural buckling verification. For completeness of the calculation the torsional and torsional-flexural buckling loads are estimated below.
+        # ----------------------------
+        # (17) Torsional & torsional-flexural buckling
+        # ----------------------------
+        report_h4("(17) Torsional and torsional-flexural buckling – EN 1993-1-1 §6.3.1.4")
+        st.markdown(f"""
+    Typically for standard I- and H-sections the torsional and torsional-flexural buckling verifications are not critical as compared to the flexural buckling verification. For completeness of the calculation the torsional and torsional-flexural buckling loads are estimated below.
 
-The polar radius of gyration of the cross-section i0 is equal to:
+    The polar radius of gyration of the cross-section i0 is equal to:
 
-i0 = [iy2 + iz2 + y02 + z02]0.5
+    i0 = [iy2 + iz2 + y02 + z02]0.5
 
-For doubly symmetrical cross-sections the shear center and the centroid coincide, therefore y0 = 0 and z0 = 0 and:
+    For doubly symmetrical cross-sections the shear center and the centroid coincide, therefore y0 = 0 and z0 = 0 and:
 
-i0 = [iy2 + iz2]0.5 = [({iy_mm:.1f} mm)2 + ({iz_mm:.1f} mm)2]0.5 = {(i0_m*1e3 if i0_m else float('nan')):.1f} mm
+    i0 = [iy2 + iz2]0.5 = [({iy_mm:.1f} mm)2 + ({iz_mm:.1f} mm)2]0.5 = {(i0_m*1e3 if i0_m else float('nan')):.1f} mm
 
-The critical buckling length Lcr,T for torsional buckling is considered as Lcr,T = {K_T:.3f}⋅L = {K_T*L:.3f} m.
+    The critical buckling length Lcr,T for torsional buckling is considered as Lcr,T = {K_T:.3f}⋅L = {K_T*L:.3f} m.
 
-The elastic critical force Ncr,T for torsional buckling is estimated as:
+    The elastic critical force Ncr,T for torsional buckling is estimated as:
 
-Ncr,T = (1 / i02)⋅(G⋅IT + π2⋅E⋅Iw / Lcr,T2) = {(Ncr_T/1e3 if Ncr_T else float('nan')):.1f} kN
+    Ncr,T = (1 / i02)⋅(G⋅IT + π2⋅E⋅Iw / Lcr,T2) = {(Ncr_T/1e3 if Ncr_T else float('nan')):.1f} kN
 
-The design buckling resistance is:
+    The design buckling resistance is:
 
-Nb,Rd,T = χ ⋅ A ⋅ fy / γM1 = {(Nb_Rd_T/1e3 if Nb_Rd_T else float('nan')):.1f} kN
+    Nb,Rd,T = χ ⋅ A ⋅ fy / γM1 = {(Nb_Rd_T/1e3 if Nb_Rd_T else float('nan')):.1f} kN
 
-Therefore the utilization is:
+    Therefore the utilization is:
 
-u = NEd / Nb,Rd,T = {(util_T if util_T is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_T is not None and util_T <= 1.0) else "exceeds"}""")
+    u = NEd / Nb,Rd,T = {(util_T if util_T is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_T is not None and util_T <= 1.0) else "exceeds"}""")
 
-    # ----------------------------
-    # (18) Lateral-torsional buckling
-    # ----------------------------
-    report_h4("(18) Lateral-torsional buckling – EN 1993-1-1 §6.3.2")
-    st.markdown(f"""
-Members with laterally unrestrained compression flange subject to bending about major axis y-y should be verified against lateral-torsional buckling in accordance with EN1993-1-1 §6.3.2 as follows:
+        # ----------------------------
+        # (18) Lateral-torsional buckling
+        # ----------------------------
+        report_h4("(18) Lateral-torsional buckling – EN 1993-1-1 §6.3.2")
+        st.markdown(f"""
+    Members with laterally unrestrained compression flange subject to bending about major axis y-y should be verified against lateral-torsional buckling in accordance with EN1993-1-1 §6.3.2 as follows:
 
-My,Ed / Mb,Rd ≤ 1.0
+    My,Ed / Mb,Rd ≤ 1.0
 
-where Mb,Rd is the design buckling resistance moment:
+    where Mb,Rd is the design buckling resistance moment:
 
-Mb,Rd = χLT⋅Wy⋅fy / γM1
+    Mb,Rd = χLT⋅Wy⋅fy / γM1
 
-For class 1 or 2 cross-sections: Wy = Wpl,y = {Wpl_y_mm3:,.0f} mm3
+    For class 1 or 2 cross-sections: Wy = Wpl,y = {Wpl_y_mm3:,.0f} mm3
 
-Elastic critical moment (uniform moment, k=kw=1, zg=0) is calculated as:
+    Elastic critical moment (uniform moment, k=kw=1, zg=0) is calculated as:
 
-Mcr = {(Mcr/1e3 if Mcr else float('nan')):.1f} kNm
+    Mcr = {(Mcr/1e3 if Mcr else float('nan')):.1f} kNm
 
-The non-dimensional slenderness is:
+    The non-dimensional slenderness is:
 
-λLT = (Wy⋅fy / Mcr)0.5 = {(lam_LT if lam_LT is not None else float('nan')):.3f}
+    λLT = (Wy⋅fy / Mcr)0.5 = {(lam_LT if lam_LT is not None else float('nan')):.3f}
 
-The reduction factor is:
+    The reduction factor is:
 
-χLT = {(chi_LT if chi_LT is not None else float('nan')):.3f}
+    χLT = {(chi_LT if chi_LT is not None else float('nan')):.3f}
 
-The design buckling resistance moment is:
+    The design buckling resistance moment is:
 
-Mb,Rd = {(Mb_Rd/1e3 if Mb_Rd else float('nan')):.1f} kNm
+    Mb,Rd = {(Mb_Rd/1e3 if Mb_Rd else float('nan')):.1f} kNm
 
-Therefore the utilization for the lateral-torsional buckling resistance is:
+    Therefore the utilization for the lateral-torsional buckling resistance is:
 
-u = My,Ed / Mb,Rd = {abs(MyEd_kNm):.1f} kNm / {(Mb_Rd/1e3 if Mb_Rd else float('nan')):.1f} kNm = {(util_LT if util_LT is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_LT is not None and util_LT <= 1.0) else "exceeds"}
-""")
+    u = My,Ed / Mb,Rd = {abs(MyEd_kNm):.1f} kNm / {(Mb_Rd/1e3 if Mb_Rd else float('nan')):.1f} kNm = {(util_LT if util_LT is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_LT is not None and util_LT <= 1.0) else "exceeds"}
+    """)
 
-    # ----------------------------
+        # ----------------------------
 
-    # ----------------------------
-    # (19)–(22) Buckling interaction for bending and axial compression
-    # ----------------------------
-    util_61_A = buck_map.get("util_61_A")
-    util_62_A = buck_map.get("util_62_A")
-    util_61_B = buck_map.get("util_61_B")
-    util_62_B = buck_map.get("util_62_B")
+        # ----------------------------
+        # (19)–(22) Buckling interaction for bending and axial compression
+        # ----------------------------
+        util_61_A = buck_map.get("util_61_A")
+        util_62_A = buck_map.get("util_62_A")
+        util_61_B = buck_map.get("util_61_B")
+        util_62_B = buck_map.get("util_62_B")
 
-    # ---- Method 1 (Annex A) ----
-    report_h4("(19),(20) Buckling interaction for bending and axial compression - Method 1 (EN1993-1-1 Annex A)")
-    st.markdown(f"""Equivalent uniform moment factors for flexural buckling  
-The equivalent uniform moment factors **Cmi,0** are obtained from **EN 1993-1-1 Table A.2**.
+        # ---- Method 1 (Annex A) ----
+        report_h4("(19),(20) Buckling interaction for bending and axial compression - Method 1 (EN1993-1-1 Annex A)")
+        st.markdown(f"""Equivalent uniform moment factors for flexural buckling  
+    The equivalent uniform moment factors **Cmi,0** are obtained from **EN 1993-1-1 Table A.2**.
 
-- For flexural buckling about major axis **y–y**, the moment diagram **My,Ed** is considered between points braced along **z–z** direction.
+    - For flexural buckling about major axis **y–y**, the moment diagram **My,Ed** is considered between points braced along **z–z** direction.
 
-For uniform or linearly varying bending moment diagram:
+    For uniform or linearly varying bending moment diagram:
 
-Cmy,0 = 0.79 + 0.21⋅ψy + 0.36⋅(ψy - 0.33)⋅NEd / Ncr,y = **{buck_map.get('Cmy0_A', float('nan')):.3f}**
+    Cmy,0 = 0.79 + 0.21⋅ψy + 0.36⋅(ψy - 0.33)⋅NEd / Ncr,y = **{buck_map.get('Cmy0_A', float('nan')):.3f}**
 
-- For flexural buckling about minor axis **z–z**, the moment diagram **Mz,Ed** is considered between points braced along **y–y** direction.
+    - For flexural buckling about minor axis **z–z**, the moment diagram **Mz,Ed** is considered between points braced along **y–y** direction.
 
-For uniform or linearly varying bending moment diagram:
+    For uniform or linearly varying bending moment diagram:
 
-Cmz,0 = 0.79 + 0.21⋅ψz + 0.36⋅(ψz - 0.33)⋅NEd / Ncr,z = **{buck_map.get('Cmz0_A', float('nan')):.3f}**
+    Cmz,0 = 0.79 + 0.21⋅ψz + 0.36⋅(ψz - 0.33)⋅NEd / Ncr,z = **{buck_map.get('Cmz0_A', float('nan')):.3f}**
 
-Intermediate factors and coefficients  
-- Normalized axial force: npl = **{buck_map.get('npl_A', float('nan')):.3f}**  
-- λLT (from Section 18): **{lam_LT if lam_LT is not None else float('nan'):.3f}**  
-- λmax = max(λy, λz) = **{max((lam_y or 0.0),(lam_z or 0.0)):.3f}**  
-- εy = **{buck_map.get('eps_y_A', float('nan')):.3f}**  
-- wy = **{buck_map.get('wy_A', float('nan')):.3f}**, wz = **{buck_map.get('wz_A', float('nan')):.3f}**  
-- μy = **{buck_map.get('mu_y_A', float('nan')):.3f}**, μz = **{buck_map.get('mu_z_A', float('nan')):.3f}**  
-- aLT = **{buck_map.get('aLT_A', float('nan')):.3f}**
+    Intermediate factors and coefficients  
+    - Normalized axial force: npl = **{buck_map.get('npl_A', float('nan')):.3f}**  
+    - λLT (from Section 18): **{lam_LT if lam_LT is not None else float('nan'):.3f}**  
+    - λmax = max(λy, λz) = **{max((lam_y or 0.0),(lam_z or 0.0)):.3f}**  
+    - εy = **{buck_map.get('eps_y_A', float('nan')):.3f}**  
+    - wy = **{buck_map.get('wy_A', float('nan')):.3f}**, wz = **{buck_map.get('wz_A', float('nan')):.3f}**  
+    - μy = **{buck_map.get('mu_y_A', float('nan')):.3f}**, μz = **{buck_map.get('mu_z_A', float('nan')):.3f}**  
+    - aLT = **{buck_map.get('aLT_A', float('nan')):.3f}**
 
-Equivalent uniform moment factors for lateral-torsional buckling  
-Cmy = **{buck_map.get('Cmy_A', float('nan')):.3f}**, Cmz = **{buck_map.get('Cmz_A', float('nan')):.3f}**, CmLT = **{buck_map.get('CmLT_A', float('nan')):.3f}**
+    Equivalent uniform moment factors for lateral-torsional buckling  
+    Cmy = **{buck_map.get('Cmy_A', float('nan')):.3f}**, Cmz = **{buck_map.get('Cmz_A', float('nan')):.3f}**, CmLT = **{buck_map.get('CmLT_A', float('nan')):.3f}**
 
-Interaction factors (EN 1993-1-1 Table A.1)  
-kyy = **{buck_map.get('kyy_A', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_A', float('nan')):.3f}**  
-kzy = **{buck_map.get('kzy_A', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_A', float('nan')):.3f}**""")
+    Interaction factors (EN 1993-1-1 Table A.1)  
+    kyy = **{buck_map.get('kyy_A', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_A', float('nan')):.3f}**  
+    kzy = **{buck_map.get('kzy_A', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_A', float('nan')):.3f}**""")
 
-    st.markdown(f"""Verification of member resistance — Equation (y)  
-u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
-u = **{(util_61_A if util_61_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_A is not None and util_61_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
-    st.markdown(f"""Verification of member resistance — Equation (z)  
-u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
-u = **{(util_62_A if util_62_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_A is not None and util_62_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+        st.markdown(f"""Verification of member resistance — Equation (y)  
+    u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
+    u = **{(util_61_A if util_61_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_A is not None and util_61_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+        st.markdown(f"""Verification of member resistance — Equation (z)  
+    u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
+    u = **{(util_62_A if util_62_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_A is not None and util_62_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
 
-    # ---- Method 2 (Annex B) ----
-    report_h4("(21),(22) Buckling interaction for bending and axial compression - Method 2 (EN1993-1-1 Annex B)")
-    st.markdown(f"""Equivalent uniform moment factors for flexural buckling  
-The equivalent uniform moment factors **Cmi** are obtained from **EN 1993-1-1 Table B.3**.
+        # ---- Method 2 (Annex B) ----
+        report_h4("(21),(22) Buckling interaction for bending and axial compression - Method 2 (EN1993-1-1 Annex B)")
+        st.markdown(f"""Equivalent uniform moment factors for flexural buckling  
+    The equivalent uniform moment factors **Cmi** are obtained from **EN 1993-1-1 Table B.3**.
 
-Cmy = max(0.4, 0.60 + 0.40⋅ψy) = **{buck_map.get('Cmy_B', float('nan')):.3f}**  
-Cmz = max(0.4, 0.60 + 0.40⋅ψz) = **{buck_map.get('Cmz_B', float('nan')):.3f}**  
-CmLT = max(0.4, 0.60 + 0.40⋅ψLT) = **{buck_map.get('CmLT_B', float('nan')):.3f}**
+    Cmy = max(0.4, 0.60 + 0.40⋅ψy) = **{buck_map.get('Cmy_B', float('nan')):.3f}**  
+    Cmz = max(0.4, 0.60 + 0.40⋅ψz) = **{buck_map.get('Cmz_B', float('nan')):.3f}**  
+    CmLT = max(0.4, 0.60 + 0.40⋅ψLT) = **{buck_map.get('CmLT_B', float('nan')):.3f}**
 
-Interaction factors (EN 1993-1-1 Annex B)  
-kyy = **{buck_map.get('kyy_B', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_B', float('nan')):.3f}**  
-kzy = **{buck_map.get('kzy_B', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_B', float('nan')):.3f}**""")
+    Interaction factors (EN 1993-1-1 Annex B)  
+    kyy = **{buck_map.get('kyy_B', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_B', float('nan')):.3f}**  
+    kzy = **{buck_map.get('kzy_B', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_B', float('nan')):.3f}**""")
 
-    st.markdown(f"""Verification of member resistance — Equation (y)  
-u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
-u = **{(util_61_B if util_61_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_B is not None and util_61_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
-    st.markdown(f"""Verification of member resistance — Equation (z)  
-u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
-u = **{(util_62_B if util_62_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_B is not None and util_62_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+        st.markdown(f"""Verification of member resistance — Equation (y)  
+    u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
+    u = **{(util_61_B if util_61_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_B is not None and util_61_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
+        st.markdown(f"""Verification of member resistance — Equation (z)  
+    u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
+    u = **{(util_62_B if util_62_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_B is not None and util_62_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
 
 
-# ----------------------------------------------------
-    # 8. References
     # ----------------------------------------------------
+        # 8. References
+        # ----------------------------------------------------
     report_h3("8. References")
 
     st.markdown(
@@ -4930,7 +4931,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
 
 
 
