@@ -3716,7 +3716,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # PDF download (top)
     # ----------------------------------------------------
-    st.markdown("### Save report")
+    report_h4("Save report")
     if HAS_RL:
         pdf_buf = build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
         if pdf_buf:
@@ -3953,7 +3953,7 @@ def render_report_tab():
     # 6. Detailed calculations
     # ----------------------------------------------------
     report_h3("6. Detailed calculations")
-    st.markdown("### 6.1 Verification of cross-section strength (ULS, checks 1–14)")
+    report_h4("6.1 Verification of cross-section strength (ULS, checks 1–14)")
     # 6.1.a Detailed explanation for check (1) Tension
     report_h4("(1) Tension – EN 1993-1-1 §6.2.3")
 
@@ -4120,7 +4120,7 @@ def render_report_tab():
         util_Mz = 0.0
         status_Mz = "n/a"
     
-    report_h3("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
+    report_h4("(3), (4) Bending moment resistance (EN 1993-1-1 §6.2.5)")
 
     st.markdown("The design bending resistance is checked using:")
     st.latex(r"\frac{M_{Ed}}{M_{c,Rd}} \le 1.0")
@@ -4198,7 +4198,7 @@ zones are filled with fasteners.
         util_Vy = 0.0
         status_Vy = "n/a"
 
-    report_h3("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
+    report_h4("(5), (6) Shear resistance (EN 1993-1-1 §6.2.6)")
 
     st.markdown("The shear resistance check uses:")
     st.latex(r"\frac{V_{Ed}}{V_{c,Rd}} \le 1.0")
@@ -4220,7 +4220,7 @@ zones are filled with fasteners.
     )
     
     # Utilization
-    st.markdown("### Utilization checks")
+    report_h4("Utilization checks")
     
     st.latex(
         rf"u_z = \frac{{V_{{z,Ed}}}}{{V_{{c,z,Rd}}}}"
@@ -4404,7 +4404,7 @@ If **VEd > 0.50·Vpl,Rd**, the cross-section resistance for bending+axial must b
     # (15),(16) Flexural buckling
     # ----------------------------
     
-    st.markdown("### 6.2 Verification of member stability (buckling, checks 15–20)")
+    report_h4("6.2 Verification of member stability (buckling, checks 15–22)")
     report_h4("(15), (16) Flexural buckling – EN 1993-1-1 §6.3.1.3")
     st.markdown(f"""
 The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
@@ -4557,7 +4557,7 @@ u = My,Ed / Mb,Rd = {abs(MyEd_kNm):.1f} kNm / {(Mb_Rd/1e3 if Mb_Rd else float('n
     util_62_B = buck_map.get("util_62_B")
 
     # ---- Method 1 (Annex A) ----
-    report_h4("(19) Buckling interaction for bending and axial compression – Method 1 (EN 1993-1-1 Annex A)")
+    report_h4("(19),(20) Buckling interaction for bending and axial compression - Method 1 (EN1993-1-1 Annex A)")
     st.markdown(f"""Equivalent uniform moment factors for flexural buckling  
 The equivalent uniform moment factors **Cmi,0** are obtained from **EN 1993-1-1 Table A.2**.
 
@@ -4592,14 +4592,12 @@ kzy = **{buck_map.get('kzy_A', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_
     st.markdown(f"""Verification of member resistance — Equation (y)  
 u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
 u = **{(util_61_A if util_61_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_A is not None and util_61_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
-
-    report_h4("(20) Buckling interaction for bending and axial compression – Method 1 (EN 1993-1-1 Annex A)")
     st.markdown(f"""Verification of member resistance — Equation (z)  
 u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
 u = **{(util_62_A if util_62_A is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_A is not None and util_62_A<=1.0) else '> 1.0 ⇒ NOT OK'}""")
 
     # ---- Method 2 (Annex B) ----
-    report_h4("(21) Buckling interaction for bending and axial compression – Method 2 (EN 1993-1-1 Annex B)")
+    report_h4("(21),(22) Buckling interaction for bending and axial compression - Method 2 (EN1993-1-1 Annex B)")
     st.markdown(f"""Equivalent uniform moment factors for flexural buckling  
 The equivalent uniform moment factors **Cmi** are obtained from **EN 1993-1-1 Table B.3**.
 
@@ -4614,8 +4612,6 @@ kzy = **{buck_map.get('kzy_B', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_
     st.markdown(f"""Verification of member resistance — Equation (y)  
 u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
 u = **{(util_61_B if util_61_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_61_B is not None and util_61_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
-
-    report_h4("(22) Buckling interaction for bending and axial compression – Method 2 (EN 1993-1-1 Annex B)")
     st.markdown(f"""Verification of member resistance — Equation (z)  
 u = NEd/(χz⋅NRk/γM1) + kzy⋅My,Ed/(χLT⋅My,Rk/γM1) + kzz⋅Mz,Ed/(Mz,Rk/γM1)  
 u = **{(util_62_B if util_62_B is not None else float('nan')):.3f}** {'≤ 1.0 ⇒ OK' if (util_62_B is not None and util_62_B<=1.0) else '> 1.0 ⇒ NOT OK'}""")
@@ -4934,7 +4930,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
 
 
 
