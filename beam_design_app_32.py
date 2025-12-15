@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import math
+import textwrap
 from io import BytesIO
 from datetime import datetime, date
 import traceback
@@ -4281,7 +4282,7 @@ def render_report_tab():
         # ----------------------------------------------------
         # (6.2.9) Bending and axial force
         # ----------------------------------------------------
-        st.markdown("**(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)**")
+        report_h4("(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)")
         Npl_Rd_kN = cs_combo.get("Npl_Rd_kN", None)
         crit_y_25 = cs_combo.get("crit_y_25", None)
         crit_y_web = cs_combo.get("crit_y_web", None)
@@ -4290,11 +4291,11 @@ def render_report_tab():
 
         if Npl_Rd_kN is not None and NEd_kN is not None:
             st.markdown(f"Design axial force: **NEd = {NEd_kN:.2f} kN**")
-            st.markdown(f"- 0.25·Npl,Rd = 0.25·{Npl_Rd_kN:.2f} = **{crit_y_25:.2f} kN**")
+            st.latex(rf"0.25\,N_{pl,Rd} = 0.25\cdot {Npl_Rd_kN:.2f} = {crit_y_25:.2f}\,\mathrm{kN}")
             if crit_y_web is not None:
-                st.markdown(f"- 0.50·hw·tw·fy/γM0 = **{crit_y_web:.2f} kN**")
+                st.latex(rf"0.50\,h_w t_w f_y/\gamma_{M0} = {crit_y_web:.2f}\,\mathrm{kN}")
             if crit_z_web is not None:
-                st.markdown(f"- hw·tw·fy/γM0 = **{crit_z_web:.2f} kN**")
+                st.latex(rf"h_w t_w f_y/\gamma_{M0} = {crit_z_web:.2f}\,\mathrm{kN}")
 
             if cs_combo.get("axial_ok_y", False) and cs_combo.get("axial_ok_z", False):
                 st.markdown("""
@@ -4559,36 +4560,33 @@ def render_report_tab():
 
         # ---- Method 1 (Annex A) ----
         report_h4("(19),(20) Buckling interaction for bending and axial compression - Method 1 (EN1993-1-1 Annex A)")
-        st.markdown(f"""Equivalent uniform moment factors for flexural buckling  
-    The equivalent uniform moment factors **Cmi,0** are obtained from **EN 1993-1-1 Table A.2**.
 
-    - For flexural buckling about major axis **y–y**, the moment diagram **My,Ed** is considered between points braced along **z–z** direction.
+        st.markdown("Equivalent uniform moment factors for flexural buckling.")
+        st.markdown("The equivalent uniform moment factors **Cmi,0** are obtained from **EN 1993-1-1 Table A.2**.")
 
-    For uniform or linearly varying bending moment diagram:
+        st.markdown("- For flexural buckling about major axis **y–y**, the moment diagram **My,Ed** is considered between points braced along **z–z** direction.")
+        st.markdown("For uniform or linearly varying bending moment diagram:")
+        st.latex(rf"C_{{my,0}} = 0.79 + 0.21\,\psi_y + 0.36\,(\psi_y-0.33)\,\frac{{N_{{Ed}}}}{{N_{{cr,y}}}} = {buck_map.get('Cmy0_A', float('nan')):.3f}")
 
-    Cmy,0 = 0.79 + 0.21⋅ψy + 0.36⋅(ψy - 0.33)⋅NEd / Ncr,y = **{buck_map.get('Cmy0_A', float('nan')):.3f}**
+        st.markdown("- For flexural buckling about minor axis **z–z**, the moment diagram **Mz,Ed** is considered between points braced along **y–y** direction.")
+        st.markdown("For uniform or linearly varying bending moment diagram:")
+        st.latex(rf"C_{{mz,0}} = 0.79 + 0.21\,\psi_z + 0.36\,(\psi_z-0.33)\,\frac{{N_{{Ed}}}}{{N_{{cr,z}}}} = {buck_map.get('Cmz0_A', float('nan')):.3f}")
 
-    - For flexural buckling about minor axis **z–z**, the moment diagram **Mz,Ed** is considered between points braced along **y–y** direction.
+        st.markdown("Intermediate factors and coefficients:")
+        st.markdown(textwrap.dedent(f"""        - Normalized axial force: **npl = {buck_map.get('npl_A', float('nan')):.3f}**
+        - λLT (from Section 18): **{buck_map.get('lambdaLT_A', float('nan')):.3f}**
+        - λmax = max(λy, λz): **{buck_map.get('lambda_max_A', float('nan')):.3f}**
+        - εy: **{buck_map.get('eps_y_A', float('nan')):.3f}**
+        - wy: **{buck_map.get('wy_A', float('nan')):.3f}**, wz: **{buck_map.get('wz_A', float('nan')):.3f}**
+        """))
 
-    For uniform or linearly varying bending moment diagram:
+        st.markdown("Interaction factors (EN 1993-1-1 Table A.1):")
+        st.markdown(textwrap.dedent(f"""        - kyy = **{buck_map.get('kyy_A', float('nan')):.3f}**
+        - kyz = **{buck_map.get('kyz_A', float('nan')):.3f}**
+        - kzy = **{buck_map.get('kzy_A', float('nan')):.3f}**
+        - kzz = **{buck_map.get('kzz_A', float('nan')):.3f}**
+        """))
 
-    Cmz,0 = 0.79 + 0.21⋅ψz + 0.36⋅(ψz - 0.33)⋅NEd / Ncr,z = **{buck_map.get('Cmz0_A', float('nan')):.3f}**
-
-    Intermediate factors and coefficients  
-    - Normalized axial force: npl = **{buck_map.get('npl_A', float('nan')):.3f}**  
-    - λLT (from Section 18): **{lam_LT if lam_LT is not None else float('nan'):.3f}**  
-    - λmax = max(λy, λz) = **{max((lam_y or 0.0),(lam_z or 0.0)):.3f}**  
-    - εy = **{buck_map.get('eps_y_A', float('nan')):.3f}**  
-    - wy = **{buck_map.get('wy_A', float('nan')):.3f}**, wz = **{buck_map.get('wz_A', float('nan')):.3f}**  
-    - μy = **{buck_map.get('mu_y_A', float('nan')):.3f}**, μz = **{buck_map.get('mu_z_A', float('nan')):.3f}**  
-    - aLT = **{buck_map.get('aLT_A', float('nan')):.3f}**
-
-    Equivalent uniform moment factors for lateral-torsional buckling  
-    Cmy = **{buck_map.get('Cmy_A', float('nan')):.3f}**, Cmz = **{buck_map.get('Cmz_A', float('nan')):.3f}**, CmLT = **{buck_map.get('CmLT_A', float('nan')):.3f}**
-
-    Interaction factors (EN 1993-1-1 Table A.1)  
-    kyy = **{buck_map.get('kyy_A', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_A', float('nan')):.3f}**  
-    kzy = **{buck_map.get('kzy_A', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_A', float('nan')):.3f}**""")
 
         st.markdown(f"""Verification of member resistance — Equation (y)  
     u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
@@ -4599,16 +4597,19 @@ def render_report_tab():
 
         # ---- Method 2 (Annex B) ----
         report_h4("(21),(22) Buckling interaction for bending and axial compression - Method 2 (EN1993-1-1 Annex B)")
-        st.markdown(f"""Equivalent uniform moment factors for flexural buckling  
-    The equivalent uniform moment factors **Cmi** are obtained from **EN 1993-1-1 Table B.3**.
 
-    Cmy = max(0.4, 0.60 + 0.40⋅ψy) = **{buck_map.get('Cmy_B', float('nan')):.3f}**  
-    Cmz = max(0.4, 0.60 + 0.40⋅ψz) = **{buck_map.get('Cmz_B', float('nan')):.3f}**  
-    CmLT = max(0.4, 0.60 + 0.40⋅ψLT) = **{buck_map.get('CmLT_B', float('nan')):.3f}**
+        st.markdown("Equivalent uniform moment factors for flexural buckling.")
+        st.markdown("The equivalent uniform moment factors **Cmi** are obtained from **EN 1993-1-1 Table B.3**.")
 
-    Interaction factors (EN 1993-1-1 Annex B)  
-    kyy = **{buck_map.get('kyy_B', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_B', float('nan')):.3f}**  
-    kzy = **{buck_map.get('kzy_B', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_B', float('nan')):.3f}**""")
+        st.latex(rf"C_{{my}} = \max(0.4,\,0.60 + 0.40\,\psi_y) = {buck_map.get('Cmy_B', float('nan')):.3f}")
+        st.latex(rf"C_{{mz}} = \max(0.4,\,0.60 + 0.40\,\psi_z) = {buck_map.get('Cmz_B', float('nan')):.3f}")
+        st.latex(rf"C_{{mLT}} = \max(0.4,\,0.60 + 0.40\,\psi_{{LT}}) = {buck_map.get('CmLT_B', float('nan')):.3f}")
+
+        st.markdown("Interaction factors (EN 1993-1-1 Annex B):")
+        st.markdown(textwrap.dedent(f"""        - kyy = **{buck_map.get('kyy_B', float('nan')):.3f}**, kyz = **{buck_map.get('kyz_B', float('nan')):.3f}**
+        - kzy = **{buck_map.get('kzy_B', float('nan')):.3f}**, kzz = **{buck_map.get('kzz_B', float('nan')):.3f}**
+        """))
+
 
         st.markdown(f"""Verification of member resistance — Equation (y)  
     u = NEd/(χy⋅NRk/γM1) + kyy⋅My,Ed/(χLT⋅My,Rk/γM1) + kyz⋅Mz,Ed/(Mz,Rk/γM1)  
