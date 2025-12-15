@@ -4283,30 +4283,37 @@ def render_report_tab():
         # (6.2.9) Bending and axial force
         # ----------------------------------------------------
         report_h4("(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)")
-        Npl_Rd_kN = cs_combo.get("Npl_Rd_kN", None)
         crit_y_25 = cs_combo.get("crit_y_25", None)
         crit_y_web = cs_combo.get("crit_y_web", None)
         crit_z_web = cs_combo.get("crit_z_web", None)
         NEd_kN = cs_combo.get("NEd_kN", None)
 
-        if Npl_Rd_kN is not None and NEd_kN is not None:
+        # Print in math font (st.latex) but never crash if some intermediate values are missing.
+        if NEd_kN is not None:
             st.markdown(f"Design axial force: **NEd = {NEd_kN:.2f} kN**")
-            st.latex(rf"0.25\,N_{pl,Rd} = 0.25\cdot {Npl_Rd_kN:.2f} = {crit_y_25:.2f}\,\mathrm{kN}")
-            if crit_y_web is not None:
-                st.latex(rf"0.50\,h_w t_w f_y/\gamma_{M0} = {crit_y_web:.2f}\,\mathrm{kN}")
-            if crit_z_web is not None:
-                st.latex(rf"h_w t_w f_y/\gamma_{M0} = {crit_z_web:.2f}\,\mathrm{kN}")
 
-            if cs_combo.get("axial_ok_y", False) and cs_combo.get("axial_ok_z", False):
-                st.markdown("""
-    The axial force satisfies the criteria for doubly-symmetric I/H sections, therefore allowance need **not** be made for the effect of axial force on the plastic resistance moments.  
-    Bending utilization factors remain as in Sections (3) and (4).
-    """)
-            else:
-                st.markdown("""
-    The axial force criteria are **not** fully satisfied. A reduction / interaction should be applied per EN 1993-1-1 §6.2.9.  
-    (This implementation reports the interaction results in the Results table.)
-    """)
+        # Criteria limits (render in real math font).
+        # NOTE: Keep this robust: do not reference intermediate variable names that may not exist in some app versions.
+        if crit_y_25 is not None:
+            st.latex(rf"0.25\,N_{{pl,Rd}} = {crit_y_25:.2f}\,\mathrm{{kN}}")
+
+        # web criteria (about y and z)
+        if crit_y_web is not None:
+            st.latex(rf"0.50\,h_w t_w f_y/\gamma_{{M0}} = {crit_y_web:.2f}\,\mathrm{{kN}}")
+        if crit_z_web is not None:
+            st.latex(rf"h_w t_w f_y/\gamma_{{M0}} = {crit_z_web:.2f}\,\mathrm{{kN}}")
+
+        # Interpretation
+        if cs_combo.get("axial_ok_y", False) and cs_combo.get("axial_ok_z", False):
+            st.markdown("""
+The axial force satisfies the criteria for doubly-symmetric I/H sections, therefore allowance need **not** be made for the effect of axial force on the plastic resistance moments.  
+Bending utilization factors remain as in Sections (3) and (4).
+""")
+        else:
+            st.markdown("""
+The axial force criteria are **not** fully satisfied. A reduction / interaction should be applied per EN 1993-1-1 §6.2.9.  
+(This implementation reports the interaction results in the Results table.)
+""")
 
         # ----------------------------------------------------
         # (6.2.10) Bending, shear and axial force
