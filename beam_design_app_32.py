@@ -156,8 +156,6 @@ def run_sql(sql, params=None):
             cols = [c[0] for c in cur.description]
             rows = cur.fetchall()
             df = pd.DataFrame(rows, columns=cols)
-        else:
-            df = pd.DataFrame()
         return df, None
     except Exception as e:
         return None, str(e)
@@ -1997,6 +1995,9 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     nu = 0.30
     G = E / (2.0 * (1.0 + nu))
 
+    # Compression magnitude for stability checks (ignore tension)
+    Ncomp_N = max(-N_N, 0.0)
+
     # Pull basic geometric dims if present (used in curve selection and hw*tw criteria)
     h_mm = float(use_props.get("h_mm", use_props.get("h", 0.0)) or 0.0)
     b_mm = float(use_props.get("b_mm", use_props.get("b", 0.0)) or 0.0)
@@ -2063,8 +2064,13 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         chi = chi_reduction(lambda_bar, alpha_use)
         Nb_Rd_N = chi * NRk_N / gamma_M1
 
-        util = (abs(N_N) / Nb_Rd_N) if Nb_Rd_N > 0 else float("inf")
-        status = "OK" if util <= 1.0 else "EXCEEDS"
+        # For flexural buckling checks, consider compression only (tension -> not applicable)
+        if Ncomp_N <= 0:
+            util = None
+            status = "n/a"
+        else:
+            util = (Ncomp_N / Nb_Rd_N) if Nb_Rd_N > 0 else None
+            status = "OK" if (util is not None and util <= 1.0) else ("EXCEEDS" if util is not None else "n/a")
 
         buck_results.append((axis_label, Ncr, lambda_bar, chi, Nb_Rd_N, status))
         buck_map[f"Ncr_{axis_label}"] = Ncr
@@ -2073,12 +2079,15 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         buck_map[f"Nb_Rd_{axis_label}"] = Nb_Rd_N
         buck_map[f"util_buck_{axis_label}"] = util
         buck_map[f"status_buck_{axis_label}"] = status
+        # Aliases used by the Report tab
+        buck_map[f"util_{axis_label}"] = util
+        buck_map[f"status_{axis_label}"] = status
 
         rows.append({
             "Check": f"Flexural buckling {axis_label}",
-            "Applied": f"{abs(N_N)/1e3:.3f} kN",
+            "Applied": f"{Ncomp_N/1e3:.3f} kN",
             "Resistance": f"{Nb_Rd_N/1e3:.3f} kN",
-            "Utilization": f"{util:.3f}",
+            "Utilization": f"{util:.3f}" if util is not None else "n/a",
             "Status": status,
         })
 
@@ -2107,9 +2116,9 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
         rows.append({
             "Check": "Torsional / torsional-flexural buckling",
-            "Applied": f"{abs(N_N)/1e3:.3f} kN",
+            "Applied": f"{Ncomp_N/1e3:.3f} kN",
             "Resistance": f"{Nb_Rd_T_N/1e3:.3f} kN",
-            "Utilization": f"{util_T:.3f}",
+            "Utilization": f"{util_T:.3f}" if util_T is not None else "n/a",
             "Status": status_T,
         })
 
@@ -2154,7 +2163,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             "Check": "Lateral-torsional buckling",
             "Applied": f"{abs(My_Ed_kNm):.3f} kNm",
             "Resistance": f"{Mb_Rd_Nm/1e3:.3f} kNm",
-            "Utilization": f"{util_LT:.3f}",
+            "Utilization": f"{util_LT:.3f}" if util_LT is not None else "n/a",
             "Status": status_LT,
         })
 
@@ -2188,7 +2197,21 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     util_int_A = None
     util_int_B = None
 
-    if NRk_N > 0 and My_Rk_Nm > 0 and Mz_Rk_Nm > 0 and (Ncr_y > 0) and (Ncr_z > 0):
+
+    # Interaction checks (Annex A / Annex B) are only relevant when the member is in axial compression.
+    if Ncomp_N <= 0:
+        buck_map.update({
+            "util_int_A_y": None, "util_int_A_z": None,
+            "status_int_A_y": "n/a", "status_int_A_z": "n/a",
+            "util_int_B_y": None, "util_int_B_z": None,
+            "status_int_B_y": "n/a", "status_int_B_z": "n/a",
+        })
+        # Populate rows so the summary tables remain complete
+        rows.append({"Check": "Buckling interaction (Method 1, Annex A) — Eq. (y)", "Applied": "Interaction", "Resistance": "≤ 1.0", "Utilization": "n/a", "Status": "n/a"})
+        rows.append({"Check": "Buckling interaction (Method 1, Annex A) — Eq. (z)", "Applied": "Interaction", "Resistance": "≤ 1.0", "Utilization": "n/a", "Status": "n/a"})
+        rows.append({"Check": "Buckling interaction (Method 2, Annex B) — Eq. (y)", "Applied": "Interaction", "Resistance": "≤ 1.0", "Utilization": "n/a", "Status": "n/a"})
+        rows.append({"Check": "Buckling interaction (Method 2, Annex B) — Eq. (z)", "Applied": "Interaction", "Resistance": "≤ 1.0", "Utilization": "n/a", "Status": "n/a"})
+    if (Ncomp_N > 0) and (NRk_N > 0) and (My_Rk_Nm > 0) and (Mz_Rk_Nm > 0) and (Ncr_y > 0) and (Ncr_z > 0):
         # --- Method 1 (Annex A inspired) ---
         Cmy0 = 0.79 + 0.21 * psi_y + 0.36 * (psi_y - 0.33) * (abs(N_N) / Ncr_y) if Ncr_y > 0 else 1.0
         Cmz0 = 0.79 + 0.21 * psi_z + 0.36 * (psi_z - 0.33) * (abs(N_N) / Ncr_z) if Ncr_z > 0 else 1.0
@@ -2276,14 +2299,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             "Check": "Buckling interaction (Method 1, Annex A) — Eq. (y)",
             "Applied": "Interaction",
             "Resistance": "≤ 1.0",
-            "Utilization": f"{util_61:.3f}",
+            "Utilization": f"{util_61:.3f}" if util_61 is not None else "n/a",
             "Status": "OK" if util_61 <= 1.0 else "EXCEEDS",
         })
         rows.append({
             "Check": "Buckling interaction (Method 1, Annex A) — Eq. (z)",
             "Applied": "Interaction",
             "Resistance": "≤ 1.0",
-            "Utilization": f"{util_62:.3f}",
+            "Utilization": f"{util_62:.3f}" if util_62 is not None else "n/a",
             "Status": "OK" if util_62 <= 1.0 else "EXCEEDS",
         })
 
@@ -2330,14 +2353,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             "Check": "Buckling interaction (Method 2, Annex B) — Eq. (y)",
             "Applied": "Interaction",
             "Resistance": "≤ 1.0",
-            "Utilization": f"{util_61_B:.3f}",
+            "Utilization": f"{util_61_B:.3f}" if util_61_B is not None else "n/a",
             "Status": "OK" if util_61_B <= 1.0 else "EXCEEDS",
         })
         rows.append({
             "Check": "Buckling interaction (Method 2, Annex B) — Eq. (z)",
             "Applied": "Interaction",
             "Resistance": "≤ 1.0",
-            "Utilization": f"{util_62_B:.3f}",
+            "Utilization": f"{util_62_B:.3f}" if util_62_B is not None else "n/a",
             "Status": "OK" if util_62_B <= 1.0 else "EXCEEDS",
         })
 
@@ -4939,8 +4962,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
-
 
 
 
