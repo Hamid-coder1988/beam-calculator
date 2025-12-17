@@ -12,6 +12,31 @@ import numpy as np
 import matplotlib.pyplot as plt  # NEW
 import io
 
+from pathlib import Path
+
+# -------------------------
+# Asset path helpers
+# -------------------------
+BASE_DIR = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+
+def asset_path(rel: str) -> Path:
+    """Return absolute path to a bundled asset (logo/images) relative to this file."""
+    return (BASE_DIR / rel).resolve()
+
+def safe_image(path_like, **kwargs) -> bool:
+    """Show an image only if it exists. Returns True if shown, else False."""
+    try:
+        pp = Path(path_like)
+        if not pp.is_absolute():
+            pp = asset_path(str(pp))
+        if pp.exists():
+            st.image(str(pp), **kwargs)
+            return True
+    except Exception:
+        pass
+    return False
+
+
 # -------------------------
 # Optional Postgres driver
 # -------------------------
@@ -380,13 +405,15 @@ def get_section_image(family: str):
     GROUP_IPE = ["IPE", "HEA", "HEB", "HEM", "UB", "UC", "UBP"]
 
     if family in GROUP_IPE:
-        return "sections_img/IPE.png"   # <-- FIXED PATH
+        p = asset_path("sections_img/IPE.png")
+        return str(p) if p.exists() else None  # <-- FIXED PATH
 
     # Group 2: own image
     GROUP_OWN = ["SHS", "RHS", "CHS", "UPE", "UPN", "PFC", "L"]
 
     if family in GROUP_OWN:
-        return f"sections_img/{family}.png"   # <-- FIXED PATH
+        p = asset_path(f"sections_img/{family}.png")
+        return str(p) if p.exists() else None  # <-- FIXED PATH
 
     return None
     
@@ -4648,7 +4675,7 @@ The axial force criteria are **not** fully satisfied. A reduction / interaction 
 # --- PAGE CONFIG ---
 st.set_page_config(
     page_title="EngiSnap Beam Design Eurocode Checker",
-    page_icon="EngiSnap-Logo.png",
+    page_icon=str(asset_path("EngiSnap-Logo.png")) if asset_path("EngiSnap-Logo.png").exists() else "🧰",
     layout="wide"
 )
 
@@ -4696,7 +4723,7 @@ st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
 header_col1, header_col2 = st.columns([1, 4])
 
 with header_col1:
-    st.image("EngiSnap-Logo.png", width=140)
+    safe_image("EngiSnap-Logo.png", width=140) or st.write("")
 
 with header_col2:
     st.markdown(
@@ -4881,7 +4908,7 @@ with tab3:
         left, center, right = st.columns([3, 4, 3])
 
         with center:
-            if img_path:
+            if img_path and Path(img_path).exists():
                 st.image(
                     img_path,
                     width=320,
@@ -4939,6 +4966,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
