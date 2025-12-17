@@ -4289,11 +4289,9 @@ def render_report_tab():
         st.markdown("**(7), (8) Bending and shear (EN 1993-1-1 §6.2.8)**")
         
         st.markdown("""
-        The effect of the shear force on the bending moment resistance is examined in accordance with
-        *EN 1993-1-1 §6.2.8*.
-        
-        According to *EN 1993-1-1 §6.2.8(3)* the bending resistance of the cross-section is reduced when the
-        applied shear force is larger than one-half of the corresponding plastic shear resistance.
+        Shear can influence the available bending resistance of a cross-section.
+        In line with **EN 1993-1-1 §6.2.8**, a reduction is only relevant when the applied shear force
+        exceeds **50%** of the corresponding plastic shear resistance.
         """)
         
         cs_combo = (extras.get("cs_combo") or {})
@@ -4302,43 +4300,45 @@ def render_report_tab():
         
         st.markdown("For the examined case:")
         
-        # --- z-z line ---
-        if shear_ratio_z is not None and Vc_z_Rd_kN > 0:
+        def _line(label_html: str, latex_expr: str):
             c1, c2 = st.columns([2.2, 3.8])
             with c1:
-                st.markdown("<u>Shear force along axis z-z:</u>", unsafe_allow_html=True)
+                st.markdown(label_html, unsafe_allow_html=True)
             with c2:
-                st.latex(
-                    rf"\frac{{V_{{z,Ed}}}}{{V_{{pl,Rd,z}}}}"
-                    rf"=\frac{{{Vz_Ed_kN:.1f}\,\mathrm{{kN}}}}{{{Vc_z_Rd_kN:.1f}\,\mathrm{{kN}}}}"
-                    rf"={shear_ratio_z:.3f}\le 0.50"
-                )
+                st.latex(latex_expr)
         
-        # --- y-y line ---
-        if shear_ratio_y is not None and Vc_y_Rd_kN > 0:
-            c1, c2 = st.columns([2.2, 3.8])
-            with c1:
-                st.markdown("<u>Shear force along axis y-y:</u>", unsafe_allow_html=True)
-            with c2:
-                st.latex(
-                    rf"\frac{{V_{{y,Ed}}}}{{V_{{pl,Rd,y}}}}"
-                    rf"=\frac{{{Vy_Ed_kN:.1f}\,\mathrm{{kN}}}}{{{Vc_y_Rd_kN:.1f}\,\mathrm{{kN}}}}"
-                    rf"={shear_ratio_y:.3f}\le 0.50"
-                )
+        # --- z-z ---
+        if Vc_z_Rd_kN and Vc_z_Rd_kN > 0:
+            _line(
+                "<u>Shear force along axis z-z:</u>",
+                rf"\frac{{V_{{z,Ed}}}}{{V_{{pl,Rd,z}}}}"
+                rf"=\frac{{{Vz_Ed_kN:.1f}\,\mathrm{{kN}}}}{{{Vc_z_Rd_kN:.1f}\,\mathrm{{kN}}}}"
+                rf"={(Vz_Ed_kN / Vc_z_Rd_kN):.3f}\le 0.50"
+            )
+        else:
+            _line("<u>Shear force along axis z-z:</u>", r"\text{Not available (missing }V_{pl,Rd,z}\text{)}")
         
-        # --- conclusion ---
+        # --- y-y ---
+        if Vc_y_Rd_kN and Vc_y_Rd_kN > 0:
+            _line(
+                "<u>Shear force along axis y-y:</u>",
+                rf"\frac{{V_{{y,Ed}}}}{{V_{{pl,Rd,y}}}}"
+                rf"=\frac{{{Vy_Ed_kN:.1f}\,\mathrm{{kN}}}}{{{Vc_y_Rd_kN:.1f}\,\mathrm{{kN}}}}"
+                rf"={(Vy_Ed_kN / Vc_y_Rd_kN):.3f}\le 0.50"
+            )
+        else:
+            _line("<u>Shear force along axis y-y:</u>", r"\text{Not available (missing }V_{pl,Rd,y}\text{)}")
+        
+        # --- conclusion (use cs_combo flags, as you already computed them in compute_checks) ---
         if cs_combo.get("shear_ok_y", False) and cs_combo.get("shear_ok_z", False):
             st.markdown("""
-        The applied shear forces **Vz,Ed** and **Vy,Ed** are less than 50% of the corresponding plastic shear resistance.
-        Therefore the effect of shear forces on the bending moment resistance may be ignored.
-        
-        The utilization factors for bending moment resistance are not affected by the shear forces,
-        i.e. they are equal to the values obtained in Sections **(3)** and **(4)** above.
+        Both shear ratios are below **0.50**, so shear does not govern the bending resistance here.
+        Therefore, the bending utilization factors remain the same as in Sections **(3)** and **(4)**.
         """)
         else:
             st.markdown("""
-        At least one shear ratio exceeds **0.50**, therefore a reduction of bending resistance may be required
-        per **EN 1993-1-1 §6.2.8**.
+        At least one shear ratio is above **0.50**. In that case, bending resistance may need to be reduced
+        according to **EN 1993-1-1 §6.2.8**.
         """)
 
         # ----------------------------------------------------
@@ -5002,6 +5002,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
