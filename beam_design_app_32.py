@@ -4317,7 +4317,8 @@ def render_report_tab():
 
         # Print in math font (st.latex) but never crash if some intermediate values are missing.
         if NEd_kN is not None:
-            st.markdown(f"Design axial force: **NEd = {NEd_kN:.2f} kN**")
+            st.markdown("Design axial force:")
+            st.latex(rf"N_{{Ed}} = {NEd_kN:.2f}\,\mathrm{{kN}}")
 
         # Criteria limits (render in real math font).
         # NOTE: Keep this robust: do not reference intermediate variable names that may not exist in some app versions.
@@ -4966,6 +4967,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
