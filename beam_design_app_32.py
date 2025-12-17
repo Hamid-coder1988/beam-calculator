@@ -4723,7 +4723,7 @@ st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
 header_col1, header_col2 = st.columns([1, 4])
 
 with header_col1:
-    safe_image("EngiSnap-Logo.png", width=140) or st.write("")
+    safe_image("EngiSnap-Logo.png", width=140)
 
 with header_col2:
     st.markdown(
@@ -4966,6 +4966,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
