@@ -3753,34 +3753,19 @@ def render_report_tab():
     # ----------------------------------------------------
     # 1. Project data (exact copy of Project tab, read-only)
     # ----------------------------------------------------
-
-    # Keep read-only report widgets in sync: Streamlit widgets with keys keep their own state.
-    # So we push the latest Project-tab values into the report-widget keys *before* rendering them.
-    st.session_state["rpt_doc_title_in"]     = str(doc_name)
-    st.session_state["rpt_project_name_in"]  = str(project_name)
-    st.session_state["rpt_position_in"]      = str(position)
-    st.session_state["rpt_requested_by_in"]  = str(requested_by)
-    st.session_state["rpt_revision_in"]      = str(revision)
-    st.session_state["rpt_run_date_in"]      = str(run_date)
-    st.session_state["rpt_notes_in"]         = str(notes)
-
-    c1, c2, c3 = st.columns([1, 1, 1])
-
     with c1:
-        st.text_input("Document title", disabled=True, key="rpt_doc_title_in")
-        st.text_input("Project name", value=str(project_name), disabled=True, key="rpt_project_name_in")
-
+        st.text_input("Document title", value=str(doc_name), disabled=True)
+        st.text_input("Project name", value=str(project_name), disabled=True)
+    
     with c2:
-        st.text_input("Position / Location (Beam ID)", value=str(position), disabled=True, key="rpt_position_in")
-        st.text_input("Requested by", value=str(requested_by), disabled=True, key="rpt_requested_by_in")
-
+        st.text_input("Position / Location (Beam ID)", value=str(position), disabled=True)
+        st.text_input("Requested by", value=str(requested_by), disabled=True)
+    
     with c3:
-        st.text_input("Revision", value=str(revision), disabled=True, key="rpt_revision_in")
-        st.text_input("Date", value=str(run_date), disabled=True, key="rpt_run_date_in")
-
-    st.text_area("Notes / comments", value=str(notes), disabled=True, key="rpt_notes_in")
-
-    st.markdown("---")
+        st.text_input("Revision", value=str(revision), disabled=True)
+        st.text_input("Date", value=str(run_date), disabled=True)
+    
+    st.text_area("Notes / comments", value=str(notes), disabled=True, height=120)
 
     # ----------------------------------------------------
     # 2. Material design values (EN 1993-1-1)
@@ -4992,6 +4977,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
