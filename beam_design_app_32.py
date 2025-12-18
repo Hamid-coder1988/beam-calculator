@@ -3751,8 +3751,10 @@ def render_report_tab():
     st.markdown("---")
 
     # ----------------------------------------------------
-    # 1. Project data (exact copy of Project tab, read-only)
+    # 1. Project data (from Project tab)
     # ----------------------------------------------------
+    c1, c2, c3 = st.columns([1, 1, 1])
+    
     with c1:
         st.text_input("Document title", value=str(doc_name), disabled=True)
         st.text_input("Project name", value=str(project_name), disabled=True)
@@ -3765,7 +3767,13 @@ def render_report_tab():
         st.text_input("Revision", value=str(revision), disabled=True)
         st.text_input("Date", value=str(run_date), disabled=True)
     
-    st.text_area("Notes / comments", value=str(notes), disabled=True, height=120)
+    # Notes: keep editable in Report tab (optional but usually useful)
+    if "rpt_notes" not in st.session_state:
+        st.session_state["rpt_notes"] = str(notes)
+    
+    st.text_area("Notes / comments", key="rpt_notes", height=120)
+    
+    st.markdown("---")
 
     # ----------------------------------------------------
     # 2. Material design values (EN 1993-1-1)
@@ -4977,6 +4985,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
