@@ -3710,10 +3710,9 @@ def render_report_tab():
     Wpl_y_mm3 = W_y_mm3
     Wpl_z_mm3 = W_z_mm3
     
-     # --- Shear areas for shear resistance (from DB, mm²) ---
-    Av_z_mm2 = sr_display.get("Av_z_mm2", 0.0)
-    Av_y_mm2 = sr_display.get("Av_y_mm2", 0.0)
-
+    # --- Shear areas for shear resistance (from DB, mm²) ---
+    Av_z_mm2 = float(sr_display.get("Avz_mm2") or sr_display.get("Av_z_mm2") or 0.0)
+    Av_y_mm2 = float(sr_display.get("Avy_mm2") or sr_display.get("Av_y_mm2") or 0.0)
     
     # 🔼🔼🔼 END OF BLOCK 🔼🔼🔼
 
@@ -4993,6 +4992,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
