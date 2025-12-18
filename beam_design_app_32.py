@@ -3768,7 +3768,7 @@ def render_report_tab():
     c1, c2, c3 = st.columns([1, 1, 1])
 
     with c1:
-        st.text_input("Document title", value=str(doc_name), disabled=True, key="rpt_doc_title_in")
+        st.text_input("Document title", disabled=True, key="rpt_doc_title_in")
         st.text_input("Project name", value=str(project_name), disabled=True, key="rpt_project_name_in")
 
     with c2:
@@ -4993,6 +4993,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
