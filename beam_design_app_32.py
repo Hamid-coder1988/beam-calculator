@@ -3771,7 +3771,7 @@ def render_report_tab():
     if "rpt_notes" not in st.session_state:
         st.session_state["rpt_notes"] = str(notes)
     
-    st.text_area("Notes / comments", value=str(notes), height=120)
+    st.text_area("Notes / comments", value=str(notes), disabled=True, height=120)
     
     st.markdown("---")
 
@@ -4985,6 +4985,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
