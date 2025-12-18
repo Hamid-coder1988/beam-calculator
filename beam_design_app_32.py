@@ -1888,22 +1888,13 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Utilization": f"{util_Mz:.3f}" if util_Mz is not None else "n/a",
         "Status": status_Mz,
     })
-
-    # ---- Shear resistances along z and y ----
-    Vpl_Rd_z_kN = use_props.get("Vpl_Rd_z_kN", 0.0)
-    Vpl_Rd_y_kN = use_props.get("Vpl_Rd_y_kN", 0.0)
-
-    # Prefer DB design resistances; fall back to area-based if missing
-    if Vpl_Rd_z_kN > 0:
-        Vc_z_Rd_kN = Vpl_Rd_z_kN
-    elif Av_z_mm2 > 0 and fy > 0:
+    # ---- Shear resistances along z and y (always calculated) ----
+    if Av_z_mm2 > 0 and fy > 0:
         Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3
     else:
         Vc_z_Rd_kN = 0.0
-
-    if Vpl_Rd_y_kN > 0:
-        Vc_y_Rd_kN = Vpl_Rd_y_kN
-    elif Av_y_mm2 > 0 and fy > 0:
+    
+    if Av_y_mm2 > 0 and fy > 0:
         Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3
     else:
         Vc_y_Rd_kN = 0.0
@@ -5002,6 +4993,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
