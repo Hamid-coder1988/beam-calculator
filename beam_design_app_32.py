@@ -4284,11 +4284,12 @@ def render_report_tab():
         st.markdown("For the examined case:")
         
         def _line(label_html: str, latex_expr: str):
-            c1, c2 = st.columns([2.2, 3.8])
-            with c1:
+            c_label, c_eq, c_right = st.columns([3, 4, 3])
+            with c_label:
                 st.markdown(label_html, unsafe_allow_html=True)
-            with c2:
+            with c_eq:
                 st.latex(latex_expr)
+
         
         # --- z-z ---
         if Vc_z_Rd_kN and Vc_z_Rd_kN > 0:
@@ -4985,6 +4986,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
