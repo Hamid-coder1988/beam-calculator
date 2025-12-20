@@ -1524,10 +1524,11 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
                 L = st.number_input(
                     "Element length L (m)",
                     min_value=0.0,
+                    value=float(st.session_state.get("L_in", 6.0)),
                     key="L_in",
                     disabled=read_only,
                 )
-            
+
             with r1c2:
                 N_kN = st.number_input(
                     "Axial force N (kN)",
@@ -5210,6 +5211,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
