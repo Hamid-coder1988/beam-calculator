@@ -5,4 +5,3 @@ matplotlib
 psycopg2-binary
 sqlalchemy
 reportlab
-git+ssh://git@github.com/Hamid-coder1988/engisnap-engine.git@main
