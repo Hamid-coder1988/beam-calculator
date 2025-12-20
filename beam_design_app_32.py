@@ -13,12 +13,6 @@ import matplotlib.pyplot as plt
 import io
 from pathlib import Path
 
-# import PRIVATE engine (must be before using it)
-from engisnap_engine import compute_checks
-
-st.write("Engine test:", compute_checks())
-st.stop()
-
 # -------------------------
 # Asset path helpers
 # -------------------------
@@ -5217,6 +5211,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
