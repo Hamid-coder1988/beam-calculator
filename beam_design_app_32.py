@@ -415,21 +415,6 @@ def get_section_image(family: str):
 
     return None
     
-def init_defaults():
-    defaults = {
-        "L_in": 6.0,
-        "N_in": 0.0,
-        "Vy_in": 0.0,
-        "Vz_in": 0.0,
-        "My_in": 0.0,
-        "Mz_in": 0.0,
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
-
-init_defaults()
-
 # =========================================================
 # READY CASES GALLERY SYSTEM (77 placeholders)
 # =========================================================
@@ -5225,6 +5210,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
