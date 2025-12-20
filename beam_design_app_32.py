@@ -1,4 +1,3 @@
-# beam_design_app.py
 import streamlit as st
 import pandas as pd
 import math
@@ -5211,6 +5210,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
