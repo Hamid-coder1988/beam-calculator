@@ -4817,7 +4817,7 @@ def render_report_tab():
         _axis_report(
             axis="y",
             K=float(inputs.get("K_y", 1.0)),
-            I_mm4=float(sr_display.get("Iy_mm4") or 0.0),
+            I_mm4=Iy_mm4,
             curve_name=str(sr_display.get("imperfection_group") or sr_display.get("buckling_curve_y") or "c"),
             alpha=float(extras.get("buck_alpha_y") or 0.49),
             Ncr_kN=float(extras.get("Ncr_y_kN") or 0.0),
@@ -4831,7 +4831,7 @@ def render_report_tab():
         _axis_report(
             axis="z",
             K=float(inputs.get("K_z", 1.0)),
-            I_mm4=float(sr_display.get("Iz_mm4") or 0.0),
+            I_mm4=Iz_mm4,
             curve_name=str(sr_display.get("imperfection_group") or sr_display.get("buckling_curve_z") or "c"),
             alpha=float(extras.get("buck_alpha_z") or 0.49),
             Ncr_kN=float(extras.get("Ncr_z_kN") or 0.0),
@@ -5296,6 +5296,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
