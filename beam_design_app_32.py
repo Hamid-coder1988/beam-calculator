@@ -1758,7 +1758,22 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     Av_z_mm2 = use_props.get("Av_z_mm2", use_props.get("Avz_mm2", 0.0))
     Av_y_mm2 = use_props.get("Av_y_mm2", use_props.get("Avy_mm2", 0.0))
 
-    alpha_curve_db = use_props.get("alpha_curve", 0.49)
+    # Imperfection factor (buckling curve) can come as:
+    # - a numeric alpha (0.21, 0.34, 0.49, 0.76, ...)
+    # - or a curve group string: a0 / a / b / c / d (from your DB)
+    _ALPHA_FROM_CURVE = {"a0": 0.13, "a": 0.21, "b": 0.34, "c": 0.49, "d": 0.76}
+    
+    curve_or_alpha = (
+        use_props.get("imperfection_group", None)
+        or use_props.get("buckling_curve", None)
+        or use_props.get("alpha_curve", None)
+    )
+    
+    if isinstance(curve_or_alpha, str):
+        alpha_curve_db = _ALPHA_FROM_CURVE.get(curve_or_alpha.strip().lower(), 0.49)
+    else:
+        alpha_curve_db = float(curve_or_alpha) if curve_or_alpha is not None else 0.49
+    
 
     if A_m2 <= 0:
         raise ValueError("Section area not provided (A <= 0).")
@@ -5210,6 +5225,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
