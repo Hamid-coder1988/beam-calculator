@@ -1745,8 +1745,8 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     A_m2 = use_props.get("A_cm2", 0.0) / 1e4
     S_y_m3 = use_props.get("S_y_cm3", 0.0) * 1e-6
     S_z_m3 = use_props.get("S_z_cm3", 0.0) * 1e-6
-    I_y_m4 = use_props.get("I_y_cm4", 0.0) * 1e-8
-    I_z_m4 = use_props.get("I_z_cm4", 0.0) * 1e-8
+    I_y_m4 = (use_props.get("Iy_cm4", use_props.get("I_y_cm4", 0.0))) * 1e-8
+    I_z_m4 = (use_props.get("Iz_cm4", use_props.get("I_z_cm4", 0.0))) * 1e-8
     J_m4 = use_props.get("J_cm4", 0.0) * 1e-8
     c_max_m = use_props.get("c_max_mm", 0.0) / 1000.0
 
@@ -5271,6 +5271,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
