@@ -4777,10 +4777,13 @@ def render_report_tab():
             _eq_line(
                 "Elastic critical load:",
                 rf"N_{{cr,{axis}}}=\frac{{\pi^2 E I_{{{axis}}}}}{{L_{{cr,{axis}}}^2}}"
+            )
+            _eq_line(
+                "&nbsp;",
                 rf"=\frac{{\pi^2\cdot {E_MPa:.0f}\,\mathrm{{MPa}}\cdot {I_mm4:,.0f}\,\mathrm{{mm}}^4}}{{({K*L:.3f}\,\mathrm{{m}})^2}}"
                 rf"={Ncr_kN:.1f}\,\mathrm{{kN}}"
             )
-        
+
             # quick “ignore buckling” check (EN 1993-1-1 §6.3.1.2)
             ratio = (abs(NEd_kN) / Ncr_kN) if (Ncr_kN and Ncr_kN > 0) else None
             if ratio is not None:
@@ -5296,6 +5299,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
