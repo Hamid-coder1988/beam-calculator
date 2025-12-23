@@ -4700,81 +4700,127 @@ def render_report_tab():
         # ----------------------------
     
         report_h4("6.2 Verification of member stability (buckling, checks 15–22)")
-        report_h4("(15), (16) Flexural buckling – EN 1993-1-1 §6.3.1.3")
-        st.markdown(f"""
-    The compression member is verified against flexural buckling in accordance with EN1993-1-1 §6.3.1 as follows:
+        report_h4("(15), (16) Flexural buckling (EN 1993-1-1 §6.3.1)")
 
-    NEd / Nb,Rd ≤ 1.0
+# centered equation helper (same layout philosophy you used before)
+def _eq_center(latex_expr: str):
+    cL, cM, cR = st.columns([3, 4, 3])
+    with cM:
+        st.latex(latex_expr)
 
-    where Nb,Rd is the design buckling resistance of the compression member given in EN1993-1-1 §6.3.1.1(3) for class 1, 2 and 3 cross-sections:
+def _eq_line(label_html: str, latex_expr: str):
+    cL, cM, cR = st.columns([3, 4, 3])
+    with cL:
+        st.markdown(label_html, unsafe_allow_html=True)
+    with cM:
+        st.latex(latex_expr)
 
-    Nb,Rd = χ⋅A⋅fy / γM1
+st.markdown(
+    "Flexural buckling of the compression member is verified in accordance with **EN 1993-1-1 §6.3.1**. "
+    "The design condition is:"
+)
+_eq_center(r"\frac{N_{Ed}}{N_{b,Rd}} \le 1.0")
+_eq_center(r"N_{b,Rd} = \chi\,\frac{A f_y}{\gamma_{M1}}")
 
-    The reduction factor χ due to flexural buckling is calculated for the major and the minor bending axes.
+st.markdown(
+    "The reduction factor $\\chi$ is evaluated for buckling about the **major (y–y)** and **minor (z–z)** axes."
+)
 
-    Flexural buckling about major axis y-y  
-    The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_y}".
+E_MPa = 210000.0  # for display
 
-    The imperfection factor α corresponding to the buckling curve "{curve_y}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_y:.2f}.
+def _axis_report(axis: str,
+                 K: float,
+                 I_mm4: float,
+                 curve_name: str,
+                 alpha: float,
+                 Ncr_kN: float,
+                 lam_bar: float,
+                 phi: float,
+                 chi: float,
+                 Nb_Rd_kN: float,
+                 util: float):
 
-    The critical buckling length Lcr,y for flexural buckling about the major axis y-y is considered as Lcr,y = {K_y:.3f}⋅L = {K_y:.3f}⋅{L:.3f} m = {K_y*L:.3f} m.
+    st.markdown(f"### Flexural buckling about axis {axis}–{axis}")
 
-    According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
+    # buckling length
+    _eq_line(
+        "Effective buckling length:",
+        rf"L_{{cr,{axis}}}=K_{{{axis}}}L={K:.3f}\cdot {L:.3f}={K*L:.3f}\,\mathrm{{m}}"
+    )
 
-    Ncr,y = π2⋅E⋅Iy / Lcr,y2 = π2⋅210000 MPa⋅{Iy_mm4:,.0f} mm4 / ({K_y*L:.3f} m)2 = {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN
+    # elastic critical load
+    _eq_line(
+        "Elastic critical load:",
+        rf"N_{{cr,{axis}}}=\frac{{\pi^2 E I_{{{axis}}}}}{{L_{{cr,{axis}}}^2}}"
+        rf"=\frac{{\pi^2\cdot {E_MPa:.0f}\,\mathrm{{MPa}}\cdot {I_mm4:,.0f}\,\mathrm{{mm}}^4}}{{({K*L:.3f}\,\mathrm{{m}})^2}}"
+        rf"={Ncr_kN:.1f}\,\mathrm{{kN}}"
+    )
 
-    The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,y = {abs(NEd_kN):.1f} kN / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_y/1e3) if Ncr_y else float('nan')):.3f}
+    # quick “ignore buckling” check (EN 1993-1-1 §6.3.1.2)
+    ratio = (abs(NEd_kN) / Ncr_kN) if (Ncr_kN and Ncr_kN > 0) else None
+    if ratio is not None:
+        _eq_line("Check for neglecting buckling:", rf"\frac{{N_{{Ed}}}}{{N_{{cr,{axis}}}}}=\frac{{{abs(NEd_kN):.1f}}}{{{Ncr_kN:.1f}}}={ratio:.3f}")
 
-    For class 1, 2 and 3 cross-section the non-dimensional slenderness λy for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
+    _eq_line("Non-dimensional slenderness:", rf"\bar{{\lambda}}_{{{axis}}}=\sqrt{{\frac{{A f_y}}{{N_{{cr,{axis}}}}}}}={lam_bar:.3f}")
 
-    λy = (A⋅fy / Ncr,y)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_y/1e3 if Ncr_y else float('nan')):.1f} kN)0.5 = {(lam_y if lam_y is not None else float('nan')):.3f}
+    ignore_ok = ((ratio is not None and ratio <= 0.04) or (lam_bar is not None and lam_bar <= 0.20))
+    if ignore_ok:
+        st.markdown(
+            "The buckling effects may be **neglected** for this axis because "
+            r"$N_{Ed}/N_{cr}\le 0.04$ or $\bar{\lambda}\le 0.20$. "
+            "For completeness, the reduction factor and utilization are still shown below."
+        )
+    else:
+        st.markdown("Buckling effects **cannot** be neglected for this axis; full reduction is applied.")
 
-    According to EN1993-1-1 §6.3.1.2(4) flexural buckling effects may be ignored when NEd/Ncr,y ≤ 0.04 or λy ≤ 0.20.
+    # curve + imperfection factor
+    st.markdown(f"- Buckling curve group: `{curve_name}`")
+    _eq_line("Imperfection factor:", rf"\alpha={alpha:.2f}")
 
-    The factors Φ and χy are calculated in accordance with EN1993-1-1 §6.3.1.2:
+    # phi and chi
+    _eq_line("Auxiliary factor:", rf"\Phi=\tfrac12\left[1+\alpha(\bar{{\lambda}}-{0.2})+\bar{{\lambda}}^2\right]={phi:.3f}")
+    _eq_line("Reduction factor:", rf"\chi=\min\left(1,\frac{{1}}{{\Phi+\sqrt{{\Phi^2-\bar{{\lambda}}^2}}}}\right)={chi:.3f}")
 
-    Φ = 0.5⋅[1 + α⋅(λy - 0.20) + λy2]  
-    χy = min[1.0, 1 / (Φ + [Φ2 - λy2]0.5)]
+    # buckling resistance + utilization
+    _eq_line("Buckling resistance:", rf"N_{{b,Rd,{axis}}}=\chi\frac{{A f_y}}{{\gamma_{{M1}}}}={Nb_Rd_kN:.1f}\,\mathrm{{kN}}")
+    _eq_line("Utilization:", rf"\frac{{N_{{Ed}}}}{{N_{{b,Rd,{axis}}}}}=\frac{{{abs(NEd_kN):.1f}}}{{{Nb_Rd_kN:.1f}}}={util:.3f}\le 1.0")
 
-    The design buckling resistance of the compression member for flexural buckling about the major axis y-y is calculated as:
+    st.markdown(f"**Status:** {'OK' if util <= 1.0 else 'NOT OK'}")
 
-    Nb,Rd,y = χy ⋅ A ⋅ fy / γM1 = {(chi_y if chi_y is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN
+# --- You must map your stored results into these variables ---
+# Example variable names below should match what your code already has in the report scope.
+_axis_report(
+    axis="y",
+    K=float(inputs.get("K_y", 1.0)),
+    I_mm4=float(sr_display.get("Iy_mm4") or 0.0),
+    curve_name=str(sr_display.get("imperfection_group") or sr_display.get("buckling_curve_y") or "c"),
+    alpha=float(extras.get("buck_alpha_y") or 0.49),
+    Ncr_kN=float(extras.get("Ncr_y_kN") or 0.0),
+    lam_bar=float(extras.get("lam_y") or 0.0),
+    phi=float(extras.get("phi_y") or 0.0),
+    chi=float(extras.get("chi_y") or 0.0),
+    Nb_Rd_kN=float(extras.get("Nb_Rd_y_kN") or 0.0),
+    util=float(extras.get("util_buck_y") or 0.0),
+)
 
-    Therefore the utilization for the flexural buckling resistance about major axis y-y is:
+_axis_report(
+    axis="z",
+    K=float(inputs.get("K_z", 1.0)),
+    I_mm4=float(sr_display.get("Iz_mm4") or 0.0),
+    curve_name=str(sr_display.get("imperfection_group") or sr_display.get("buckling_curve_z") or "c"),
+    alpha=float(extras.get("buck_alpha_z") or 0.49),
+    Ncr_kN=float(extras.get("Ncr_z_kN") or 0.0),
+    lam_bar=float(extras.get("lam_z") or 0.0),
+    phi=float(extras.get("phi_z") or 0.0),
+    chi=float(extras.get("chi_z") or 0.0),
+    Nb_Rd_kN=float(extras.get("Nb_Rd_z_kN") or 0.0),
+    util=float(extras.get("util_buck_z") or 0.0),
+)
 
-    u = NEd / Nb,Rd,y = {abs(NEd_kN):.1f} kN / {(Nb_Rd_y/1e3 if Nb_Rd_y else float('nan')):.1f} kN = {(util_y if util_y is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_y is not None and util_y <= 1.0) else "exceeds"}
-
-    Flexural buckling about minor axis z-z  
-    The appropriate buckling curve is determined from EN1993-1-1 Table 6.2. The corresponding buckling curve for the selected member is taken as curve "{curve_z}".
-
-    The imperfection factor α corresponding to the buckling curve "{curve_z}" is determined from EN1993-1-1 Table 6.1 as α = {alpha_z:.2f}.
-
-    The critical buckling length Lcr,z for flexural buckling about the minor axis z-z is considered as Lcr,z = {K_z:.3f}⋅L = {K_z:.3f}⋅{L:.3f} m = {K_z*L:.3f} m.
-
-    According to the theory of elasticity the elastic critical buckling load for flexural buckling is:
-
-    Ncr,z = π2⋅E⋅Iz / Lcr,z2 = π2⋅210000 MPa⋅{Iz_mm4:,.0f} mm4 / ({K_z*L:.3f} m)2 = {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN
-
-    The ratio of the compression load to the elastic critical buckling load is NEd/Ncr,z = {abs(NEd_kN):.1f} kN / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN = {(abs(NEd_kN)/(Ncr_z/1e3) if Ncr_z else float('nan')):.3f}
-
-    For class 1, 2 and 3 cross-section the non-dimensional slenderness λz for flexural buckling is given in EN1993-1-1 §6.3.1.3(1):
-
-    λz = (A⋅fy / Ncr,z)0.5 = ({A_mm2:,.0f} mm2⋅{fy:.0f} MPa / {(Ncr_z/1e3 if Ncr_z else float('nan')):.1f} kN)0.5 = {(lam_z if lam_z is not None else float('nan')):.3f}
-
-    The factors Φ and χz are calculated in accordance with EN1993-1-1 §6.3.1.2:
-
-    Φ = 0.5⋅[1 + α⋅(λz - 0.20) + λz2]  
-    χz = min[1.0, 1 / (Φ + [Φ2 - λz2]0.5)]
-
-    The design buckling resistance of the compression member for flexural buckling about the minor axis z-z is calculated as:
-
-    Nb,Rd,z = χz ⋅ A ⋅ fy / γM1 = {(chi_z if chi_z is not None else float('nan')):.3f} ⋅ {A_mm2:,.0f} mm2 ⋅ {fy:.0f} MPa / {gamma_M1:.2f} = {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN
-
-    Therefore the utilization for the flexural buckling resistance about minor axis z-z is:
-
-    u = NEd / Nb,Rd,z = {abs(NEd_kN):.1f} kN / {(Nb_Rd_z/1e3 if Nb_Rd_z else float('nan')):.1f} kN = {(util_z if util_z is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_z is not None and util_z <= 1.0) else "exceeds"}
-
-    According to EN1993-1-1 §6.3.1.1(4) the calculated flexural buckling resistance is also valid for members with holes for fasteners at the member ends.""")
+st.markdown(
+    "Note: the buckling resistance obtained is applicable for compression members with end fastener holes neglected, "
+    "consistent with the assumptions used for member stability checks."
+)
 
         # ----------------------------
         # (17) Torsional & torsional-flexural buckling
@@ -5225,6 +5271,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
