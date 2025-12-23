@@ -4702,125 +4702,125 @@ def render_report_tab():
         report_h4("6.2 Verification of member stability (buckling, checks 15–22)")
         report_h4("(15), (16) Flexural buckling (EN 1993-1-1 §6.3.1)")
 
-# centered equation helper (same layout philosophy you used before)
-def _eq_center(latex_expr: str):
-    cL, cM, cR = st.columns([3, 4, 3])
-    with cM:
-        st.latex(latex_expr)
-
-def _eq_line(label_html: str, latex_expr: str):
-    cL, cM, cR = st.columns([3, 4, 3])
-    with cL:
-        st.markdown(label_html, unsafe_allow_html=True)
-    with cM:
-        st.latex(latex_expr)
-
-st.markdown(
-    "Flexural buckling of the compression member is verified in accordance with **EN 1993-1-1 §6.3.1**. "
-    "The design condition is:"
-)
-_eq_center(r"\frac{N_{Ed}}{N_{b,Rd}} \le 1.0")
-_eq_center(r"N_{b,Rd} = \chi\,\frac{A f_y}{\gamma_{M1}}")
-
-st.markdown(
-    "The reduction factor $\\chi$ is evaluated for buckling about the **major (y–y)** and **minor (z–z)** axes."
-)
-
-E_MPa = 210000.0  # for display
-
-def _axis_report(axis: str,
-                 K: float,
-                 I_mm4: float,
-                 curve_name: str,
-                 alpha: float,
-                 Ncr_kN: float,
-                 lam_bar: float,
-                 phi: float,
-                 chi: float,
-                 Nb_Rd_kN: float,
-                 util: float):
-
-    st.markdown(f"### Flexural buckling about axis {axis}–{axis}")
-
-    # buckling length
-    _eq_line(
-        "Effective buckling length:",
-        rf"L_{{cr,{axis}}}=K_{{{axis}}}L={K:.3f}\cdot {L:.3f}={K*L:.3f}\,\mathrm{{m}}"
-    )
-
-    # elastic critical load
-    _eq_line(
-        "Elastic critical load:",
-        rf"N_{{cr,{axis}}}=\frac{{\pi^2 E I_{{{axis}}}}}{{L_{{cr,{axis}}}^2}}"
-        rf"=\frac{{\pi^2\cdot {E_MPa:.0f}\,\mathrm{{MPa}}\cdot {I_mm4:,.0f}\,\mathrm{{mm}}^4}}{{({K*L:.3f}\,\mathrm{{m}})^2}}"
-        rf"={Ncr_kN:.1f}\,\mathrm{{kN}}"
-    )
-
-    # quick “ignore buckling” check (EN 1993-1-1 §6.3.1.2)
-    ratio = (abs(NEd_kN) / Ncr_kN) if (Ncr_kN and Ncr_kN > 0) else None
-    if ratio is not None:
-        _eq_line("Check for neglecting buckling:", rf"\frac{{N_{{Ed}}}}{{N_{{cr,{axis}}}}}=\frac{{{abs(NEd_kN):.1f}}}{{{Ncr_kN:.1f}}}={ratio:.3f}")
-
-    _eq_line("Non-dimensional slenderness:", rf"\bar{{\lambda}}_{{{axis}}}=\sqrt{{\frac{{A f_y}}{{N_{{cr,{axis}}}}}}}={lam_bar:.3f}")
-
-    ignore_ok = ((ratio is not None and ratio <= 0.04) or (lam_bar is not None and lam_bar <= 0.20))
-    if ignore_ok:
+        # centered equation helper (same layout philosophy you used before)
+        def _eq_center(latex_expr: str):
+            cL, cM, cR = st.columns([3, 4, 3])
+            with cM:
+                st.latex(latex_expr)
+        
+        def _eq_line(label_html: str, latex_expr: str):
+            cL, cM, cR = st.columns([3, 4, 3])
+            with cL:
+                st.markdown(label_html, unsafe_allow_html=True)
+            with cM:
+                st.latex(latex_expr)
+        
         st.markdown(
-            "The buckling effects may be **neglected** for this axis because "
-            r"$N_{Ed}/N_{cr}\le 0.04$ or $\bar{\lambda}\le 0.20$. "
-            "For completeness, the reduction factor and utilization are still shown below."
+            "Flexural buckling of the compression member is verified in accordance with **EN 1993-1-1 §6.3.1**. "
+            "The design condition is:"
         )
-    else:
-        st.markdown("Buckling effects **cannot** be neglected for this axis; full reduction is applied.")
-
-    # curve + imperfection factor
-    st.markdown(f"- Buckling curve group: `{curve_name}`")
-    _eq_line("Imperfection factor:", rf"\alpha={alpha:.2f}")
-
-    # phi and chi
-    _eq_line("Auxiliary factor:", rf"\Phi=\tfrac12\left[1+\alpha(\bar{{\lambda}}-{0.2})+\bar{{\lambda}}^2\right]={phi:.3f}")
-    _eq_line("Reduction factor:", rf"\chi=\min\left(1,\frac{{1}}{{\Phi+\sqrt{{\Phi^2-\bar{{\lambda}}^2}}}}\right)={chi:.3f}")
-
-    # buckling resistance + utilization
-    _eq_line("Buckling resistance:", rf"N_{{b,Rd,{axis}}}=\chi\frac{{A f_y}}{{\gamma_{{M1}}}}={Nb_Rd_kN:.1f}\,\mathrm{{kN}}")
-    _eq_line("Utilization:", rf"\frac{{N_{{Ed}}}}{{N_{{b,Rd,{axis}}}}}=\frac{{{abs(NEd_kN):.1f}}}{{{Nb_Rd_kN:.1f}}}={util:.3f}\le 1.0")
-
-    st.markdown(f"**Status:** {'OK' if util <= 1.0 else 'NOT OK'}")
-
-# --- You must map your stored results into these variables ---
-# Example variable names below should match what your code already has in the report scope.
-_axis_report(
-    axis="y",
-    K=float(inputs.get("K_y", 1.0)),
-    I_mm4=float(sr_display.get("Iy_mm4") or 0.0),
-    curve_name=str(sr_display.get("imperfection_group") or sr_display.get("buckling_curve_y") or "c"),
-    alpha=float(extras.get("buck_alpha_y") or 0.49),
-    Ncr_kN=float(extras.get("Ncr_y_kN") or 0.0),
-    lam_bar=float(extras.get("lam_y") or 0.0),
-    phi=float(extras.get("phi_y") or 0.0),
-    chi=float(extras.get("chi_y") or 0.0),
-    Nb_Rd_kN=float(extras.get("Nb_Rd_y_kN") or 0.0),
-    util=float(extras.get("util_buck_y") or 0.0),
-)
-
-_axis_report(
-    axis="z",
-    K=float(inputs.get("K_z", 1.0)),
-    I_mm4=float(sr_display.get("Iz_mm4") or 0.0),
-    curve_name=str(sr_display.get("imperfection_group") or sr_display.get("buckling_curve_z") or "c"),
-    alpha=float(extras.get("buck_alpha_z") or 0.49),
-    Ncr_kN=float(extras.get("Ncr_z_kN") or 0.0),
-    lam_bar=float(extras.get("lam_z") or 0.0),
-    phi=float(extras.get("phi_z") or 0.0),
-    chi=float(extras.get("chi_z") or 0.0),
-    Nb_Rd_kN=float(extras.get("Nb_Rd_z_kN") or 0.0),
-    util=float(extras.get("util_buck_z") or 0.0),
-)
-
-st.markdown(
-    "Note: the buckling resistance obtained is applicable for compression members with end fastener holes neglected, "
-    "consistent with the assumptions used for member stability checks."
-)
+        _eq_center(r"\frac{N_{Ed}}{N_{b,Rd}} \le 1.0")
+        _eq_center(r"N_{b,Rd} = \chi\,\frac{A f_y}{\gamma_{M1}}")
+        
+        st.markdown(
+            "The reduction factor $\\chi$ is evaluated for buckling about the **major (y–y)** and **minor (z–z)** axes."
+        )
+        
+        E_MPa = 210000.0  # for display
+        
+        def _axis_report(axis: str,
+                         K: float,
+                         I_mm4: float,
+                         curve_name: str,
+                         alpha: float,
+                         Ncr_kN: float,
+                         lam_bar: float,
+                         phi: float,
+                         chi: float,
+                         Nb_Rd_kN: float,
+                         util: float):
+        
+            st.markdown(f"### Flexural buckling about axis {axis}–{axis}")
+        
+            # buckling length
+            _eq_line(
+                "Effective buckling length:",
+                rf"L_{{cr,{axis}}}=K_{{{axis}}}L={K:.3f}\cdot {L:.3f}={K*L:.3f}\,\mathrm{{m}}"
+            )
+        
+            # elastic critical load
+            _eq_line(
+                "Elastic critical load:",
+                rf"N_{{cr,{axis}}}=\frac{{\pi^2 E I_{{{axis}}}}}{{L_{{cr,{axis}}}^2}}"
+                rf"=\frac{{\pi^2\cdot {E_MPa:.0f}\,\mathrm{{MPa}}\cdot {I_mm4:,.0f}\,\mathrm{{mm}}^4}}{{({K*L:.3f}\,\mathrm{{m}})^2}}"
+                rf"={Ncr_kN:.1f}\,\mathrm{{kN}}"
+            )
+        
+            # quick “ignore buckling” check (EN 1993-1-1 §6.3.1.2)
+            ratio = (abs(NEd_kN) / Ncr_kN) if (Ncr_kN and Ncr_kN > 0) else None
+            if ratio is not None:
+                _eq_line("Check for neglecting buckling:", rf"\frac{{N_{{Ed}}}}{{N_{{cr,{axis}}}}}=\frac{{{abs(NEd_kN):.1f}}}{{{Ncr_kN:.1f}}}={ratio:.3f}")
+        
+            _eq_line("Non-dimensional slenderness:", rf"\bar{{\lambda}}_{{{axis}}}=\sqrt{{\frac{{A f_y}}{{N_{{cr,{axis}}}}}}}={lam_bar:.3f}")
+        
+            ignore_ok = ((ratio is not None and ratio <= 0.04) or (lam_bar is not None and lam_bar <= 0.20))
+            if ignore_ok:
+                st.markdown(
+                    "The buckling effects may be **neglected** for this axis because "
+                    r"$N_{Ed}/N_{cr}\le 0.04$ or $\bar{\lambda}\le 0.20$. "
+                    "For completeness, the reduction factor and utilization are still shown below."
+                )
+            else:
+                st.markdown("Buckling effects **cannot** be neglected for this axis; full reduction is applied.")
+        
+            # curve + imperfection factor
+            st.markdown(f"- Buckling curve group: `{curve_name}`")
+            _eq_line("Imperfection factor:", rf"\alpha={alpha:.2f}")
+        
+            # phi and chi
+            _eq_line("Auxiliary factor:", rf"\Phi=\tfrac12\left[1+\alpha(\bar{{\lambda}}-{0.2})+\bar{{\lambda}}^2\right]={phi:.3f}")
+            _eq_line("Reduction factor:", rf"\chi=\min\left(1,\frac{{1}}{{\Phi+\sqrt{{\Phi^2-\bar{{\lambda}}^2}}}}\right)={chi:.3f}")
+        
+            # buckling resistance + utilization
+            _eq_line("Buckling resistance:", rf"N_{{b,Rd,{axis}}}=\chi\frac{{A f_y}}{{\gamma_{{M1}}}}={Nb_Rd_kN:.1f}\,\mathrm{{kN}}")
+            _eq_line("Utilization:", rf"\frac{{N_{{Ed}}}}{{N_{{b,Rd,{axis}}}}}=\frac{{{abs(NEd_kN):.1f}}}{{{Nb_Rd_kN:.1f}}}={util:.3f}\le 1.0")
+        
+            st.markdown(f"**Status:** {'OK' if util <= 1.0 else 'NOT OK'}")
+        
+        # --- You must map your stored results into these variables ---
+        # Example variable names below should match what your code already has in the report scope.
+        _axis_report(
+            axis="y",
+            K=float(inputs.get("K_y", 1.0)),
+            I_mm4=float(sr_display.get("Iy_mm4") or 0.0),
+            curve_name=str(sr_display.get("imperfection_group") or sr_display.get("buckling_curve_y") or "c"),
+            alpha=float(extras.get("buck_alpha_y") or 0.49),
+            Ncr_kN=float(extras.get("Ncr_y_kN") or 0.0),
+            lam_bar=float(extras.get("lam_y") or 0.0),
+            phi=float(extras.get("phi_y") or 0.0),
+            chi=float(extras.get("chi_y") or 0.0),
+            Nb_Rd_kN=float(extras.get("Nb_Rd_y_kN") or 0.0),
+            util=float(extras.get("util_buck_y") or 0.0),
+        )
+        
+        _axis_report(
+            axis="z",
+            K=float(inputs.get("K_z", 1.0)),
+            I_mm4=float(sr_display.get("Iz_mm4") or 0.0),
+            curve_name=str(sr_display.get("imperfection_group") or sr_display.get("buckling_curve_z") or "c"),
+            alpha=float(extras.get("buck_alpha_z") or 0.49),
+            Ncr_kN=float(extras.get("Ncr_z_kN") or 0.0),
+            lam_bar=float(extras.get("lam_z") or 0.0),
+            phi=float(extras.get("phi_z") or 0.0),
+            chi=float(extras.get("chi_z") or 0.0),
+            Nb_Rd_kN=float(extras.get("Nb_Rd_z_kN") or 0.0),
+            util=float(extras.get("util_buck_z") or 0.0),
+        )
+        
+        st.markdown(
+            "Note: the buckling resistance obtained is applicable for compression members with end fastener holes neglected, "
+            "consistent with the assumptions used for member stability checks."
+        )
 
         # ----------------------------
         # (17) Torsional & torsional-flexural buckling
@@ -5271,6 +5271,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
