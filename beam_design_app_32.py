@@ -4634,18 +4634,43 @@ def render_report_tab():
         MyEd_kNm = float(inputs.get("My_kNm", 0.0))
         MzEd_kNm = float(inputs.get("Mz_kNm", 0.0))
 
-        # Section & material
-        A_mm2 = float(use_props.get("A_mm2", 0.0))
-        Iy_mm4 = float(use_props.get("Iy_mm4", use_props.get("Iy_cm4", 0.0) * 1e4))
-        Iz_mm4 = float(use_props.get("Iz_mm4", use_props.get("Iz_cm4", 0.0) * 1e4))
-        iy_mm = float(use_props.get("iy_mm", 0.0))
-        iz_mm = float(use_props.get("iz_mm", 0.0))
-        It_mm4 = float(use_props.get("It_mm4", use_props.get("It_cm4", 0.0) * 1e4))
-        Iw_mm6 = float(use_props.get("Iw_mm6", use_props.get("Iw_cm6", 0.0) * 1e6))
-        Wel_y_mm3 = float(use_props.get("Wel_y_mm3", use_props.get("Wel_y_cm3", 0.0) * 1e3))
-        Wpl_y_mm3 = float(use_props.get("Wpl_y_mm3", use_props.get("Wpl_y_cm3", 0.0) * 1e3))
-        Wel_z_mm3 = float(use_props.get("Wel_z_mm3", use_props.get("Wel_z_cm3", 0.0) * 1e3))
-        Wpl_z_mm3 = float(use_props.get("Wpl_z_mm3", use_props.get("Wpl_z_cm3", 0.0) * 1e3))
+        # Section & material (accept both naming styles from DB/session)
+        A_mm2 = float(use_props.get("A_mm2", use_props.get("A_mm2", 0.0)) or 0.0)
+        
+        Iy_mm4 = float(
+            use_props.get(
+                "Iy_mm4",
+                use_props.get("Iy_cm4", use_props.get("I_y_cm4", 0.0)) * 1e4
+            ) or 0.0
+        )
+        Iz_mm4 = float(
+            use_props.get(
+                "Iz_mm4",
+                use_props.get("Iz_cm4", use_props.get("I_z_cm4", 0.0)) * 1e4
+            ) or 0.0
+        )
+        
+        iy_mm = float(use_props.get("iy_mm", use_props.get("i_y_mm", 0.0)) or 0.0)
+        iz_mm = float(use_props.get("iz_mm", use_props.get("i_z_mm", 0.0)) or 0.0)
+        
+        It_mm4 = float(
+            use_props.get(
+                "It_mm4",
+                use_props.get("It_cm4", use_props.get("I_t_cm4", 0.0)) * 1e4
+            ) or 0.0
+        )
+        Iw_mm6 = float(
+            use_props.get(
+                "Iw_mm6",
+                use_props.get("Iw_cm6", use_props.get("I_w_cm6", 0.0)) * 1e6
+            ) or 0.0
+        )
+        
+        Wel_y_mm3 = float(use_props.get("Wel_y_mm3", use_props.get("Wel_y_cm3", 0.0) * 1e3) or 0.0)
+        Wpl_y_mm3 = float(use_props.get("Wpl_y_mm3", use_props.get("Wpl_y_cm3", 0.0) * 1e3) or 0.0)
+        Wel_z_mm3 = float(use_props.get("Wel_z_mm3", use_props.get("Wel_z_cm3", 0.0) * 1e3) or 0.0)
+        Wpl_z_mm3 = float(use_props.get("Wpl_z_mm3", use_props.get("Wpl_z_cm3", 0.0) * 1e3) or 0.0)
+
 
         # Factors
         # (gamma_M0, gamma_M1 already defined at top of render_report_tab)
@@ -5271,6 +5296,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
