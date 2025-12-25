@@ -4770,13 +4770,14 @@ def render_report_tab():
             st.markdown(f"### Flexural buckling about axis {axis}–{axis}")
         
             # buckling length
+            # buckling length (all in mm)
+            L_mm = L * 1000.0
+            Lcr_mm = K * L_mm
+            
             _eq_line(
                 "Effective buckling length:",
-                L_mm = L * 1000.0
-                Lcr_mm = K * L_mm
-                rf"L_{{cr,{axis}}}=K_{{{axis}}}L={K:.3f}\cdot {L_mm:.0f}={Lcr_mm:.0f}\,\mathrm{{mm}}"
-            )
-        
+                rf"L_{{cr,{axis}}}=K_{{{axis}}}L={K:.3f}\cdot {L_mm:.0f}"
+
             # elastic critical load
             _eq_line(
                 "Elastic critical load:",
@@ -5304,6 +5305,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
