@@ -5393,12 +5393,6 @@ def render_report_tab():
             """
         )
 
-        _latex_block([
-            rf"u=\max(u_y,u_z)={util_int_B:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_int_B)
-            else (rf"u=\max(u_y,u_z)={util_int_B:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}" if util_int_B is not None else r"u=\max(u_y,u_z)=\mathrm{n/a}")
-        ])
-
-
     # ----------------------------------------------------
         # 8. References
         # ----------------------------------------------------
@@ -5712,6 +5706,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
