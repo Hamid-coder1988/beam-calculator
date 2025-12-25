@@ -2077,6 +2077,11 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         sqrt_term = max(phi**2 - lambda_bar**2, 0.0)
         denom = phi + math.sqrt(sqrt_term)
         return min(1.0, 1.0 / denom) if denom > 0 else 0.0
+        
+    def phi_aux(lambda_bar: float, alpha: float) -> float:
+        # EN 1993-1-1 §6.3.1.2 (auxiliary factor Φ)
+        return 0.5 * (1.0 + alpha * (lambda_bar - 0.20) + lambda_bar**2)
+
 
     # Flexural buckling about y and z
     buck_results = []
@@ -2093,6 +2098,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         Leff_axis = float(K_axis) * float(L)
         Ncr = (math.pi**2 * E * I_axis) / (Leff_axis**2) if Leff_axis > 0 else 0.0
         lambda_bar = math.sqrt(NRk_N / Ncr) if Ncr > 0 else float("inf")
+        phi = 0.5 * (1.0 + alpha_use * (lambda_bar - 0.20) + lambda_bar**2)
         chi = chi_reduction(lambda_bar, alpha_use)
         Nb_Rd_N = chi * NRk_N / gamma_M1
 
@@ -2102,6 +2108,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         buck_results.append((axis_label, Ncr, lambda_bar, chi, Nb_Rd_N, status))
         buck_map[f"Ncr_{axis_label}"] = Ncr
         buck_map[f"lambda_{axis_label}"] = lambda_bar
+        buck_map[f"phi_{axis_label}"] = phi
         buck_map[f"chi_{axis_label}"] = chi
         buck_map[f"Nb_Rd_{axis_label}"] = Nb_Rd_N
         buck_map[f"util_buck_{axis_label}"] = util
@@ -5313,6 +5320,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
