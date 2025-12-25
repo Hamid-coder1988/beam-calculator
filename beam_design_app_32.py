@@ -4910,20 +4910,14 @@ def render_report_tab():
         else:
             NcrT_disp_kN = 0.0
             
-        st.latex(
-            rf"""
-            \begin{{aligned}}
-            N_{{cr,T}} &= \frac{{1}}{{i_0^2}}
-            \left(
-                G I_T + \frac{{\pi^2 E I_w}}{{L_{{cr,T}}^2}}
-            \right) \\[4pt]
-            &= \frac{{1}}{{({i0_mm:.1f})^2}}
-            \left(
-                {G_MPa:.0f}\cdot {It_mm4:,.0f}
-                + \frac{{\pi^2\cdot {E_MPa:.0f}\cdot {Iw_mm6:,.0f}}}{{({LcrT_mm:.0f})^2}}
-            \right)
-            \end{{aligned}}
-            """
+        _eq_line(
+            "Elastic critical force:",
+            r"N_{cr,T}=\frac{1}{i_0^2}\left(G I_T+\frac{\pi^2 E I_w}{L_{cr,T}^2}\right)"
+        )
+        
+        _eq_line(
+            "&nbsp;",
+            rf"={NcrT_disp_kN:.1f}\,\mathrm{{kN}}"
         )
 
         st.markdown(
@@ -5394,6 +5388,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
