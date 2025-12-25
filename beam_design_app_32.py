@@ -5361,7 +5361,7 @@ def render_report_tab():
             r"u_z=\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
             (rf"u_z={util_62_B:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_62_B) else rf"u_z={util_62_B:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_62_B is not None else r"u_z=\mathrm{n/a}",
         ])
-         uy = float(util_61_B or 0.0)
+        uy = float(util_61_B or 0.0)
         uz = float(util_62_B or 0.0)
         u_int = float(util_int_B or 0.0)
         
@@ -5712,6 +5712,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
