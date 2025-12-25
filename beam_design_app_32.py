@@ -4779,19 +4779,22 @@ def render_report_tab():
                 rf"L_{{cr,{axis}}}=K_{{{axis}}}L={K:.3f}\cdot {L_mm:.0f}"
                 rf"={Lcr_mm:.0f}\,\mathrm{{mm}}"
             )
-            # elastic critical load
+            # elastic critical load (all in mm, MPa → kN)
+            
             _eq_line(
                 "Elastic critical load:",
                 rf"N_{{cr,{axis}}}=\frac{{\pi^2 E I_{{{axis}}}}}{{L_{{cr,{axis}}}^2}}"
             )
-            Ncr_disp_kN = (
-                (math.pi**2 * E_MPa * I_mm4 / (Lcr_mm**2)) / 1000.0
-                if Lcr_mm > 0 else 0.0
-            )
+            
+            if Lcr_mm > 0:
+                Ncr_disp_kN = (math.pi**2 * E_MPa * I_mm4 / (Lcr_mm**2)) / 1000.0
+            else:
+                Ncr_disp_kN = 0.0
             
             _eq_line(
                 "&nbsp;",
-                rf"=\frac{{\pi^2\cdot {E_MPa:.0f}\,\mathrm{{MPa}}\cdot {I_mm4:,.0f}\,\mathrm{{mm}}^4}}{{({Lcr_mm:.0f}\,\mathrm{{mm}})^2}}"
+                rf"=\frac{{\pi^2\cdot {E_MPa:.0f}\,\mathrm{{MPa}}\cdot {I_mm4:,.0f}\,\mathrm{{mm}}^4}}"
+                rf"{{({Lcr_mm:.0f}\,\mathrm{{mm}})^2}}"
                 rf"={Ncr_disp_kN:.1f}\,\mathrm{{kN}}"
             )
 
@@ -5310,6 +5313,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
