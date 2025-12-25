@@ -4918,7 +4918,9 @@ def render_report_tab():
         alpha_T = float(extras.get("buck_alpha_z") or 0.34)  # use minor-axis curve
         lam_T = math.sqrt((A_mm2 * fy) / NcrT_N) if NcrT_N > 0 else 0.0
         phi_T = 0.5 * (1.0 + alpha_T * (lam_T - 0.20) + lam_T**2)
-        chi_T_disp = chi_reduction(lam_T, alpha_T)
+        sqrt_term_T = max(phi_T**2 - lam_T**2, 0.0)
+        denom_T = phi_T + math.sqrt(sqrt_term_T)
+        chi_T_disp = min(1.0, 1.0 / denom_T) if denom_T > 0 else 0.0
         NbRdT_disp_kN = (chi_T_disp * A_mm2 * fy / gamma_M1) / 1000.0
         utilT_disp = (abs(NEd_kN) / NbRdT_disp_kN) if NbRdT_disp_kN > 0 else float("inf")
 
@@ -5373,6 +5375,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
