@@ -4837,26 +4837,26 @@ def render_report_tab():
             I_mm4=Iy_mm4,
             curve_name=str(sr_display.get("imperfection_group") or sr_display.get("buckling_curve_y") or "c"),
             alpha=float(extras.get("buck_alpha_y") or 0.49),
-            Ncr_kN=float(extras.get("Ncr_y_kN") or 0.0),
-            lam_bar=float(extras.get("lam_y") or 0.0),
-            phi=float(extras.get("phi_y") or 0.0),
-            chi=float(extras.get("chi_y") or 0.0),
-            Nb_Rd_kN=float(extras.get("Nb_Rd_y_kN") or 0.0),
-            util=float(extras.get("util_buck_y") or 0.0),
+            Ncr_kN=float((buck_map.get("Ncr_y") or 0.0) / 1000.0),
+            lam_bar=float(buck_map.get("lambda_y") or 0.0),
+            phi=float(buck_map.get("phi_y") or 0.0),      # only if you store it; otherwise leave 0.0
+            chi=float(buck_map.get("chi_y") or 0.0),
+            Nb_Rd_kN=float((buck_map.get("Nb_Rd_y") or 0.0) / 1000.0),
+            util=float(buck_map.get("util_buck_y") or 0.0),
         )
-        
+
         _axis_report(
             axis="z",
             K=float(inputs.get("K_z", 1.0)),
             I_mm4=Iz_mm4,
             curve_name=str(sr_display.get("imperfection_group") or sr_display.get("buckling_curve_z") or "c"),
             alpha=float(extras.get("buck_alpha_z") or 0.49),
-            Ncr_kN=float(extras.get("Ncr_z_kN") or 0.0),
-            lam_bar=float(extras.get("lam_z") or 0.0),
-            phi=float(extras.get("phi_z") or 0.0),
-            chi=float(extras.get("chi_z") or 0.0),
-            Nb_Rd_kN=float(extras.get("Nb_Rd_z_kN") or 0.0),
-            util=float(extras.get("util_buck_z") or 0.0),
+            Ncr_kN=float((buck_map.get("Ncr_z") or 0.0) / 1000.0),
+            lam_bar=float(buck_map.get("lambda_z") or 0.0),
+            phi=float(buck_map.get("phi_z") or 0.0),
+            chi=float(buck_map.get("chi_z") or 0.0),
+            Nb_Rd_kN=float((buck_map.get("Nb_Rd_z") or 0.0) / 1000.0),
+            util=float(buck_map.get("util_buck_z") or 0.0),
         )
         
         st.markdown(
@@ -5313,6 +5313,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
