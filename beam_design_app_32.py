@@ -4874,67 +4874,120 @@ def render_report_tab():
         # ----------------------------
         # (17) Torsional & torsional-flexural buckling
         # ----------------------------
+                # ----------------------------
+        # (17) Torsional & torsional-flexural buckling
+        # ----------------------------
         report_h4("(17) Torsional and torsional-flexural buckling – EN 1993-1-1 §6.3.1.4")
-        st.markdown(f"""
-    Typically for standard I- and H-sections the torsional and torsional-flexural buckling verifications are not critical as compared to the flexural buckling verification. For completeness of the calculation the torsional and torsional-flexural buckling loads are estimated below.
 
-    The polar radius of gyration of the cross-section i0 is equal to:
+        st.markdown(
+            "Torsional and torsional-flexural buckling are treated in **EN 1993-1-1 §6.3.1.4**. "
+            "For typical rolled **I/H sections** these checks are often not governing compared to flexural buckling, "
+            "but they are reported here for completeness."
+        )
 
-    i0 = [iy2 + iz2 + y02 + z02]0.5
+        # --- Geometry: polar radius of gyration i0 (mm) ---
+        i0_mm = (i0_m * 1e3) if (i0_m is not None) else 0.0
+        _eq_line("Polar radius of gyration:", r"i_0=\sqrt{i_y^2+i_z^2+y_0^2+z_0^2}")
+        _eq_line("&nbsp;", rf"=\sqrt{{({iy_mm:.1f})^2+({iz_mm:.1f})^2+0^2+0^2}}={i0_mm:.1f}\,\mathrm{{mm}}")
 
-    For doubly symmetrical cross-sections the shear center and the centroid coincide, therefore y0 = 0 and z0 = 0 and:
+        # --- Effective torsional buckling length ---
+        L_mm = float(L) * 1000.0
+        LcrT_mm = float(K_T) * L_mm
+        _eq_line("Effective torsional buckling length:", r"L_{cr,T}=K_T\,L")
+        _eq_line("&nbsp;", rf"={K_T:.3f}\cdot {L_mm:.0f}={LcrT_mm:.0f}\,\mathrm{{mm}}")
 
-    i0 = [iy2 + iz2]0.5 = [({iy_mm:.1f} mm)2 + ({iz_mm:.1f} mm)2]0.5 = {(i0_m*1e3 if i0_m else float('nan')):.1f} mm
+        # --- Elastic critical force for torsional buckling ---
+        E_MPa = 210000.0
+        G_MPa = 80769.0
+        if i0_mm > 0 and It_mm4 > 0 and Iw_mm6 > 0 and LcrT_mm > 0:
+            NcrT_disp_kN = ((1.0 / (i0_mm**2)) * (G_MPa * It_mm4 + (math.pi**2) * E_MPa * Iw_mm6 / (LcrT_mm**2))) / 1000.0
+        else:
+            NcrT_disp_kN = 0.0
 
-    The critical buckling length Lcr,T for torsional buckling is considered as Lcr,T = {K_T:.3f}⋅L = {K_T*L:.3f} m.
+        _eq_line("Elastic critical force:", r"N_{cr,T}=\frac{1}{i_0^2}\left(G I_T+\frac{\pi^2 E I_w}{L_{cr,T}^2}\right)")
+        _eq_line("&nbsp;", rf"=\frac{{1}}{{({i0_mm:.1f})^2}}\left({G_MPa:.0f}\cdot {It_mm4:,.0f}+\frac{{\pi^2\cdot {E_MPa:.0f}\cdot {Iw_mm6:,.0f}}}{{({LcrT_mm:.0f})^2}}\right)={NcrT_disp_kN:.1f}\,\mathrm{{kN}}")
 
-    The elastic critical force Ncr,T for torsional buckling is estimated as:
+        st.markdown(
+            "For **doubly symmetric** sections (shear centre at the centroid: $y_0=z_0=0$), "
+            "the torsional-flexural critical load is commonly taken equal to the torsional one: "
+            "$N_{cr,TF}=N_{cr,T}$ (see EN 1993-1-1 §6.3.1.4)."
+        )
 
-    Ncr,T = (1 / i02)⋅(G⋅IT + π2⋅E⋅Iw / Lcr,T2) = {(Ncr_T/1e3 if Ncr_T else float('nan')):.1f} kN
+        # --- Non-dimensional slenderness (torsional / torsional-flexural) ---
+        NcrT_N = float(Ncr_T or 0.0)
+        alpha_T = float(extras.get("buck_alpha_z") or 0.34)  # use minor-axis curve
+        lam_T = math.sqrt((A_mm2 * fy) / NcrT_N) if NcrT_N > 0 else 0.0
+        phi_T = 0.5 * (1.0 + alpha_T * (lam_T - 0.20) + lam_T**2)
+        chi_T_disp = chi_reduction(lam_T, alpha_T)
+        NbRdT_disp_kN = (chi_T_disp * A_mm2 * fy / gamma_M1) / 1000.0
+        utilT_disp = (abs(NEd_kN) / NbRdT_disp_kN) if NbRdT_disp_kN > 0 else float("inf")
 
-    The design buckling resistance is:
+        _eq_line("Non-dimensional slenderness:", r"\bar{\lambda}_T=\sqrt{\frac{A f_y}{N_{cr,T}}}")
+        _eq_line("&nbsp;", rf"=\sqrt{{\frac{{{A_mm2:,.0f}\cdot {fy:.0f}}}{{{NcrT_disp_kN:.1f}\times 10^3}}}}={lam_T:.3f}")
 
-    Nb,Rd,T = χ ⋅ A ⋅ fy / γM1 = {(Nb_Rd_T/1e3 if Nb_Rd_T else float('nan')):.1f} kN
+        _eq_line("Auxiliary factor:", r"\Phi_T=\frac{1}{2}\left[1+\alpha_T(\bar{\lambda}_T-0.2)+\bar{\lambda}_T^2\right]")
+        _eq_line("&nbsp;", rf"=\frac{{1}}{{2}}\left[1+{alpha_T:.2f}({lam_T:.3f}-0.2)+{lam_T:.3f}^2\right]={phi_T:.3f}")
 
-    Therefore the utilization is:
+        _eq_line("Reduction factor:", r"\chi_T=\min\left(1,\frac{1}{\Phi_T+\sqrt{\Phi_T^2-\bar{\lambda}_T^2}}\right)")
+        _eq_line("&nbsp;", rf"={chi_T_disp:.3f}")
 
-    u = NEd / Nb,Rd,T = {(util_T if util_T is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_T is not None and util_T <= 1.0) else "exceeds"}""")
+        _eq_line("Design buckling resistance:", r"N_{b,Rd,T}=\chi_T\,\frac{A f_y}{\gamma_{M1}}")
+        _eq_line("&nbsp;", rf"={chi_T_disp:.3f}\cdot\frac{{{A_mm2:,.0f}\cdot {fy:.0f}}}{{{gamma_M1:.2f}}}={NbRdT_disp_kN:.1f}\,\mathrm{{kN}}")
+
+        _eq_line("Utilization:", r"u_T=\frac{N_{Ed}}{N_{b,Rd,T}}")
+        _eq_line("&nbsp;", rf"=\frac{{{abs(NEd_kN):.1f}}}{{{NbRdT_disp_kN:.1f}}}={utilT_disp:.3f}")
+        st.markdown("**Status:** " + ("OK" if utilT_disp <= 1.0 else "EXCEEDS"))
 
         # ----------------------------
         # (18) Lateral-torsional buckling
         # ----------------------------
         report_h4("(18) Lateral-torsional buckling – EN 1993-1-1 §6.3.2")
-        st.markdown(f"""
-    Members with laterally unrestrained compression flange subject to bending about major axis y-y should be verified against lateral-torsional buckling in accordance with EN1993-1-1 §6.3.2 as follows:
 
-    My,Ed / Mb,Rd ≤ 1.0
+        st.markdown(
+            "A laterally unrestrained member in **major-axis bending** should be verified against lateral-torsional buckling "
+            "in accordance with **EN 1993-1-1 §6.3.2** (see also §8.3.2). The design condition is:"
+        )
+        _eq_center(r"\frac{M_{Ed}}{M_{b,Rd}}\le 1.0")
+        _eq_center(r"M_{b,Rd}=\chi_{LT}\,\frac{M_{Rk}}{\gamma_{M1}}")
 
-    where Mb,Rd is the design buckling resistance moment:
+        # Characteristic bending resistance for display (consistent with compute_checks)
+        Wy_mm3 = (Wpl_y_mm3 if (Wpl_y_mm3 > 0) else Wel_y_mm3)
+        MRk_kNm = (Wy_mm3 * fy) / 1e6 if Wy_mm3 > 0 else 0.0
+        _eq_line("Characteristic resistance:", r"M_{Rk}=W_y f_y")
+        _eq_line("&nbsp;", rf"={Wy_mm3:,.0f}\cdot {fy:.0f}={MRk_kNm:.1f}\,\mathrm{{kNm}}")
 
-    Mb,Rd = χLT⋅Wy⋅fy / γM1
+        # Elastic critical moment for LTB
+        Mcr_kNm = (Mcr / 1e3) if (Mcr is not None) else 0.0
+        lamLT = float(lam_LT or 0.0)
+        chiLT_disp = float(chi_LT or 0.0)
+        MbRd_kNm = (Mb_Rd / 1e3) if (Mb_Rd is not None) else 0.0
+        utilLT_disp = float(util_LT if util_LT is not None else float("inf"))
 
-    For class 1 or 2 cross-sections: Wy = Wpl,y = {Wpl_y_mm3:,.0f} mm3
+        _eq_line("Elastic critical moment:", r"M_{cr}\;\text{(from gross section properties)}")
+        _eq_line("&nbsp;", rf"={Mcr_kNm:.1f}\,\mathrm{{kNm}}")
 
-    Elastic critical moment (uniform moment, k=kw=1, zg=0) is calculated as:
+        _eq_line("Relative slenderness:", r"\bar{\lambda}_{LT}=\sqrt{\frac{M_{Rk}}{M_{cr}}}")
+        _eq_line("&nbsp;", rf"=\sqrt{{\frac{{{MRk_kNm:.1f}}}{{{Mcr_kNm:.1f}}}}}={lamLT:.3f}")
 
-    Mcr = {(Mcr/1e3 if Mcr else float('nan')):.1f} kNm
+        # Reduction factor (EN 1993-1-1 §6.3.2 / §8.3.2)
+        alpha_LT = 0.34
+        lamLT0 = 0.40
+        beta_LT = 0.75
+        phiLT = 0.5 * (1.0 + alpha_LT * (lamLT - lamLT0) + beta_LT * lamLT**2)
 
-    The non-dimensional slenderness is:
+        _eq_line("Auxiliary factor:", r"\Phi_{LT}=\frac{1}{2}\left[1+\alpha_{LT}(\bar{\lambda}_{LT}-\bar{\lambda}_{LT,0})+\beta\bar{\lambda}_{LT}^2\right]")
+        _eq_line("&nbsp;", rf"=\frac{{1}}{{2}}\left[1+{alpha_LT:.2f}({lamLT:.3f}-{lamLT0:.2f})+{beta_LT:.2f}{lamLT:.3f}^2\right]={phiLT:.3f}")
 
-    λLT = (Wy⋅fy / Mcr)0.5 = {(lam_LT if lam_LT is not None else float('nan')):.3f}
+        _eq_line("Reduction factor:", r"\chi_{LT}=\min\left(1,\frac{1}{\Phi_{LT}+\sqrt{\Phi_{LT}^2-\bar{\lambda}_{LT}^2}}\right)")
+        _eq_line("&nbsp;", rf"={chiLT_disp:.3f}")
 
-    The reduction factor is:
+        _eq_line("Design LTB resistance:", r"M_{b,Rd}=\chi_{LT}\,\frac{M_{Rk}}{\gamma_{M1}}")
+        _eq_line("&nbsp;", rf"={chiLT_disp:.3f}\cdot\frac{{{MRk_kNm:.1f}}}{{{gamma_M1:.2f}}}={MbRd_kNm:.1f}\,\mathrm{{kNm}}")
 
-    χLT = {(chi_LT if chi_LT is not None else float('nan')):.3f}
-
-    The design buckling resistance moment is:
-
-    Mb,Rd = {(Mb_Rd/1e3 if Mb_Rd else float('nan')):.1f} kNm
-
-    Therefore the utilization for the lateral-torsional buckling resistance is:
-
-    u = My,Ed / Mb,Rd = {abs(MyEd_kNm):.1f} kNm / {(Mb_Rd/1e3 if Mb_Rd else float('nan')):.1f} kNm = {(util_LT if util_LT is not None else float('nan')):.3f} ≤ 1.0 ⇒ {"ok" if (util_LT is not None and util_LT <= 1.0) else "exceeds"}
-    """)
+        MyEd_kNm = float(My_Ed_kNm)
+        _eq_line("Utilization:", r"u_{LT}=\frac{|M_{Ed}|}{M_{b,Rd}}")
+        _eq_line("&nbsp;", rf"=\frac{{{abs(MyEd_kNm):.1f}}}{{{MbRd_kNm:.1f}}}={utilLT_disp:.3f}")
+        st.markdown("**Status:** " + ("OK" if utilLT_disp <= 1.0 else "EXCEEDS"))
 
         # ----------------------------
 
@@ -5320,6 +5373,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
