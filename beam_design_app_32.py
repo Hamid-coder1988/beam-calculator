@@ -4208,7 +4208,7 @@ def render_report_tab():
 
         # Shear resistances
         if Av_z_mm2 > 0 and fy > 0:
-            Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1000.0
+            Vc_z_Rd_kN = (Av_z_mm2 * (fy / (3 ** 0.5)) / gamma_M0) / 1000.0
         else:
             Vc_z_Rd_kN = 0.0
 
@@ -5526,4 +5526,5 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
