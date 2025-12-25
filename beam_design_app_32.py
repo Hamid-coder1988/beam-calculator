@@ -1065,6 +1065,8 @@ def render_ready_cases_panel():
 
             # Basic mapping
             st.session_state["L_in"] = float(input_vals.get("L", 6.0))
+            st.session_state["L_mm_in"] = st.session_state["L_in"] * 1000.0
+
             st.session_state["N_in"] = float(N)
 
             # Get axis choice again (same key as above)
@@ -1529,8 +1531,8 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
                         key="L_mm_in",
                         disabled=read_only,
                     )
-                
-                    # keep legacy "L_in" (m) in sync for other parts of the app
+                    
+                    # keep legacy length in meters synced (some parts still read L_in)
                     st.session_state["L_in"] = st.session_state["L_mm_in"] / 1000.0
             with r1c2:
                 N_kN = st.number_input("Axial force N (kN)", key="N_in",disabled=read_only,)
@@ -1573,7 +1575,7 @@ def store_design_forces_from_state():
     Run button inside the Loads tab; it is now triggered from the Results tab.
     """
     # Raw inputs from Loads form
-    L = float(st.session_state.get("L_mm_in", 0.0)) / 1000.0
+    LL = float(st.session_state.get("L_mm_in", 0.0)) / 1000.0  # mm → m (internal calculations use m)
     N_kN = float(st.session_state.get("N_in", 0.0))
     Vy_kN = float(st.session_state.get("Vy_in", 0.0))
     Vz_kN = float(st.session_state.get("Vz_in", 0.0))
@@ -4770,7 +4772,9 @@ def render_report_tab():
             # buckling length
             _eq_line(
                 "Effective buckling length:",
-                rf"L_{{cr,{axis}}}=K_{{{axis}}}L={K:.3f}\cdot {L:.3f}={K*L:.3f}\,\mathrm{{m}}"
+                L_mm = L * 1000.0
+                Lcr_mm = K * L_mm
+                rf"L_{{cr,{axis}}}=K_{{{axis}}}L={K:.3f}\cdot {L_mm:.0f}={Lcr_mm:.0f}\,\mathrm{{mm}}"
             )
         
             # elastic critical load
@@ -4780,8 +4784,9 @@ def render_report_tab():
             )
             _eq_line(
                 "&nbsp;",
-                rf"=\frac{{\pi^2\cdot {E_MPa:.0f}\,\mathrm{{MPa}}\cdot {I_mm4:,.0f}\,\mathrm{{mm}}^4}}{{({K*L:.3f}\,\mathrm{{m}})^2}}"
-                rf"={Ncr_kN:.1f}\,\mathrm{{kN}}"
+                Ncr_disp_kN = (math.pi**2 * E_MPa * I_mm4 / (Lcr_mm**2)) / 1000.0 if Lcr_mm > 0 else 0.0
+                rf"=\frac{{\pi^2\cdot {E_MPa:.0f}\,\mathrm{{MPa}}\cdot {I_mm4:,.0f}\,\mathrm{{mm}}^4}}{{({Lcr_mm:.0f}\,\mathrm{{mm}})^2}}"
+                rf"={Ncr_disp_kN:.1f}\,\mathrm{{kN}}"
             )
 
             # quick “ignore buckling” check (EN 1993-1-1 §6.3.1.2)
@@ -5299,6 +5304,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
