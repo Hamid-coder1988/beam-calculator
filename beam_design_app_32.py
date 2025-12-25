@@ -1520,13 +1520,18 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
             r1c1, r1c2, r1c3 = st.columns(3)
             
             with r1c1:
-                L_mm = st.number_input(
-                    "Element length L (mm)",
-                    min_value=1.0,
-                    value=float(st.session_state.get("L_mm_in", 6000.0)),
-                    key="L_mm_in",
-                    disabled=read_only,
-                )
+                with r1c1:
+                    L_mm = st.number_input(
+                        "Element length L (mm)",
+                        min_value=1.0,
+                        value=float(st.session_state.get("L_mm_in", 6000.0)),
+                        step=100.0,
+                        key="L_mm_in",
+                        disabled=read_only,
+                    )
+                
+                    # keep legacy "L_in" (m) in sync for other parts of the app
+                    st.session_state["L_in"] = st.session_state["L_mm_in"] / 1000.0
             with r1c2:
                 N_kN = st.number_input("Axial force N (kN)", key="N_in",disabled=read_only,)
             
@@ -1568,7 +1573,7 @@ def store_design_forces_from_state():
     Run button inside the Loads tab; it is now triggered from the Results tab.
     """
     # Raw inputs from Loads form
-    L = float(st.session_state.get("L_in", 0.0))
+    L = float(st.session_state.get("L_mm_in", 0.0)) / 1000.0
     N_kN = float(st.session_state.get("N_in", 0.0))
     Vy_kN = float(st.session_state.get("Vy_in", 0.0))
     Vz_kN = float(st.session_state.get("Vz_in", 0.0))
@@ -5294,6 +5299,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
