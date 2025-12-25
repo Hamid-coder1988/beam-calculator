@@ -1575,7 +1575,7 @@ def store_design_forces_from_state():
     Run button inside the Loads tab; it is now triggered from the Results tab.
     """
     # Raw inputs from Loads form
-    LL = float(st.session_state.get("L_mm_in", 0.0)) / 1000.0  # mm → m (internal calculations use m)
+    L = float(st.session_state.get("L_mm_in", 0.0)) / 1000.0  # mm → m (internal calculations use m)
     N_kN = float(st.session_state.get("N_in", 0.0))
     Vy_kN = float(st.session_state.get("Vy_in", 0.0))
     Vz_kN = float(st.session_state.get("Vz_in", 0.0))
@@ -5313,6 +5313,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
