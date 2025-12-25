@@ -3648,7 +3648,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
 
 def render_report_tab():
     sr_display = st.session_state.get("sr_display")
-
+    import math
     # Alias: section properties used throughout the report
     use_props = sr_display or {}
     inputs = st.session_state.get("inputs")
@@ -5681,6 +5681,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
