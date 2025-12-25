@@ -5213,6 +5213,161 @@ def render_report_tab():
         st.latex(rf"u_{{g}} = \max(u_y,u_z) = {u_g_B:.3f}")
         st.markdown("✅ OK" if (util_int_B is not None and util_int_B <= 1.0) else "❌ NOT OK")
 
+            # ============================
+        # (19),(20) Method 1 — Annex A
+        # ============================
+        report_h4("(19),(20) Buckling interaction for bending and axial compression — Method 1 (EN 1993-1-1 Annex A)")
+
+        import math
+
+        def _sf(x, default=None):
+            """safe-float: returns None if missing/NaN/inf"""
+            try:
+                v = float(x)
+                if not math.isfinite(v):
+                    return default
+                return v
+            except Exception:
+                return default
+
+        def _latex_block(lines):
+            # lines = list[str] that already contain LaTeX rows
+            st.latex(r"\begin{aligned}" + "\n" + r"\\[3pt]".join(lines) + "\n" + r"\end{aligned}")
+
+        def _OK(v):
+            return (v is not None) and (v <= 1.0)
+
+        # --- Pull values from buck_map (computed in compute_checks) ---
+        psi_y = _sf(buck_map.get("psi_y", 1.0), 1.0)
+        psi_z = _sf(buck_map.get("psi_z", 1.0), 1.0)
+
+        Cmy0_A = _sf(buck_map.get("Cmy0_A"), None)
+        Cmz0_A = _sf(buck_map.get("Cmz0_A"), None)
+
+        Cmy_A  = _sf(buck_map.get("Cmy_A"),  None)
+        Cmz_A  = _sf(buck_map.get("Cmz_A"),  None)
+        CmLT_A = _sf(buck_map.get("CmLT_A"), None)
+
+        kyy_A = _sf(buck_map.get("kyy_A"), None)
+        kyz_A = _sf(buck_map.get("kyz_A"), None)
+        kzy_A = _sf(buck_map.get("kzy_A"), None)
+        kzz_A = _sf(buck_map.get("kzz_A"), None)
+
+        util_61_A  = _sf(buck_map.get("util_61_A"), None)
+        util_62_A  = _sf(buck_map.get("util_62_A"), None)
+        util_int_A = _sf(buck_map.get("util_int_A"), None)
+
+        st.markdown(
+            "Method 1 is based on **EN 1993-1-1:2022 Annex A**. "
+            "Equivalent uniform moment factors are taken from **Table A.2**. "
+            "Interaction verification follows **8.3.3** using Formulae **(8.88)–(8.89)**."
+        )
+
+        st.markdown("### Equivalent uniform moment factors (Annex A, Table A.2)")
+        _latex_block([
+            r"C_{my,0}=0.79+0.21\,\psi_y+0.36(\psi_y-0.33)\frac{N_{Ed}}{N_{cr,y}}",
+            rf"\psi_y={psi_y:.3f}\;\;\Rightarrow\;\;C_{{my,0}}={Cmy0_A:.3f}" if Cmy0_A is not None else rf"\psi_y={psi_y:.3f}\;\;\Rightarrow\;\;C_{{my,0}}=\mathrm{{n/a}}",
+            r"C_{mz,0}=0.79+0.21\,\psi_z+0.36(\psi_z-0.33)\frac{N_{Ed}}{N_{cr,z}}",
+            rf"\psi_z={psi_z:.3f}\;\;\Rightarrow\;\;C_{{mz,0}}={Cmz0_A:.3f}" if Cmz0_A is not None else rf"\psi_z={psi_z:.3f}\;\;\Rightarrow\;\;C_{{mz,0}}=\mathrm{{n/a}}",
+        ])
+
+        st.markdown("### Moment factors including LTB effect (Annex A)")
+        _latex_block([
+            rf"C_{{my}}={Cmy_A:.3f}"  if Cmy_A  is not None else r"C_{my}=\mathrm{n/a}",
+            rf"C_{{mz}}={Cmz_A:.3f}"  if Cmz_A  is not None else r"C_{mz}=\mathrm{n/a}",
+            rf"C_{{mLT}}={CmLT_A:.3f}" if CmLT_A is not None else r"C_{mLT}=\mathrm{n/a}",
+        ])
+
+        st.markdown("### Interaction factors (Annex A)")
+        _latex_block([
+            rf"k_{{yy}}={kyy_A:.3f}" if kyy_A is not None else r"k_{yy}=\mathrm{n/a}",
+            rf"k_{{yz}}={kyz_A:.3f}" if kyz_A is not None else r"k_{yz}=\mathrm{n/a}",
+            rf"k_{{zy}}={kzy_A:.3f}" if kzy_A is not None else r"k_{zy}=\mathrm{n/a}",
+            rf"k_{{zz}}={kzz_A:.3f}" if kzz_A is not None else r"k_{zz}=\mathrm{n/a}",
+        ])
+
+        st.markdown("### Verification (Formulae 8.88–8.89)")
+        _latex_block([
+            r"u_y=\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}+k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
+            (rf"u_y={util_61_A:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_61_A) else rf"u_y={util_61_A:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_61_A is not None else r"u_y=\mathrm{n/a}",
+            r"u_z=\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
+            (rf"u_z={util_62_A:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_62_A) else rf"u_z={util_62_A:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_62_A is not None else r"u_z=\mathrm{n/a}",
+        ])
+
+        _latex_block([
+            rf"u=\max(u_y,u_z)={util_int_A:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_int_A)
+            else (rf"u=\max(u_y,u_z)={util_int_A:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}" if util_int_A is not None else r"u=\max(u_y,u_z)=\mathrm{n/a}")
+        ])
+
+        # ============================
+        # (21),(22) Method 2 — Annex B
+        # ============================
+        report_h4("(21),(22) Buckling interaction for bending and axial compression — Method 2 (EN 1993-1-1 Annex B)")
+
+        psi_y  = _sf(buck_map.get("psi_y", 1.0), 1.0)
+        psi_z  = _sf(buck_map.get("psi_z", 1.0), 1.0)
+        psi_LT = _sf(buck_map.get("psi_LT", 1.0), 1.0)
+
+        lam_y = _sf(buck_map.get("lam_y"), None)
+        lam_z = _sf(buck_map.get("lam_z"), None)
+
+        Cmy_B  = _sf(buck_map.get("Cmy_B"),  None)
+        Cmz_B  = _sf(buck_map.get("Cmz_B"),  None)
+        CmLT_B = _sf(buck_map.get("CmLT_B"), None)
+
+        kyy_B = _sf(buck_map.get("kyy_B"), None)
+        kzz_B = _sf(buck_map.get("kzz_B"), None)
+        kyz_B = _sf(buck_map.get("kyz_B"), None)
+        kzy_B = _sf(buck_map.get("kzy_B"), None)
+
+        util_61_B  = _sf(buck_map.get("util_61_B"), None)
+        util_62_B  = _sf(buck_map.get("util_62_B"), None)
+        util_int_B = _sf(buck_map.get("util_int_B"), None)
+
+        st.markdown(
+            "Method 2 follows **EN 1993-1-1:2022 Annex B**. "
+            "Equivalent uniform moment factors **Cmi** are taken from **Table B.3**. "
+            "For I-sections susceptible to LTB, interaction factors follow **Table B.2** (using the λ-limits via min{λ,1.0})."
+        )
+
+        st.markdown("### Equivalent uniform moment factors (Annex B, Table B.3)")
+        _latex_block([
+            r"C_{my}=\max\!\left(0.4,\;0.60+0.40\,\psi_y\right)",
+            rf"\psi_y={psi_y:.3f}\;\Rightarrow\;C_{{my}}={Cmy_B:.3f}" if Cmy_B is not None else rf"\psi_y={psi_y:.3f}\;\Rightarrow\;C_{{my}}=\mathrm{{n/a}}",
+            r"C_{mz}=\max\!\left(0.4,\;0.60+0.40\,\psi_z\right)",
+            rf"\psi_z={psi_z:.3f}\;\Rightarrow\;C_{{mz}}={Cmz_B:.3f}" if Cmz_B is not None else rf"\psi_z={psi_z:.3f}\;\Rightarrow\;C_{{mz}}=\mathrm{{n/a}}",
+            r"C_{mLT}=\max\!\left(0.4,\;0.60+0.40\,\psi_{LT}\right)",
+            rf"\psi_{{LT}}={psi_LT:.3f}\;\Rightarrow\;C_{{mLT}}={CmLT_B:.3f}" if CmLT_B is not None else rf"\psi_{{LT}}={psi_LT:.3f}\;\Rightarrow\;C_{{mLT}}=\mathrm{{n/a}}",
+        ])
+
+        st.markdown("### Interaction factors (Annex B, Table B.2 — susceptible to LTB)")
+        _latex_block([
+            rf"\bar\lambda_y={lam_y:.3f}" if lam_y is not None else r"\bar\lambda_y=\mathrm{n/a}",
+            rf"\bar\lambda_z={lam_z:.3f}" if lam_z is not None else r"\bar\lambda_z=\mathrm{n/a}",
+            r"k_{yy}=C_{my}\left[1+\left(\min(\bar\lambda_y,1.0)-0.2\right)\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}\right]",
+            rf"k_{{yy}}={kyy_B:.3f}" if kyy_B is not None else r"k_{yy}=\mathrm{n/a}",
+            r"k_{zz}=C_{mz}\left[1+\left(2\min(\bar\lambda_z,1.0)-0.6\right)\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}\right]",
+            rf"k_{{zz}}={kzz_B:.3f}" if kzz_B is not None else r"k_{zz}=\mathrm{n/a}",
+            r"k_{yz}=0.6\,k_{zz}",
+            rf"k_{{yz}}={kyz_B:.3f}" if kyz_B is not None else r"k_{yz}=\mathrm{n/a}",
+            r"k_{zy}=1-\frac{0.1\,\min(\bar\lambda_z,1.0)}{(C_{mLT}-0.25)}\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}\,}\quad(\bar\lambda_z\ge 0.4)",
+            rf"k_{{zy}}={kzy_B:.3f}" if kzy_B is not None else r"k_{zy}=\mathrm{n/a}",
+        ])
+
+        st.markdown("### Verification of member resistance (Annex B)")
+        _latex_block([
+            r"u_y=\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}+k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
+            (rf"u_y={util_61_B:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_61_B) else rf"u_y={util_61_B:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_61_B is not None else r"u_y=\mathrm{n/a}",
+            r"u_z=\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
+            (rf"u_z={util_62_B:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_62_B) else rf"u_z={util_62_B:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_62_B is not None else r"u_z=\mathrm{n/a}",
+        ])
+
+        _latex_block([
+            rf"u=\max(u_y,u_z)={util_int_B:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_int_B)
+            else (rf"u=\max(u_y,u_z)={util_int_B:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}" if util_int_B is not None else r"u=\max(u_y,u_z)=\mathrm{n/a}")
+        ])
+
+
     # ----------------------------------------------------
         # 8. References
         # ----------------------------------------------------
@@ -5526,5 +5681,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
