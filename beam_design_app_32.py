@@ -4777,7 +4777,8 @@ def render_report_tab():
             _eq_line(
                 "Effective buckling length:",
                 rf"L_{{cr,{axis}}}=K_{{{axis}}}L={K:.3f}\cdot {L_mm:.0f}"
-
+                rf"={Lcr_mm:.0f}\,\mathrm{{mm}}"
+            )
             # elastic critical load
             _eq_line(
                 "Elastic critical load:",
