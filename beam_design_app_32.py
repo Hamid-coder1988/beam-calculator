@@ -5293,38 +5293,6 @@ def render_report_tab():
             r"u_z=\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
             (rf"u_z={util_62_A:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_62_A) else rf"u_z={util_62_A:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_62_A is not None else r"u_z=\mathrm{n/a}",
         ])
-        uy = float(util_61_B or 0.0)
-        uz = float(util_62_B or 0.0)
-        u_int = float(util_int_B or 0.0)
-        
-        uy_txt = "OK" if (util_61_B is not None and util_61_B <= 1.0) else "NOT\\ OK"
-        uz_txt = "OK" if (util_62_B is not None and util_62_B <= 1.0) else "NOT\\ OK"
-        u_txt  = "OK" if (util_int_B is not None and util_int_B <= 1.0) else "NOT\\ OK"
-        
-        st.latex(
-            rf"""
-            \begin{{aligned}}
-            u_y &=
-            \frac{{N_{{Ed}}}}{{\chi_y N_{{Rk}}/\gamma_{{M1}}}}
-            + k_{{yy}} \frac{{M_{{y,Ed}}}}{{\chi_{{LT}} M_{{y,Rk}}/\gamma_{{M1}}}}
-            + k_{{yz}} \frac{{M_{{z,Ed}}}}{{M_{{z,Rk}}/\gamma_{{M1}}}}
-            \le 1.0
-            \\[10pt]
-            u_y &= {uy:.3f} \;\Rightarrow\; {uy_txt}
-            \\[18pt]
-            u_z &=
-            \frac{{N_{{Ed}}}}{{\chi_z N_{{Rk}}/\gamma_{{M1}}}}
-            + k_{{zy}} \frac{{M_{{y,Ed}}}}{{\chi_{{LT}} M_{{y,Rk}}/\gamma_{{M1}}}}
-            + k_{{zz}} \frac{{M_{{z,Ed}}}}{{M_{{z,Rk}}/\gamma_{{M1}}}}
-            \le 1.0
-            \\[10pt]
-            u_z &= {uz:.3f} \;\Rightarrow\; {uz_txt}
-            \\[18pt]
-            u &= \max(u_y, u_z) = {u_int:.3f} \;\Rightarrow\; {u_txt}
-            \end{{aligned}}
-            """
-        )
-
 
         _latex_block([
             rf"u=\max(u_y,u_z)={util_int_A:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_int_A)
@@ -5393,6 +5361,37 @@ def render_report_tab():
             r"u_z=\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
             (rf"u_z={util_62_B:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_62_B) else rf"u_z={util_62_B:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_62_B is not None else r"u_z=\mathrm{n/a}",
         ])
+         uy = float(util_61_B or 0.0)
+        uz = float(util_62_B or 0.0)
+        u_int = float(util_int_B or 0.0)
+        
+        uy_txt = "OK" if (util_61_B is not None and util_61_B <= 1.0) else "NOT\\ OK"
+        uz_txt = "OK" if (util_62_B is not None and util_62_B <= 1.0) else "NOT\\ OK"
+        u_txt  = "OK" if (util_int_B is not None and util_int_B <= 1.0) else "NOT\\ OK"
+        
+        st.latex(
+            rf"""
+            \begin{{aligned}}
+            u_y &=
+            \frac{{N_{{Ed}}}}{{\chi_y N_{{Rk}}/\gamma_{{M1}}}}
+            + k_{{yy}} \frac{{M_{{y,Ed}}}}{{\chi_{{LT}} M_{{y,Rk}}/\gamma_{{M1}}}}
+            + k_{{yz}} \frac{{M_{{z,Ed}}}}{{M_{{z,Rk}}/\gamma_{{M1}}}}
+            \le 1.0
+            \\[10pt]
+            u_y &= {uy:.3f} \;\Rightarrow\; {uy_txt}
+            \\[18pt]
+            u_z &=
+            \frac{{N_{{Ed}}}}{{\chi_z N_{{Rk}}/\gamma_{{M1}}}}
+            + k_{{zy}} \frac{{M_{{y,Ed}}}}{{\chi_{{LT}} M_{{y,Rk}}/\gamma_{{M1}}}}
+            + k_{{zz}} \frac{{M_{{z,Ed}}}}{{M_{{z,Rk}}/\gamma_{{M1}}}}
+            \le 1.0
+            \\[10pt]
+            u_z &= {uz:.3f} \;\Rightarrow\; {uz_txt}
+            \\[18pt]
+            u &= \max(u_y, u_z) = {u_int:.3f} \;\Rightarrow\; {u_txt}
+            \end{{aligned}}
+            """
+        )
 
         _latex_block([
             rf"u=\max(u_y,u_z)={util_int_B:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_int_B)
@@ -5713,6 +5712,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
