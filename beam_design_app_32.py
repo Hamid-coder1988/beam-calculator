@@ -5016,161 +5016,202 @@ def render_report_tab():
 
         # ---- Method 1 (Annex A) ----
         report_h4("(19),(20) Buckling interaction for bending and axial compression — Method 1 (EN 1993-1-1 Annex A)")
-        
+
         # Pull already-calculated values from buck_map (compute_checks)
         psi_y = float(buck_map.get("psi_y", 1.0) or 1.0)
         psi_z = float(buck_map.get("psi_z", 1.0) or 1.0)
-        
+
         Cmy0_A = float(buck_map.get("Cmy0_A", 0.0) or 0.0)
         Cmz0_A = float(buck_map.get("Cmz0_A", 0.0) or 0.0)
-        
+
         Cmy_A  = float(buck_map.get("Cmy_A", 0.0) or 0.0)
         Cmz_A  = float(buck_map.get("Cmz_A", 0.0) or 0.0)
         CmLT_A = float(buck_map.get("CmLT_A", 0.0) or 0.0)
-        
+
         kyy_A = float(buck_map.get("kyy_A", 0.0) or 0.0)
         kyz_A = float(buck_map.get("kyz_A", 0.0) or 0.0)
         kzy_A = float(buck_map.get("kzy_A", 0.0) or 0.0)
         kzz_A = float(buck_map.get("kzz_A", 0.0) or 0.0)
-        
+
         util_61_A = buck_map.get("util_61_A")
         util_62_A = buck_map.get("util_62_A")
         util_int_A = buck_map.get("util_int_A")
-        
+
+        # --- Short narrative (keep minimal; everything else in math) ---
         st.markdown(
             "Method 1 is based on **EN 1993-1-1 Annex A**. "
-            "Equivalent uniform moment factors are taken from **Table A.2**, and interaction factors are determined per Annex A."
+            "Equivalent uniform moment factors are from **Table A.2**; interaction factors follow Annex A."
         )
-        
+
+        # --- Equivalent uniform moment factors (Table A.2) ---
         st.markdown("### Equivalent uniform moment factors (Annex A, Table A.2)")
-        _eq_line(
-            "Major axis (y–y):",
-            r"C_{my,0}=0.79+0.21\,\psi_y+0.36(\psi_y-0.33)\frac{N_{Ed}}{N_{cr,y}}"
-        )
-        _eq_line("&nbsp;", rf"= {Cmy0_A:.3f}")
-        
-        _eq_line(
-            "Minor axis (z–z):",
-            r"C_{mz,0}=0.79+0.21\,\psi_z+0.36(\psi_z-0.33)\frac{N_{Ed}}{N_{cr,z}}"
-        )
-        _eq_line("&nbsp;", rf"= {Cmz0_A:.3f}")
-        
+        st.latex(rf"""
+        \begin{{aligned}}
+        C_{{my,0}} &= 0.79 + 0.21\,\psi_y + 0.36(\psi_y-0.33)\frac{{N_{{Ed}}}}{{N_{{cr,y}}}}
+        = {Cmy0_A:.3f} \\
+        C_{{mz,0}} &= 0.79 + 0.21\,\psi_z + 0.36(\psi_z-0.33)\frac{{N_{{Ed}}}}{{N_{{cr,z}}}}
+        = {Cmz0_A:.3f}
+        \end{{aligned}}
+        """)
+
+        # --- Moment factors including LTB effect ---
         st.markdown("### Moment factors including LTB effect (Annex A)")
-        st.markdown(
-            f"- ψy = **{psi_y:.3f}**, ψz = **{psi_z:.3f}**\n"
-            f"- Cmy = **{Cmy_A:.3f}**, Cmz = **{Cmz_A:.3f}**, CmLT = **{CmLT_A:.3f}**"
-        )
-        
+        st.latex(rf"""
+        \begin{{aligned}}
+        \psi_y &= {psi_y:.3f}, \qquad \psi_z = {psi_z:.3f} \\
+        C_{{my}} &= {Cmy_A:.3f}, \qquad
+        C_{{mz}} = {Cmz_A:.3f}, \qquad
+        C_{{mLT}} = {CmLT_A:.3f}
+        \end{{aligned}}
+        """)
+
+        # --- Interaction factors ---
         st.markdown("### Interaction factors (Annex A)")
-        st.markdown(
-            f"- kyy = **{kyy_A:.3f}**, kyz = **{kyz_A:.3f}**, kzy = **{kzy_A:.3f}**, kzz = **{kzz_A:.3f}**"
-        )
-        
+        st.latex(rf"""
+        \begin{{aligned}}
+        k_{{yy}} &= {kyy_A:.3f}, \qquad
+        k_{{yz}} = {kyz_A:.3f}, \qquad
+        k_{{zy}} = {kzy_A:.3f}, \qquad
+        k_{{zz}} = {kzz_A:.3f}
+        \end{{aligned}}
+        """)
+
+        # --- Verification (Annex A) ---
         st.markdown("### Verification (Annex A)")
-        _eq_line(
-            "Equation (about y):",
-            r"\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}+k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0"
-        )
-        _eq_line("&nbsp;", rf"u = {float(util_61_A or 0.0):.3f} {'\\Rightarrow\\,OK' if (util_61_A is not None and util_61_A<=1.0) else '\\Rightarrow\\,NOT\\,OK'}")
-        
-        _eq_line(
-            "Equation (about z):",
-            r"\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0"
-        )
-        _eq_line("&nbsp;", rf"u = {float(util_62_A or 0.0):.3f} {'\\Rightarrow\\,OK' if (util_62_A is not None and util_62_A<=1.0) else '\\Rightarrow\\,NOT\\,OK'}")
-        
-        st.markdown(
-            f"**Governing utilization (Annex A):** u = **{float(util_int_A or 0.0):.3f}** "
-            f"{'≤ 1.0 ⇒ OK' if (util_int_A is not None and util_int_A<=1.0) else '> 1.0 ⇒ NOT OK'}"
-        )
+
+        u_y_A = float(util_61_A) if util_61_A is not None else float("nan")
+        u_z_A = float(util_62_A) if util_62_A is not None else float("nan")
+        u_g_A = float(util_int_A) if util_int_A is not None else float("nan")
+
+        st.markdown("Equation (about y):")
+        st.latex(r"""
+        \frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}
+        +k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}
+        +k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
+        \le 1.0
+        """)
+        st.latex(rf"u_y = {u_y_A:.3f}")
+        st.markdown("✅ OK" if (util_61_A is not None and util_61_A <= 1.0) else "❌ NOT OK")
+
+        st.markdown("Equation (about z):")
+        st.latex(r"""
+        \frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}
+        +k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}
+        +k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
+        \le 1.0
+        """)
+        st.latex(rf"u_z = {u_z_A:.3f}")
+        st.markdown("✅ OK" if (util_62_A is not None and util_62_A <= 1.0) else "❌ NOT OK")
+
+        st.markdown("Governing utilization (Annex A):")
+        st.latex(rf"u_{{g}} = \max(u_y,u_z) = {u_g_A:.3f}")
+        st.markdown("✅ OK" if (util_int_A is not None and util_int_A <= 1.0) else "❌ NOT OK")
+
 
         # ---- Method 2 (Annex B) ----
         report_h4("(21),(22) Buckling interaction for bending and axial compression — Method 2 (EN 1993-1-1 Annex B)")
-        
+
         # Inputs (we keep these for the report narrative)
         psi_y  = float(buck_map.get("psi_y", 1.0) or 1.0)
         psi_z  = float(buck_map.get("psi_z", 1.0) or 1.0)
         psi_LT = float(buck_map.get("psi_LT", 1.0) or 1.0)
-        
+
         lam_y = float(buck_map.get("lam_y", 0.0) or 0.0)
         lam_z = float(buck_map.get("lam_z", 0.0) or 0.0)
-        
+
         Cmy_B  = float(buck_map.get("Cmy_B", 0.0) or 0.0)
         Cmz_B  = float(buck_map.get("Cmz_B", 0.0) or 0.0)
         CmLT_B = float(buck_map.get("CmLT_B", 0.0) or 0.0)
-        
+
         kyy_B = float(buck_map.get("kyy_B", 0.0) or 0.0)
         kzz_B = float(buck_map.get("kzz_B", 0.0) or 0.0)
         kyz_B = float(buck_map.get("kyz_B", 0.0) or 0.0)
         kzy_B = float(buck_map.get("kzy_B", 0.0) or 0.0)
-        
+
         util_61_B = buck_map.get("util_61_B")
         util_62_B = buck_map.get("util_62_B")
         util_int_B = buck_map.get("util_int_B")
-        
+
         st.markdown(
             "Method 2 follows **EN 1993-1-1 Annex B**. "
-            "Equivalent uniform moment factors **Cmi** are taken from **Table B.3**. "
-            "For members susceptible to lateral-torsional buckling, interaction factors are taken from **Table B.2** (I-sections) "
-            "and computed using the Annex B expressions (including the λ-limits via min{λ,1.0})."
+            "Moment factors are from **Table B.3**; interaction factors follow **Table B.2** (I-sections susceptible to LTB)."
         )
-        
+
+        # --- Equivalent uniform moment factors (Table B.3) ---
         st.markdown("### Equivalent uniform moment factors (Annex B, Table B.3)")
-        _eq_line("Major axis (y–y):", r"C_{my}=\max(0.4,\;0.60+0.40\,\psi_y)")
-        _eq_line("&nbsp;", rf"= {Cmy_B:.3f}")
-        
-        _eq_line("Minor axis (z–z):", r"C_{mz}=\max(0.4,\;0.60+0.40\,\psi_z)")
-        _eq_line("&nbsp;", rf"= {Cmz_B:.3f}")
-        
-        _eq_line("Lateral-torsional buckling:", r"C_{mLT}=\max(0.4,\;0.60+0.40\,\psi_{LT})")
-        _eq_line("&nbsp;", rf"= {CmLT_B:.3f}")
-        
-        st.markdown(f"- ψy = **{psi_y:.3f}**, ψz = **{psi_z:.3f}**, ψLT = **{psi_LT:.3f}**")
-        
-        st.markdown("### Interaction factors (Annex B, Table B.2 for I-sections susceptible to LTB)")
-        st.markdown(
-            f"- λy = **{lam_y:.3f}**, λz = **{lam_z:.3f}** (limits applied using min{{λ,1.0}} as in Annex B tables)\n"
-        )
-        
-        # Symbolic equations (no long substitution lines)
-        _eq_line(
-            "kyy:",
-            r"k_{yy}=C_{my}\left[1+\left(\min(\bar\lambda_y,1.0)-0.2\right)\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}\right]"
-        )
-        _eq_line("&nbsp;", rf"= {kyy_B:.3f}")
-        
-        _eq_line(
-            "kzz:",
-            r"k_{zz}=C_{mz}\left[1+\left(2\min(\bar\lambda_z,1.0)-0.6\right)\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}\right]"
-        )
-        _eq_line("&nbsp;", rf"= {kzz_B:.3f}")
-        
-        _eq_line("kyz:", r"k_{yz}=0.6\,k_{zz}")
-        _eq_line("&nbsp;", rf"= {kyz_B:.3f}")
-        
-        _eq_line(
-            "kzy (for λz ≥ 0.4):",
-            r"k_{zy}=1-\frac{0.1\,\min(\bar\lambda_z,1.0)}{(C_{mLT}-0.25)}\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}"
-        )
-        _eq_line("&nbsp;", rf"= {kzy_B:.3f}")
-        
+        st.latex(rf"""
+        \begin{{aligned}}
+        C_{{my}} &= \max(0.4,\;0.60+0.40\,\psi_y) = {Cmy_B:.3f} \\
+        C_{{mz}} &= \max(0.4,\;0.60+0.40\,\psi_z) = {Cmz_B:.3f} \\
+        C_{{mLT}} &= \max(0.4,\;0.60+0.40\,\psi_{{LT}}) = {CmLT_B:.3f}
+        \end{{aligned}}
+        """)
+        st.latex(rf"""
+        \begin{{aligned}}
+        \psi_y &= {psi_y:.3f},\qquad
+        \psi_z = {psi_z:.3f},\qquad
+        \psi_{{LT}} = {psi_LT:.3f}
+        \end{{aligned}}
+        """)
+
+        # --- Slenderness values (reported) ---
+        st.markdown("### Slenderness values used (Annex B)")
+        st.latex(rf"""
+        \begin{{aligned}}
+        \bar\lambda_y &= {lam_y:.3f}, \qquad
+        \bar\lambda_z = {lam_z:.3f}
+        \end{{aligned}}
+        """)
+
+        # --- Interaction factors (symbolic + final numeric only) ---
+        st.markdown("### Interaction factors (Annex B, Table B.2)")
+        st.latex(r"""
+        \begin{aligned}
+        k_{yy} &= C_{my}\left[1+\left(\min(\bar\lambda_y,1.0)-0.2\right)\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}\right] \\
+        k_{zz} &= C_{mz}\left[1+\left(2\min(\bar\lambda_z,1.0)-0.6\right)\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}\right] \\
+        k_{yz} &= 0.6\,k_{zz} \\
+        k_{zy} &= 1-\frac{0.1\,\min(\bar\lambda_z,1.0)}{(C_{mLT}-0.25)}\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}
+        \end{aligned}
+        """)
+        st.latex(rf"""
+        \begin{{aligned}}
+        k_{{yy}} &= {kyy_B:.3f}, \qquad
+        k_{{zz}} = {kzz_B:.3f}, \qquad
+        k_{{yz}} = {kyz_B:.3f}, \qquad
+        k_{{zy}} = {kzy_B:.3f}
+        \end{{aligned}}
+        """)
+
+        # --- Verification (Annex B) ---
         st.markdown("### Verification of member resistance (Annex B)")
-        _eq_line(
-            "Equation (about y):",
-            r"\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}+k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0"
-        )
-        _eq_line("&nbsp;", rf"u = {float(util_61_B or 0.0):.3f} {'\\Rightarrow\\,OK' if (util_61_B is not None and util_61_B<=1.0) else '\\Rightarrow\\,NOT\\,OK'}")
-        
-        _eq_line(
-            "Equation (about z):",
-            r"\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0"
-        )
-        _eq_line("&nbsp;", rf"u = {float(util_62_B or 0.0):.3f} {'\\Rightarrow\\,OK' if (util_62_B is not None and util_62_B<=1.0) else '\\Rightarrow\\,NOT\\,OK'}")
-        
-        st.markdown(
-            f"**Governing utilization (Annex B):** u = **{float(util_int_B or 0.0):.3f}** "
-            f"{'≤ 1.0 ⇒ OK' if (util_int_B is not None and util_int_B<=1.0) else '> 1.0 ⇒ NOT OK'}"
-        )
+
+        u_y_B = float(util_61_B) if util_61_B is not None else float("nan")
+        u_z_B = float(util_62_B) if util_62_B is not None else float("nan")
+        u_g_B = float(util_int_B) if util_int_B is not None else float("nan")
+
+        st.markdown("Equation (about y):")
+        st.latex(r"""
+        \frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}
+        +k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}
+        +k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
+        \le 1.0
+        """)
+        st.latex(rf"u_y = {u_y_B:.3f}")
+        st.markdown("✅ OK" if (util_61_B is not None and util_61_B <= 1.0) else "❌ NOT OK")
+
+        st.markdown("Equation (about z):")
+        st.latex(r"""
+        \frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}
+        +k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}
+        +k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
+        \le 1.0
+        """)
+        st.latex(rf"u_z = {u_z_B:.3f}")
+        st.markdown("✅ OK" if (util_62_B is not None and util_62_B <= 1.0) else "❌ NOT OK")
+
+        st.markdown("Governing utilization (Annex B):")
+        st.latex(rf"u_{{g}} = \max(u_y,u_z) = {u_g_B:.3f}")
+        st.markdown("✅ OK" if (util_int_B is not None and util_int_B <= 1.0) else "❌ NOT OK")
 
     # ----------------------------------------------------
         # 8. References
@@ -5485,6 +5526,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
