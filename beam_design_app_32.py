@@ -4887,9 +4887,15 @@ def render_report_tab():
 
         # --- Geometry: polar radius of gyration i0 (mm) ---
         i0_mm = (i0_m * 1e3) if (i0_m is not None) else 0.0
-        _eq_line("Polar radius of gyration:", r"i_0=\sqrt{i_y^2+i_z^2+y_0^2+z_0^2}")
-        _eq_line("&nbsp;", rf"=\sqrt{{({iy_mm:.1f})^2+({iz_mm:.1f})^2+0^2+0^2}}={i0_mm:.1f}\,\mathrm{{mm}}")
-
+        st.latex(
+            rf"""
+            \begin{{aligned}}
+            i_0 &= \sqrt{{i_y^2 + i_z^2 + y_0^2 + z_0^2}} \\[4pt]
+                &= \sqrt{{({iy_mm:.1f})^2 + ({iz_mm:.1f})^2 + 0^2 + 0^2}} \\
+                &= {i0_mm:.1f}\,\text{{mm}}
+            \end{{aligned}}
+            """
+        )
         # --- Effective torsional buckling length ---
         L_mm = float(L) * 1000.0
         LcrT_mm = float(K_T) * L_mm
@@ -5388,6 +5394,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
