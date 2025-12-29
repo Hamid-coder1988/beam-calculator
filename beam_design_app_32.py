@@ -131,6 +131,28 @@ def report_h4(title):
         unsafe_allow_html=True
     )
 
+
+def report_status_badge(status: str, show_icon: bool = True):
+    """Uniform OK / NOT OK line for the Report tab."""
+    s = (status or "").strip()
+    is_ok = s.upper().startswith("OK") or s.upper() in {"PASS", "SAFE", "SATISFIED"}
+    # Treat "EXCEEDS" and anything containing "NOT" as NOT OK
+    if "EXCEED" in s.upper() or "NOT" in s.upper() or "FAIL" in s.upper():
+        is_ok = False
+
+    icon = "✅" if is_ok else "❌"
+    color = "#1b8f2a" if is_ok else "#c62828"
+    label = "OK" if is_ok else "NOT OK"
+    if not show_icon:
+        icon = ""
+
+    st.markdown(
+        f"""<div style="margin-top:6px;margin-bottom:14px;font-weight:650;color:{color};">
+        {icon} {label}
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
 # =========================================================
 # GLOBAL SAFETY FACTORS (EN 1993)
 # =========================================================
@@ -4052,8 +4074,8 @@ def render_report_tab():
                 rf"u = \frac{{N_{{Ed}}}}{{N_{{pl,Rd}}}}"
                 rf" = \frac{{{NEd_ten_kN:.3f}}}{{{Npl_Rd_kN:.3f}}}"
                 rf" = {u_ten_str} \le 1.0"
-                rf" \Rightarrow \mathbf{{{status_ten}}}."
             )
+            report_status_badge(status_ten)
         else:
             st.markdown(
                 "Tension resistance could not be evaluated because cross-section area or "
@@ -4121,8 +4143,8 @@ def render_report_tab():
                     rf"u = \frac{{N_{{Ed}}}}{{N_{{c,Rd}}}}"
                     rf" = \frac{{{NEd_comp_kN:.3f}}}{{{Nc_Rd_kN:.3f}}}"
                     rf" = {u_comp_str} \le 1.0"
-                    rf" \Rightarrow \mathbf{{{status_comp}}}."
                 )
+                report_status_badge(status_comp)
         else:
             st.markdown(
                 "Compression resistance could not be evaluated because cross-section area "
@@ -4184,14 +4206,16 @@ def render_report_tab():
         st.latex(
             rf"u_y = \frac{{M_{{y,Ed}}}}{{M_{{c,y,Rd}}}}"
             rf" = \frac{{{My_Ed_kNm:.2f}}}{{{Mc_y_Rd_kNm:.2f}}}"
-            rf" = {util_My:.3f} \Rightarrow \textbf{{{status_My}}}"
+            rf" = {util_My:.3f} \le 1.0"
         )
+        report_status_badge(status_My)
 
         st.latex(
             rf"u_z = \frac{{M_{{z,Ed}}}}{{M_{{c,z,Rd}}}}"
             rf" = \frac{{{Mz_Ed_kNm:.2f}}}{{{Mc_z_Rd_kNm:.2f}}}"
-            rf" = {util_Mz:.3f} \Rightarrow \textbf{{{status_Mz}}}"
+            rf" = {util_Mz:.3f} \le 1.0"
         )
+        report_status_badge(status_Mz)
 
         st.markdown(
             """
@@ -5197,7 +5221,7 @@ def render_report_tab():
         \le 1.0
         """)
         st.latex(rf"u_y = {u_y_B:.3f}")
-        st.markdown("✅ OK" if (util_61_B is not None and util_61_B <= 1.0) else "❌ NOT OK")
+        report_status_badge("OK" if (util_61_B is not None and util_61_B <= 1.0) else "NOT OK")
 
         st.markdown("Equation (about z):")
         st.latex(r"""
@@ -5207,11 +5231,11 @@ def render_report_tab():
         \le 1.0
         """)
         st.latex(rf"u_z = {u_z_B:.3f}")
-        st.markdown("✅ OK" if (util_62_B is not None and util_62_B <= 1.0) else "❌ NOT OK")
+        report_status_badge("OK" if (util_62_B is not None and util_62_B <= 1.0) else "NOT OK")
 
         st.markdown("Governing utilization (Annex B):")
         st.latex(rf"u_{{g}} = \max(u_y,u_z) = {u_g_B:.3f}")
-        st.markdown("✅ OK" if (util_int_B is not None and util_int_B <= 1.0) else "❌ NOT OK")
+        report_status_badge("OK" if (util_int_B is not None and util_int_B <= 1.0) else "NOT OK")
 
             # ============================
         # (19),(20) Method 1 — Annex A
@@ -5289,15 +5313,20 @@ def render_report_tab():
         st.markdown("### Verification (Formulae 8.88–8.89)")
         _latex_block([
             r"u_y=\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}+k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
-            (rf"u_y={util_61_A:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_61_A) else rf"u_y={util_61_A:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_61_A is not None else r"u_y=\mathrm{n/a}",
+            (rf"u_y={util_61_A:.3f}" if _OK(util_61_A) else rf"u_y={util_61_A:.3f}") if util_61_A is not None else r"u_y=\mathrm{n/a}",
             r"u_z=\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
-            (rf"u_z={util_62_A:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_62_A) else rf"u_z={util_62_A:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_62_A is not None else r"u_z=\mathrm{n/a}",
+            (rf"u_z={util_62_A:.3f}" if _OK(util_62_A) else rf"u_z={util_62_A:.3f}") if util_62_A is not None else r"u_z=\mathrm{n/a}",
         ])
 
+        report_status_badge('OK' if _OK(util_61_A) else 'NOT OK')
+        report_status_badge('OK' if _OK(util_62_A) else 'NOT OK')
+
         _latex_block([
-            rf"u=\max(u_y,u_z)={util_int_A:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_int_A)
-            else (rf"u=\max(u_y,u_z)={util_int_A:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}" if util_int_A is not None else r"u=\max(u_y,u_z)=\mathrm{n/a}")
+            rf"u=\max(u_y,u_z)={util_int_A:.3f}" if _OK(util_int_A)
+            else (rf"u=\max(u_y,u_z)={util_int_A:.3f}" if util_int_A is not None else r"u=\max(u_y,u_z)=\mathrm{n/a}")
         ])
+
+        report_status_badge('OK' if _OK(util_int_A) else 'NOT OK')
 
         # ============================
         # (21),(22) Method 2 — Annex B
@@ -5357,9 +5386,9 @@ def render_report_tab():
         st.markdown("### Verification of member resistance (Annex B)")
         _latex_block([
             r"u_y=\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}+k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
-            (rf"u_y={util_61_B:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_61_B) else rf"u_y={util_61_B:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_61_B is not None else r"u_y=\mathrm{n/a}",
+            (rf"u_y={util_61_B:.3f}" if _OK(util_61_B) else rf"u_y={util_61_B:.3f}") if util_61_B is not None else r"u_y=\mathrm{n/a}",
             r"u_z=\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
-            (rf"u_z={util_62_B:.3f}\;\Rightarrow\;\mathrm{{OK}}" if _OK(util_62_B) else rf"u_z={util_62_B:.3f}\;\Rightarrow\;\mathrm{{NOT\ OK}}") if util_62_B is not None else r"u_z=\mathrm{n/a}",
+            (rf"u_z={util_62_B:.3f}" if _OK(util_62_B) else rf"u_z={util_62_B:.3f}") if util_62_B is not None else r"u_z=\mathrm{n/a}",
         ])
         uy = float(util_61_B or 0.0)
         uz = float(util_62_B or 0.0)
@@ -5706,12 +5735,3 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
-
-
-
-
-
-
-
-
