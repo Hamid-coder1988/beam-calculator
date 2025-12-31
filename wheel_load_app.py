@@ -373,23 +373,22 @@ def df_from_results(res: Dict[str, Any]) -> pd.DataFrame:
 
 
 def render_report_inputs(inp: WheelLoadInputs):
-    \"\"\"Show all user inputs in the same tab layouts, but read-only (disabled).\"\"\"
+    """Report tab: show the SAME UI blocks as the other tabs, but read-only."""
 
-    # -----------------------
-    # General (same as tab)
-    # -----------------------
-    st.markdown("## General")
-    st.markdown("### Project data")
+    st.markdown("### Crane wheel load report")
+    st.caption("Read-only summary of all inputs used in the calculations below.")
 
+    # 1) Project info (same as General tab)
+    st.markdown("**1. Project information**")
     meta_col1, meta_col2, meta_col3 = st.columns([1, 1, 1])
 
     with meta_col1:
-        st.text_input("Document title", value=st.session_state.get("doc_title_in", "Crane wheel load check"), key="r_doc_title_in", disabled=True)
         st.text_input("Project name", value=st.session_state.get("project_name_in", ""), key="r_project_name_in", disabled=True)
+        st.text_input("Client / Requested by", value=st.session_state.get("requested_by_in", ""), key="r_requested_by_in", disabled=True)
 
     with meta_col2:
+        st.text_input("Document title", value=st.session_state.get("doc_title_in", "Crane wheel load check"), key="r_doc_title_in", disabled=True)
         st.text_input("Position / Location (Crane ID)", value=st.session_state.get("position_in", ""), key="r_position_in", disabled=True)
-        st.text_input("Requested by", value=st.session_state.get("requested_by_in", ""), key="r_requested_by_in", disabled=True)
 
     with meta_col3:
         st.text_input("Revision", value=st.session_state.get("revision_in", "A"), key="r_revision_in", disabled=True)
@@ -399,23 +398,8 @@ def render_report_inputs(inp: WheelLoadInputs):
 
     st.markdown("---")
 
-    with st.expander("Reference standard (what this tool follows)", expanded=False):
-        st.markdown(
-            \"\"\"This calculator follows **BS EN 1991-3:2006 (EN 1991-3)** — *Actions induced by cranes and machinery*.
-
-It covers the typical actions used for runway beam / crane girder design:
-- Vertical wheel loads (static + dynamic factors)
-- Longitudinal forces (acceleration / braking)
-- Transverse / skewing forces + guide forces
-- Buffer collision forces (where relevant)
-
-If your project uses a different national annex or internal standard, keep the same workflow and swap the factors accordingly.\"\"\"
-        )
-
-    # -----------------------
-    # Geometry (same as tab)
-    # -----------------------
-    st.markdown("## Geometry")
+    # 2) Geometry (same as Geometry tab)
+    st.markdown("**2. Geometry**")
     st.markdown("### Geometry of crane")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -430,7 +414,6 @@ If your project uses a different national annex or internal standard, keep the s
         st.number_input("Rail width b_r (mm)", min_value=1.0, value=float(inp.rail_width_br_mm), step=1.0, key="r_br_mm", disabled=True)
 
     st.markdown("### Guidance distances (wheel pair to guidance means)")
-    st.caption("Use 4 values by default: e₁, e₂, e₃, e₄ (mm).")
     e_cols = st.columns(4)
     e_list = list(inp.e_list_mm)
     while len(e_list) < 4:
@@ -438,10 +421,10 @@ If your project uses a different national annex or internal standard, keep the s
     for i in range(4):
         e_cols[i].number_input(f"e{i+1} (mm)", value=float(e_list[i]), step=100.0, key=f"r_e{i+1}_mm", disabled=True)
 
-    # -----------------------
-    # Loads (same as tab)
-    # -----------------------
-    st.markdown("## Loads")
+    st.markdown("---")
+
+    # 3) Loads (same as Loads tab)
+    st.markdown("**3. Loads**")
     st.markdown("### Loads (masses)")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -452,12 +435,11 @@ If your project uses a different national annex or internal standard, keep the s
         st.number_input("Hook block & rope mass Qhb (kg)", min_value=0.0, value=float(inp.Qhb_kg), step=50.0, key="r_Qhb_kg", disabled=True)
     with c3:
         st.number_input("Crane mass QCr (kg) (optional)", min_value=0.0, value=float(inp.QCr_kg), step=100.0, key="r_QCr_kg", disabled=True)
-        st.caption("QCr is kept for completeness but not used in the shown report equations.")
 
-    # -----------------------
-    # Speeds (same as tab)
-    # -----------------------
-    st.markdown("## Speeds")
+    st.markdown("---")
+
+    # 4) Speeds (same as Speeds tab)
+    st.markdown("**4. Speeds**")
     st.markdown("### Speeds")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -476,10 +458,10 @@ If your project uses a different national annex or internal standard, keep the s
         disabled=True,
     )
 
-    # -----------------------
-    # Drives (same as tab)
-    # -----------------------
-    st.markdown("## Drives")
+    st.markdown("---")
+
+    # 5) Drives (same as Drives tab)
+    st.markdown("**5. Drives**")
     st.markdown("### Drive parameters")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -502,6 +484,11 @@ If your project uses a different national annex or internal standard, keep the s
         st.number_input("Buffer characteristic ξ_b", min_value=0.0, max_value=2.0, value=float(inp.xi_b), step=0.05, key="r_xi_b", disabled=True)
     with c6:
         st.number_input("Buffer spring constant S_B (kN/m)", min_value=1.0, value=float(inp.S_B_kN_per_m), step=10.0, key="r_SB", disabled=True)
+
+    st.markdown("---")
+
+    with st.expander("Reference standard (what this tool follows)", expanded=False):
+        st.markdown("This calculator follows **BS EN 1991-3:2006 (EN 1991-3)** — Actions induced by cranes and machinery.")
 def render_report(res: Dict[str, Any]):
     inp = res["inputs"]
     loads = res["loads_kN"]
