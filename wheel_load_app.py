@@ -293,6 +293,43 @@ def compute_all(inp: WheelLoadInputs) -> Dict[str, Any]:
     }
     return results
 
+
+# --- CUSTOM GLOBAL CSS --- (copied from Beam app)
+custom_css = """
+<style>
+html, body, [class*="css"]  {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Headings */
+h1 {font-size: 1.6rem !important; font-weight: 650 !important;}
+h2 {font-size: 1.25rem !important; font-weight: 600 !important;}
+h3 {font-size: 1.05rem !important; font-weight: 600 !important;}
+
+/* Main container – enough top padding so header isn't clipped */
+div.block-container {
+    padding-top: 1.6rem;
+    max-width: 1200px;
+}
+
+/* Expander look */
+.stExpander {
+    border-radius: 8px !important;
+    border: 1px solid #e0e0e0 !important;
+}
+
+/* Labels a bit smaller & bolder */
+.stNumberInput > label, .stTextInput > label, .stTextArea > label, .stSelectbox > label, .stDateInput > label {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Hide Streamlit default menu & footer */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+</style>
+"""
+
 # -----------------------------
 # UI
 # -----------------------------
@@ -475,29 +512,33 @@ def df_from_results(res: Dict[str, Any]) -> pd.DataFrame:
     return df
 
 
+
 def render_report_inputs(inp: WheelLoadInputs):
     """Report tab: show exactly the same input layouts as the tabs, but read-only."""
 
-    st.markdown("## Crane report")
-    st.markdown("### 1. Project information")
-    render_general_block(read_only=True, key_prefix="r_")
+    st.markdown("## Report")
+
+    st.markdown("### Project")
+    render_general_block(read_only=True, key_prefix="rep_")
 
     st.markdown("---")
-    st.markdown("### 2. Geometry")
-    render_geometry_block(inp, read_only=True, key_prefix="r_")
+    st.markdown("### Geometry")
+    render_geometry_block(inp, read_only=True, key_prefix="rep_")
 
     st.markdown("---")
-    st.markdown("### 3. Loads")
-    render_loads_block(inp, read_only=True, key_prefix="r_")
+    st.markdown("### Loads")
+    render_loads_block(inp, read_only=True, key_prefix="rep_")
 
     st.markdown("---")
-    st.markdown("### 4. Speeds")
-    render_speeds_block(inp, read_only=True, key_prefix="r_")
+    st.markdown("### Speeds")
+    render_speeds_block(inp, read_only=True, key_prefix="rep_")
 
     st.markdown("---")
-    st.markdown("### 5. Drives")
-    render_drives_block(inp, read_only=True, key_prefix="r_")
-def render_report(res: Dict[str, Any]):
+    st.markdown("### Drives")
+    render_drives_block(inp, read_only=True, key_prefix="rep_")
+
+
+def render_detailed_calculations(res: Dict[str, Any]):
     inp = res["inputs"]
     loads = res["loads_kN"]
     fac = res["factors"]
@@ -594,6 +635,8 @@ def main():
         layout="wide",
     )
 
+    st.markdown(custom_css, unsafe_allow_html=True)
+
     render_header()
     render_sidebar()
 
@@ -673,9 +716,31 @@ If your project uses a different national annex or internal standard, keep the s
 
     with tab_report:
         res = compute_all(inp)
+
+        # 1) Inputs (same layout as tabs, read-only)
         render_report_inputs(inp)
-        st.markdown('---')
-        render_report(res)
+
+        # 2) Results (same as Results tab)
+        st.markdown("---")
+        st.markdown("### Results summary")
+
+        df = df_from_results(res)
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Max wheel load (static)", fmt(res["static"]["Qr_max"], "kN"))
+        with col2:
+            st.metric("Accompanying (static)", fmt(res["static"]["Qra_max"], "kN"))
+        with col3:
+            st.metric("Guide force S", fmt(res["horizontal"]["S"], "kN"))
+        with col4:
+            st.metric("Buffer collision HB1", fmt(res["horizontal"]["HB1"], "kN"))
+
+        st.dataframe(df, use_container_width=True)
+
+        # 3) Detailed calculations (equations) — optional
+        with st.expander("Detailed calculations (equation log)", expanded=False):
+            render_detailed_calculations(res)
 
     st.session_state["wheel_inp"] = inp
 
