@@ -371,6 +371,123 @@ def df_from_results(res: Dict[str, Any]) -> pd.DataFrame:
     df["Value"] = df["Value"].astype(float)
     return df
 
+
+def render_report_inputs(inp: WheelLoadInputs):
+    """Show all user inputs in the same tab-style layout, but read-only (disabled)."""
+    st.markdown("## Inputs (read-only)")
+    st.caption("These are the exact values used for the calculations below.")
+
+    # --- Project data (mirrors General tab) ---
+    st.markdown("### Project data")
+    meta_col1, meta_col2, meta_col3 = st.columns([1, 1, 1])
+
+    with meta_col1:
+        st.text_input("Document title", value=st.session_state.get("doc_title_in", "Crane wheel load check"), key="r_doc_title_in", disabled=True)
+        st.text_input("Project name", value=st.session_state.get("project_name_in", ""), key="r_project_name_in", disabled=True)
+
+    with meta_col2:
+        st.text_input("Position / Location (Crane ID)", value=st.session_state.get("position_in", ""), key="r_position_in", disabled=True)
+        st.text_input("Requested by", value=st.session_state.get("requested_by_in", ""), key="r_requested_by_in", disabled=True)
+
+    with meta_col3:
+        st.text_input("Revision", value=st.session_state.get("revision_in", "A"), key="r_revision_in", disabled=True)
+        st.date_input("Date", value=st.session_state.get("run_date_in", date.today()), key="r_run_date_in", disabled=True)
+
+    st.text_area("Notes / comments", value=st.session_state.get("notes_in", ""), key="r_notes_in", disabled=True)
+
+    st.markdown("---")
+
+    # --- Geometry (mirrors Geometry tab) ---
+    st.markdown("### Geometry of crane")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.number_input("Crane span L (mm)", min_value=1.0, value=float(inp.L_mm), step=100.0, key="r_L_mm", disabled=True)
+        st.number_input("Minimum hook approach e_min (mm)", min_value=0.0, value=float(inp.e_min_mm), step=50.0, key="r_e_min_mm", disabled=True)
+    with c2:
+        st.number_input("Number of wheel pairs n", min_value=1, value=int(inp.n_wheel_pairs), step=1, key="r_n_wheel_pairs", disabled=True)
+        st.number_input("Number of runway beams (rails) n_r", min_value=1, value=int(inp.n_runway_beams), step=1, key="r_n_runway_beams", disabled=True)
+    with c3:
+        st.number_input("Wheel spacing a (mm)", min_value=1.0, value=float(inp.wheel_spacing_a_mm), step=50.0, key="r_a_mm", disabled=True)
+        st.number_input("Rail/wheel flange clearance z (mm)", min_value=0.0, value=float(inp.rail_clearance_z_mm), step=1.0, key="r_z_mm", disabled=True)
+        st.number_input("Rail width b_r (mm)", min_value=1.0, value=float(inp.rail_width_br_mm), step=1.0, key="r_br_mm", disabled=True)
+
+    st.markdown("### Guidance distances (wheel pair to guidance means)")
+    st.caption("e₁…e₄ (mm)")
+    e_cols = st.columns(4)
+    e_list = list(inp.e_list_mm)
+    while len(e_list) < 4:
+        e_list.append(0.0)
+    for i in range(4):
+        e_cols[i].number_input(f"e{i+1} (mm)", value=float(e_list[i]), step=100.0, key=f"r_e{i+1}_mm", disabled=True)
+
+    st.markdown("---")
+
+    # --- Loads (mirrors Loads tab) ---
+    st.markdown("### Loads (masses)")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.number_input("Bridge mass QBr (kg)", min_value=0.0, value=float(inp.QBr_kg), step=100.0, key="r_QBr_kg", disabled=True)
+        st.number_input("Trolley/Crab mass QTr (kg)", min_value=0.0, value=float(inp.QTr_kg), step=100.0, key="r_QTr_kg", disabled=True)
+    with c2:
+        st.number_input("Hoist load Qh (kg)", min_value=0.0, value=float(inp.Qh_kg), step=500.0, key="r_Qh_kg", disabled=True)
+        st.number_input("Hook block & rope mass Qhb (kg)", min_value=0.0, value=float(inp.Qhb_kg), step=50.0, key="r_Qhb_kg", disabled=True)
+    with c3:
+        st.number_input("Crane mass QCr (kg) (optional)", min_value=0.0, value=float(inp.QCr_kg), step=100.0, key="r_QCr_kg", disabled=True)
+
+    st.markdown("---")
+
+    # --- Speeds (mirrors Speeds tab) ---
+    st.markdown("### Speeds")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.number_input("Hoisting speed v_h (m/min)", min_value=0.0, value=float(inp.v_h_mmin), step=0.1, key="r_v_h", disabled=True)
+    with c2:
+        st.number_input("Bridge speed v_br (m/min)", min_value=0.0, value=float(inp.v_br_mmin), step=0.5, key="r_v_br", disabled=True)
+    with c3:
+        st.number_input("Crab speed v_cr (m/min)", min_value=0.0, value=float(inp.v_cr_mmin), step=0.5, key="r_v_cr", disabled=True)
+
+    st.markdown("### Hoisting class (for φ2)")
+    st.selectbox("Hoisting class", ["HC1", "HC2", "HC3", "HC4"],
+                 index=["HC1", "HC2", "HC3", "HC4"].index(inp.hoisting_class),
+                 key="r_hoisting_class", disabled=True)
+
+    st.markdown("---")
+
+    # --- Drives (mirrors Drives tab) ---
+    st.markdown("### Drive parameters")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.number_input("Friction coefficient μ", min_value=0.0, max_value=1.0, value=float(inp.mu), step=0.01, key="r_mu", disabled=True)
+        st.number_input("Number of single wheel drives m_w", min_value=0, value=int(inp.m_w), step=1, key="r_m_w", disabled=True)
+    with c2:
+        st.number_input("Dead load dynamic factor φ1", min_value=0.5, max_value=2.0, value=float(inp.phi1_dead), step=0.05, key="r_phi1", disabled=True)
+        st.selectbox("β3 (rapid load release)", [0.5, 1.0], index=0 if float(inp.beta3) == 0.5 else 1, key="r_beta3", disabled=True)
+    with c3:
+        st.number_input("Rail tolerance factor φ4", min_value=0.5, max_value=2.0, value=float(inp.phi4_rail_tolerance), step=0.05, key="r_phi4", disabled=True)
+        st.number_input("Drive factor φ5,T (transverse)", min_value=1.0, max_value=3.0, value=float(inp.phi5_T), step=0.1, key="r_phi5T", disabled=True)
+        st.number_input("Drive factor φ5,L (longitudinal)", min_value=1.0, max_value=3.0, value=float(inp.phi5_L), step=0.1, key="r_phi5L", disabled=True)
+
+    st.markdown("### Test & buffer")
+    c4, c5, c6 = st.columns(3)
+    with c4:
+        st.number_input("Dynamic test coefficient η_d", min_value=1.0, max_value=2.0, value=float(inp.eta_dyn), step=0.05, key="r_eta_dyn", disabled=True)
+        st.number_input("Static test coefficient η_s", min_value=1.0, max_value=2.0, value=float(inp.eta_stat), step=0.05, key="r_eta_stat", disabled=True)
+    with c5:
+        st.number_input("Buffer characteristic ξ_b", min_value=0.0, max_value=2.0, value=float(inp.xi_b), step=0.05, key="r_xi_b", disabled=True)
+    with c6:
+        st.number_input("Buffer spring constant S_B (kN/m)", min_value=1.0, value=float(inp.S_B_kN_per_m), step=10.0, key="r_SB", disabled=True)
+
+    with st.expander("Reference standard (what this tool follows)", expanded=False):
+        st.markdown(
+            """This calculator follows **BS EN 1991-3:2006 (EN 1991-3)** — *Actions induced by cranes and machinery*.
+
+It covers the typical actions used for runway beam / crane girder design:
+- Vertical wheel loads (static + dynamic factors)
+- Longitudinal forces (acceleration / braking)
+- Transverse / skewing forces + guide forces
+- Buffer collision forces (where relevant)"""
+        )
+
 def render_report(res: Dict[str, Any]):
     inp = res["inputs"]
     loads = res["loads_kN"]
@@ -615,6 +732,8 @@ If your project uses a different national annex or internal standard, keep the s
 
     with tab_report:
         res = compute_all(inp)
+        render_report_inputs(inp)
+        st.markdown('---')
         render_report(res)
 
     st.session_state["wheel_inp"] = inp
