@@ -373,12 +373,14 @@ def df_from_results(res: Dict[str, Any]) -> pd.DataFrame:
 
 
 def render_report_inputs(inp: WheelLoadInputs):
-    """Show all user inputs in the same tab-style layout, but read-only (disabled)."""
-    st.markdown("## Inputs (read-only)")
-    st.caption("These are the exact values used for the calculations below.")
+    \"\"\"Show all user inputs in the same tab layouts, but read-only (disabled).\"\"\"
 
-    # --- Project data (mirrors General tab) ---
+    # -----------------------
+    # General (same as tab)
+    # -----------------------
+    st.markdown("## General")
     st.markdown("### Project data")
+
     meta_col1, meta_col2, meta_col3 = st.columns([1, 1, 1])
 
     with meta_col1:
@@ -397,7 +399,23 @@ def render_report_inputs(inp: WheelLoadInputs):
 
     st.markdown("---")
 
-    # --- Geometry (mirrors Geometry tab) ---
+    with st.expander("Reference standard (what this tool follows)", expanded=False):
+        st.markdown(
+            \"\"\"This calculator follows **BS EN 1991-3:2006 (EN 1991-3)** — *Actions induced by cranes and machinery*.
+
+It covers the typical actions used for runway beam / crane girder design:
+- Vertical wheel loads (static + dynamic factors)
+- Longitudinal forces (acceleration / braking)
+- Transverse / skewing forces + guide forces
+- Buffer collision forces (where relevant)
+
+If your project uses a different national annex or internal standard, keep the same workflow and swap the factors accordingly.\"\"\"
+        )
+
+    # -----------------------
+    # Geometry (same as tab)
+    # -----------------------
+    st.markdown("## Geometry")
     st.markdown("### Geometry of crane")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -412,7 +430,7 @@ def render_report_inputs(inp: WheelLoadInputs):
         st.number_input("Rail width b_r (mm)", min_value=1.0, value=float(inp.rail_width_br_mm), step=1.0, key="r_br_mm", disabled=True)
 
     st.markdown("### Guidance distances (wheel pair to guidance means)")
-    st.caption("e₁…e₄ (mm)")
+    st.caption("Use 4 values by default: e₁, e₂, e₃, e₄ (mm).")
     e_cols = st.columns(4)
     e_list = list(inp.e_list_mm)
     while len(e_list) < 4:
@@ -420,9 +438,10 @@ def render_report_inputs(inp: WheelLoadInputs):
     for i in range(4):
         e_cols[i].number_input(f"e{i+1} (mm)", value=float(e_list[i]), step=100.0, key=f"r_e{i+1}_mm", disabled=True)
 
-    st.markdown("---")
-
-    # --- Loads (mirrors Loads tab) ---
+    # -----------------------
+    # Loads (same as tab)
+    # -----------------------
+    st.markdown("## Loads")
     st.markdown("### Loads (masses)")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -433,10 +452,12 @@ def render_report_inputs(inp: WheelLoadInputs):
         st.number_input("Hook block & rope mass Qhb (kg)", min_value=0.0, value=float(inp.Qhb_kg), step=50.0, key="r_Qhb_kg", disabled=True)
     with c3:
         st.number_input("Crane mass QCr (kg) (optional)", min_value=0.0, value=float(inp.QCr_kg), step=100.0, key="r_QCr_kg", disabled=True)
+        st.caption("QCr is kept for completeness but not used in the shown report equations.")
 
-    st.markdown("---")
-
-    # --- Speeds (mirrors Speeds tab) ---
+    # -----------------------
+    # Speeds (same as tab)
+    # -----------------------
+    st.markdown("## Speeds")
     st.markdown("### Speeds")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -447,13 +468,18 @@ def render_report_inputs(inp: WheelLoadInputs):
         st.number_input("Crab speed v_cr (m/min)", min_value=0.0, value=float(inp.v_cr_mmin), step=0.5, key="r_v_cr", disabled=True)
 
     st.markdown("### Hoisting class (for φ2)")
-    st.selectbox("Hoisting class", ["HC1", "HC2", "HC3", "HC4"],
-                 index=["HC1", "HC2", "HC3", "HC4"].index(inp.hoisting_class),
-                 key="r_hoisting_class", disabled=True)
+    st.selectbox(
+        "Hoisting class",
+        ["HC1", "HC2", "HC3", "HC4"],
+        index=["HC1", "HC2", "HC3", "HC4"].index(inp.hoisting_class),
+        key="r_hoisting_class",
+        disabled=True,
+    )
 
-    st.markdown("---")
-
-    # --- Drives (mirrors Drives tab) ---
+    # -----------------------
+    # Drives (same as tab)
+    # -----------------------
+    st.markdown("## Drives")
     st.markdown("### Drive parameters")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -476,18 +502,6 @@ def render_report_inputs(inp: WheelLoadInputs):
         st.number_input("Buffer characteristic ξ_b", min_value=0.0, max_value=2.0, value=float(inp.xi_b), step=0.05, key="r_xi_b", disabled=True)
     with c6:
         st.number_input("Buffer spring constant S_B (kN/m)", min_value=1.0, value=float(inp.S_B_kN_per_m), step=10.0, key="r_SB", disabled=True)
-
-    with st.expander("Reference standard (what this tool follows)", expanded=False):
-        st.markdown(
-            """This calculator follows **BS EN 1991-3:2006 (EN 1991-3)** — *Actions induced by cranes and machinery*.
-
-It covers the typical actions used for runway beam / crane girder design:
-- Vertical wheel loads (static + dynamic factors)
-- Longitudinal forces (acceleration / braking)
-- Transverse / skewing forces + guide forces
-- Buffer collision forces (where relevant)"""
-        )
-
 def render_report(res: Dict[str, Any]):
     inp = res["inputs"]
     loads = res["loads_kN"]
