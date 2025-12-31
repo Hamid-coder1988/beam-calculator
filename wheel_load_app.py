@@ -9,6 +9,7 @@ from typing import Dict, Any, List, Tuple
 
 import pandas as pd
 import streamlit as st
+from datetime import date
 
 # -----------------------------
 # Helpers (same style as beam app)
@@ -480,15 +481,41 @@ def main():
     )
 
     with tab_general:
-        st.markdown("### Project")
-        colA, colB = st.columns([2, 1])
-        with colA:
-            st.text_input("Project title", value=st.session_state.get("proj_title", "Crane wheel load check"), key="proj_title")
-        with colB:
-            st.selectbox("Standard", ["BS EN 1991-3:2006 (EN 1991-3)"], index=0)
+        st.markdown("### Project data")
+
+        meta_col1, meta_col2, meta_col3 = st.columns([1, 1, 1])
+
+        with meta_col1:
+            st.text_input("Document title", value=st.session_state.get("doc_title_in", "Crane wheel load check"), key="doc_title_in")
+            st.text_input("Project name", value=st.session_state.get("project_name_in", ""), key="project_name_in")
+
+        with meta_col2:
+            st.text_input("Position / Location (Crane ID)", value=st.session_state.get("position_in", ""), key="position_in")
+            st.text_input("Requested by", value=st.session_state.get("requested_by_in", ""), key="requested_by_in")
+
+        with meta_col3:
+            st.text_input("Revision", value=st.session_state.get("revision_in", "A"), key="revision_in")
+            st.date_input("Date", value=st.session_state.get("run_date_in", date.today()), key="run_date_in")
+
+        st.text_area("Notes / comments", value=st.session_state.get("notes_in", ""), key="notes_in")
 
         st.markdown("---")
+
+        with st.expander("Reference standard (what this tool follows)", expanded=False):
+            st.markdown(
+                """This calculator follows **BS EN 1991-3:2006 (EN 1991-3)** — *Actions induced by cranes and machinery*.
+
+It covers the typical actions used for runway beam / crane girder design:
+- Vertical wheel loads (static + dynamic factors)
+- Longitudinal forces (acceleration / braking)
+- Transverse / skewing forces + guide forces
+- Buffer collision forces (where relevant)
+
+If your project uses a different national annex or internal standard, keep the same workflow and swap the factors accordingly."""
+            )
+
         st.info("Fill inputs in the tabs, then go to **Results** or **Report**.")
+
 
     with tab_geometry:
         st.markdown("### Geometry of crane")
