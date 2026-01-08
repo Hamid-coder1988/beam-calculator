@@ -889,7 +889,7 @@ READY_CATALOG = {
         "Cantilever Beams (1 case)": make_cases("C", 1, {"L": 3.0, "w": 10.0}),
         # Category 5: 3 cases
         "Beams with Overhang (3 cases)": make_cases("OH", 3, {"L": 6.0, "a": 1.5, "w": 10.0}),
-        # Category 6: 2 cases
+        # Category 6: 3 cases
         "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases("CS2", 3, {"L1": 4.0, "L2": 4.0, "w": 10.0}),
         # Category 7: 1 case
         "Continuous Beams — Three Spans / Four Supports (1 case)": make_cases("CS3", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "w": 10.0}),
@@ -930,6 +930,7 @@ CASE_IMAGE_MAP = {
     # You provided 3 images; add 3rd when you increase to 3 cases.
     "CS2-01": "beam_case_img/2S-C1.png",
     "CS2-02": "beam_case_img/2S-C2.png",
+    "CS2-03": "beam_case_img/2S-C3.png",
 
     # --- Continuous Beams — Three Spans / Four Supports (1 case) ---
     "CS3-01": "beam_case_img/3S-C1.png",
@@ -5766,5 +5767,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
