@@ -886,11 +886,11 @@ READY_CATALOG = {
         # Category 3: 1 case
         "Beams Fixed at both ends (1 case)": make_cases("FB", 1, {"L": 6.0, "w": 10.0}),
         # Category 4: 2 cases
-        "Cantilever Beams (1 case)": make_cases("C", 1, "Cantilever beam"),
+        "Cantilever Beams (1 case)": make_cases("C", 1, {"L": 3.0, "w": 10.0}),
         # Category 5: 3 cases
         "Beams with Overhang (3 cases)": make_cases("OH", 3, {"L": 6.0, "a": 1.5, "w": 10.0}),
         # Category 6: 2 cases
-        "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases("CS2", 3, "Two-span continuous beam"),
+        "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases("CS2", 3, {"L1": 4.0, "L2": 4.0, "w": 10.0}),
         # Category 7: 1 case
         "Continuous Beams — Three Spans / Four Supports (1 case)": make_cases("CS3", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "w": 10.0}),
         # Category 8: 1 case
@@ -5766,4 +5766,5 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
