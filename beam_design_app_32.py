@@ -886,11 +886,11 @@ READY_CATALOG = {
         # Category 3: 1 case
         "Beams Fixed at both ends (1 case)": make_cases("FB", 1, {"L": 6.0, "w": 10.0}),
         # Category 4: 2 cases
-        "Cantilever Beams (2 cases)": make_cases("C", 2, {"L": 3.0, "w": 10.0}),
+        "Cantilever Beams (1 case)": make_cases("C", 1, "Cantilever beam"),
         # Category 5: 3 cases
         "Beams with Overhang (3 cases)": make_cases("OH", 3, {"L": 6.0, "a": 1.5, "w": 10.0}),
         # Category 6: 2 cases
-        "Continuous Beams — Two Spans / Three Supports (2 cases)": make_cases("CS2", 2, {"L1": 4.0, "L2": 4.0, "w": 10.0}),
+        "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases("CS2", 3, "Two-span continuous beam"),
         # Category 7: 1 case
         "Continuous Beams — Three Spans / Four Supports (1 case)": make_cases("CS3", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "w": 10.0}),
         # Category 8: 1 case
@@ -899,12 +899,43 @@ READY_CATALOG = {
 }
 
 # Image mapping for ready beam cases (only cases 1 and 2 for now)
+# Image mapping for ready beam cases
 CASE_IMAGE_MAP = {
+    # --- Simply Supported Beams (KEEP exactly as you already had) ---
     "SS-01": "beam_case_img/SSB-C1.png",
     "SS-02": "beam_case_img/SSB-C2.png",
     "SS-03": "beam_case_img/SSB-C3.png",
     "SS-04": "beam_case_img/SSB-C4.png",
     "SS-05": "beam_case_img/SSB-C5.png",
+
+    # --- Beams Fixed at one end (1 case) ---
+    "FE-01": "beam_case_img/FEB-C1.png",
+
+    # --- Beams Fixed at both ends (1 case) ---
+    "FB-01": "beam_case_img/FSB-C1.png",
+
+    # --- Cantilever Beams (you told me 1 case = CB-C1.png) ---
+    # NOTE: your catalog currently defines Cantilever as (2 cases) with prefix "C"
+    # so mapping is for C-01.
+    "C-01": "beam_case_img/CB-C1.png",
+
+    # --- Beams with Overhang (3 cases) ---
+    # NOTE: your catalog prefix is "OH"
+    "OH-01": "beam_case_img/OB-C1.png",
+    "OH-02": "beam_case_img/OB-C2.png",
+    "OH-03": "beam_case_img/OB-C3.png",
+
+    # --- Continuous Beams — Two Spans / Three Supports ---
+    # NOTE: your catalog currently defines 2 cases (CS2-01, CS2-02)
+    # You provided 3 images; add 3rd when you increase to 3 cases.
+    "CS2-01": "beam_case_img/2S-C1.png",
+    "CS2-02": "beam_case_img/2S-C2.png",
+
+    # --- Continuous Beams — Three Spans / Four Supports (1 case) ---
+    "CS3-01": "beam_case_img/3S-C1.png",
+
+    # --- Continuous Beams — Four Spans / Five Supports (1 case) ---
+    "CS4-01": "beam_case_img/4S-C1.png",
 }
 
 # Apply image paths to cases
@@ -5735,3 +5766,4 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
