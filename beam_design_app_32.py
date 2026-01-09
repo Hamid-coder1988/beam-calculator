@@ -5265,7 +5265,7 @@ def render_report_tab():
         \le 1.0
         """)
         st.latex(rf"u_y = {u_y_B:.3f}")
-        report_status_badge("OK" if (util_61_B is not None and util_61_B <= 1.0) else "NOT OK")
+        report_status_badge(util_61_B)
 
         st.markdown("Equation (about z):")
         st.latex(r"""
@@ -5779,6 +5779,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
