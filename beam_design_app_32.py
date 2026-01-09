@@ -4435,152 +4435,205 @@ def render_report_tab():
         # (6.2.9) Bending and axial force
         # ----------------------------------------------------
         report_h4("(9), (10), (11) Bending and axial force (EN 1993-1-1 §6.2.9)")
-    
-        # Helpers: centered equation column (matches your new shear layout)
+        
         def _eq_line(label_html: str, latex_expr: str):
             cL, cM, cR = st.columns([3, 4, 3])
             with cL:
                 st.markdown(label_html, unsafe_allow_html=True)
             with cM:
                 st.latex(latex_expr)
-    
-        # Inputs / section resistances (from DB)
+        
+        st.markdown(
+            "This section evaluates the influence of axial force on the bending resistance for Class 1–2 cross-sections "
+            "in accordance with **EN 1993-1-1 §6.2.9**."
+        )
+        
+        # --- Inputs from DB / session ---
         family = (sr_display.get("family") or "").upper()
+        
         A_mm2  = float(sr_display.get("A_mm2") or 0.0)
         h_mm   = float(sr_display.get("h_mm") or 0.0)
         b_mm   = float(sr_display.get("b_mm") or 0.0)
         tw_mm  = float(sr_display.get("tw_mm") or 0.0)
         tf_mm  = float(sr_display.get("tf_mm") or 0.0)
-    
-        Npl_Rd_kN   = float(sr_display.get("Npl_Rd_kN") or 0.0)
-        Mpl_y_Rd_kNm = float(sr_display.get("Mpl_Rd_y_kNm") or 0.0)
-        Mpl_z_Rd_kNm = float(sr_display.get("Mpl_Rd_z_kNm") or 0.0)
-    
-        NEd_kN = float(cs_combo.get("NEd_kN") or inputs.get("N_kN") or 0.0)
+        
+        # Resistances expected from datasheet/DB
+        Npl_Rd_kN     = float(sr_display.get("Npl_Rd_kN") or 0.0)
+        Mpl_y_Rd_kNm  = float(sr_display.get("Mpl_Rd_y_kNm") or 0.0)
+        Mpl_z_Rd_kNm  = float(sr_display.get("Mpl_Rd_z_kNm") or 0.0)
+        
+        # Design effects
+        NEd_kN    = float(inputs.get("N_kN") or 0.0)
         My_Ed_kNm = float(inputs.get("My_kNm") or 0.0)
         Mz_Ed_kNm = float(inputs.get("Mz_kNm") or 0.0)
-    
-        st.markdown(
-            "This section evaluates the influence of axial force on the bending resistance "
-            "for Class 1–2 cross-sections in accordance with **EN 1993-1-1 §6.2.9**."
-        )
-    
+        
+        _eq_line("Design axial force:", rf"N_{{Ed}} = {NEd_kN:.2f}\,\mathrm{{kN}}")
+        
         # Normalized axial force
-        n = (abs(NEd_kN) / Npl_Rd_kN) if Npl_Rd_kN > 0 else None
+        n = (abs(NEd_kN) / Npl_Rd_kN) if (Npl_Rd_kN > 0.0) else None
         if n is not None:
-            _eq_line("Design axial force:", rf"N_{{Ed}} = {NEd_kN:.2f}\,\mathrm{{kN}}")
-            _eq_line("Normalized axial force:", rf"n=\frac{{N_{{Ed}}}}{{N_{{pl,Rd}}}}=\frac{{{abs(NEd_kN):.2f}}}{{{Npl_Rd_kN:.2f}}}={n:.3f}")
-    
-        # Decide “shape family” (practical classification)
+            _eq_line(
+                "Normalized axial force:",
+                rf"n=\frac{{|N_{{Ed}}|}}{{N_{{pl,Rd}}}}=\frac{{{abs(NEd_kN):.2f}}}{{{Npl_Rd_kN:.2f}}}={n:.3f}"
+            )
+        else:
+            st.warning("Cannot evaluate interaction because Npl,Rd is not available in the datasheet/DB.")
+        
+        # Practical family detection
         is_rhs = any(k in family for k in ["RHS", "SHS", "HSS", "BOX"])
         is_ih  = any(k in family for k in ["IPE", "HE", "HEA", "HEB", "HEM", "IPN", "UB", "UC", "W", "I", "H"])
-    
+        
+        # Outputs
+        MN_y_Rd = None
+        MN_z_Rd = None
+        alpha_y = None
+        alpha_z = None
+        
         st.markdown("For the examined case:")
-    
+        
         # --------------------------
-        # A) Doubly-symmetric I / H
+        # A) Doubly-symmetric I / H sections
+        # Eq. (8.45–8.47) shown for 'may ignore' check (narrative only),
+        # but general reduction Eq. (8.48–8.50) is applied regardless (uniform format).
         # --------------------------
-        if is_ih and (Npl_Rd_kN > 0) and (fy > 0) and (gamma_M0 > 0):
-    
-            # Web height approximation (kept consistent with your existing approach)
+        if is_ih and (n is not None) and (A_mm2 > 0.0) and (Mpl_y_Rd_kNm > 0.0) and (Mpl_z_Rd_kNm > 0.0):
+        
+            # --- "May ignore effect" criteria (8.45–8.47) ---
             hw_mm = max(h_mm - 2.0 * tf_mm, 0.0)
-    
-            # “May ignore” criteria (as you already computed in cs_combo)
-            crit_y_25  = cs_combo.get("crit_y_25", None)
-            crit_y_web = cs_combo.get("crit_y_web", None)
-            crit_z_web = cs_combo.get("crit_z_web", None)
-    
-            # Show the limit values (if available)
+        
+            crit_y_25  = 0.25 * Npl_Rd_kN if Npl_Rd_kN > 0 else None
+            crit_y_web = (0.50 * hw_mm * tw_mm * fy / gamma_M0) / 1000.0 if (hw_mm > 0 and tw_mm > 0 and fy > 0) else None
+            crit_z_web = (hw_mm * tw_mm * fy / gamma_M0) / 1000.0 if (hw_mm > 0 and tw_mm > 0 and fy > 0) else None
+        
             if crit_y_25 is not None:
-                _eq_line("Major axis criterion 1:", rf"N_{{Ed}}\le 0.25\,N_{{pl,Rd}} = {crit_y_25:.1f}\,\mathrm{{kN}}")
+                _eq_line("Major axis criterion 1:", rf"N_{{Ed}} \le 0.25\,N_{{pl,Rd}} = {crit_y_25:.1f}\,\mathrm{{kN}}")
             if crit_y_web is not None:
-                _eq_line("Major axis criterion 2:", rf"N_{{Ed}}\le 0.50\,h_w t_w f_y/\gamma_{{M0}} = {crit_y_web:.1f}\,\mathrm{{kN}}")
+                _eq_line("Major axis criterion 2:", rf"N_{{Ed}} \le 0.50\,h_w t_w f_y/\gamma_{{M0}} = {crit_y_web:.1f}\,\mathrm{{kN}}")
             if crit_z_web is not None:
-                _eq_line("Minor axis criterion:", rf"N_{{Ed}}\le h_w t_w f_y/\gamma_{{M0}} = {crit_z_web:.1f}\,\mathrm{{kN}}")
-    
-            if cs_combo.get("axial_ok_y", False) and cs_combo.get("axial_ok_z", False):
+                _eq_line("Minor axis criterion:", rf"N_{{Ed}} \le h_w t_w f_y/\gamma_{{M0}} = {crit_z_web:.1f}\,\mathrm{{kN}}")
+        
+            axial_ok_y = (
+                (crit_y_25 is not None and abs(NEd_kN) <= crit_y_25) and
+                (crit_y_web is not None and abs(NEd_kN) <= crit_y_web)
+            )
+            axial_ok_z = (crit_z_web is not None and abs(NEd_kN) <= crit_z_web)
+        
+            if axial_ok_y and axial_ok_z:
                 st.markdown(
                     "The axial force is sufficiently small to neglect its influence on the plastic bending resistance "
                     "for the current I/H section. Therefore the bending utilizations remain as in **(3)** and **(4)**."
                 )
+                st.caption("Note: in this report the general reduction method is still applied to keep a uniform calculation format.")
             else:
-                # Apply I/H reduction rules (EN 1993-1-1 §6.2.9.1(5), formulas 8.48–8.50)
-                if n is None:
-                    st.warning("Cannot evaluate interaction because Npl,Rd is not available.")
-                else:
-                    a = min(0.5, (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2) if A_mm2 > 0 else 0.5
-    
-                    # Reduced bending resistances
-                    MN_y_Rd = min(Mpl_y_Rd_kNm, Mpl_y_Rd_kNm * (1.0 - n) / (1.0 - 0.5 * a)) if (Mpl_y_Rd_kNm > 0) else 0.0
-    
-                    if n <= a:
-                        MN_z_Rd = Mpl_z_Rd_kNm
-                    else:
-                        MN_z_Rd = Mpl_z_Rd_kNm * (1.0 - ((n - a) / (1.0 - a)) ** 2) if (Mpl_z_Rd_kNm > 0) else 0.0
-    
-                    _eq_line("Section ratio:", rf"a=\min\left[0.5,\frac{{A-2b_f t_f}}{{A}}\right]={a:.3f}")
-                    _eq_line("Reduced resistance (y):", rf"M_{{N,y,Rd}} = {MN_y_Rd:.3f}\,\mathrm{{kNm}}")
-                    _eq_line("Reduced resistance (z):", rf"M_{{N,z,Rd}} = {MN_z_Rd:.3f}\,\mathrm{{kNm}}")
-    
-                    # Biaxial interaction (EN 1993-1-1 §6.2.9.1(6), formula 8.56)
-                    alpha_y = 2.0
-                    alpha_z = max(1.0, 5.0 * n)
-    
-                    uy = (abs(My_Ed_kNm) / MN_y_Rd) if MN_y_Rd > 0 else None
-                    uz = (abs(Mz_Ed_kNm) / MN_z_Rd) if MN_z_Rd > 0 else None
-    
-                    if (uy is not None) and (uz is not None):
-                        u_biax = (uy ** alpha_y) + (uz ** alpha_z)
-                        _eq_line("Interaction:", rf"\left(\frac{{M_{{y,Ed}}}}{{M_{{N,y,Rd}}}}\right)^{{{alpha_y:.2f}}}+\left(\frac{{M_{{z,Ed}}}}{{M_{{N,z,Rd}}}}\right)^{{{alpha_z:.2f}}}={u_biax:.3f}\le 1.0")
-                        report_status_badge(u_biax)
-    
-        # --------------------------
-        # B) Rectangular hollow (RHS/SHS/HSS)
-        # --------------------------
-        elif is_rhs and (Npl_Rd_kN > 0) and (A_mm2 > 0):
-    
-            if n is None:
-                st.warning("Cannot evaluate interaction because Npl,Rd is not available.")
+                st.markdown(
+                    "The axial force is not sufficiently small to neglect its influence on the plastic bending resistance. "
+                    "The general reduction method is applied below."
+                )
+        
+            # --- General reduction Eq. (8.48–8.50) ---
+            a = (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2
+            a = max(0.0, min(0.5, a))
+            _eq_line("Section parameter:", rf"a=\min\left(0.5,\frac{{A-2b_f t_f}}{{A}}\right)={a:.3f}")
+        
+            # Eq. (8.48)
+            denom_y = (1.0 - 0.5 * a)
+            MN_y_Rd = Mpl_y_Rd_kNm * (1.0 - n) / denom_y if denom_y > 0 else 0.0
+            MN_y_Rd = min(Mpl_y_Rd_kNm, max(0.0, MN_y_Rd))
+        
+            # Eq. (8.49)-(8.50)
+            if n <= a:
+                MN_z_Rd = Mpl_z_Rd_kNm
             else:
-                # aw, af (uniform thickness assumption: use tf for flange thickness, tw for web thickness)
-                aw = min(0.5, (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2) if (A_mm2 > 0) else 0.5
-                af = min(0.5, (A_mm2 - 2.0 * h_mm * tw_mm) / A_mm2) if (A_mm2 > 0) else 0.5
-    
-                _eq_line("Ratio (web part):",  rf"a_w=\min\left[0.5,\frac{{A-2b\,t_f}}{{A}}\right]={aw:.3f}")
-                _eq_line("Ratio (flange part):", rf"a_f=\min\left[0.5,\frac{{A-2h\,t_w}}{{A}}\right]={af:.3f}")
-    
-                # Reduced bending resistances (EN 1993-1-1 §6.2.9.1(6), formulas 8.51–8.52)
-                MN_y_Rd = min(Mpl_y_Rd_kNm, Mpl_y_Rd_kNm * (1.0 - n) / (1.0 - 0.5 * aw)) if (Mpl_y_Rd_kNm > 0) else 0.0
-                MN_z_Rd = min(Mpl_z_Rd_kNm, Mpl_z_Rd_kNm * (1.0 - n) / (1.0 - 0.5 * af)) if (Mpl_z_Rd_kNm > 0) else 0.0
-    
-                _eq_line("Reduced resistance (y):", rf"M_{{N,y,Rd}} = {MN_y_Rd:.3f}\,\mathrm{{kNm}}")
-                _eq_line("Reduced resistance (z):", rf"M_{{N,z,Rd}} = {MN_z_Rd:.3f}\,\mathrm{{kNm}}")
-    
-                uy = (abs(My_Ed_kNm) / MN_y_Rd) if MN_y_Rd > 0 else None
-                uz = (abs(Mz_Ed_kNm) / MN_z_Rd) if MN_z_Rd > 0 else None
-    
-                if (uy is not None) and (uz is not None):
-                    # Exponents for RHS (from EN 1993-1-1 guidance)
-                    if n <= 0.8:
-                        alpha = min(6.0, 1.66 / (1.0 - 1.13 * (n ** 2)))
-                    else:
-                        alpha = 6.0
-                    beta = alpha
-    
-                    u_biax = (uy ** alpha) + (uz ** beta)
-    
-                    _eq_line("Exponents:", rf"\alpha=\beta={alpha:.3f}")
-                    _eq_line("Interaction:", rf"\left(\frac{{M_{{y,Ed}}}}{{M_{{N,y,Rd}}}}\right)^{{{alpha:.3f}}}+\left(\frac{{M_{{z,Ed}}}}{{M_{{N,z,Rd}}}}\right)^{{{beta:.3f}}}={u_biax:.3f}\le 1.0")
-                    report_status_badge(u_biax)
-    
+                ratio = (n - a) / (1.0 - a) if (1.0 - a) > 0 else 1.0
+                MN_z_Rd = Mpl_z_Rd_kNm * (1.0 - ratio**2)
+                MN_z_Rd = max(0.0, MN_z_Rd)
+        
+            # Exponents for Eq. (8.56)
+            alpha_y = 2.0
+            alpha_z = max(1.0, 5.0 * n)
+        
+            st.latex(r"\frac{M_{Ed}}{M_{N,Rd}} \le 1.0")
+            _eq_line("Reduced resistance (y):", rf"M_{{N,y,Rd}}={MN_y_Rd:.3f}\,\mathrm{{kNm}}")
+            _eq_line("Reduced resistance (z):", rf"M_{{N,z,Rd}}={MN_z_Rd:.3f}\,\mathrm{{kNm}}")
+            _eq_line("Exponents (8.56):", rf"\alpha_y={alpha_y:.2f},\;\alpha_z=\max(1,5n)={alpha_z:.2f}")
+        
+        # --------------------------
+        # B) Rectangular hollow sections (RHS/SHS/HSS/BOX)
+        # Eq. (8.51–8.52), exponents per 8.56 (RHS rules)
+        # --------------------------
+        elif is_rhs and (n is not None) and (A_mm2 > 0.0) and (Mpl_y_Rd_kNm > 0.0) and (Mpl_z_Rd_kNm > 0.0):
+        
+            aw = (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2 if A_mm2 > 0 else 0.0
+            af = (A_mm2 - 2.0 * h_mm * tw_mm) / A_mm2 if A_mm2 > 0 else 0.0
+            aw = max(0.0, min(0.5, aw))
+            af = max(0.0, min(0.5, af))
+        
+            _eq_line("Section parameter:", rf"a_w=\min\left(0.5,\frac{{A-2bt_f}}{{A}}\right)={aw:.3f}")
+            _eq_line("Section parameter:", rf"a_f=\min\left(0.5,\frac{{A-2ht_w}}{{A}}\right)={af:.3f}")
+        
+            # Eq. (8.51)-(8.52)
+            denom_y = (1.0 - 0.5 * aw)
+            denom_z = (1.0 - 0.5 * af)
+        
+            MN_y_Rd = Mpl_y_Rd_kNm * (1.0 - n) / denom_y if denom_y > 0 else 0.0
+            MN_z_Rd = Mpl_z_Rd_kNm * (1.0 - n) / denom_z if denom_z > 0 else 0.0
+        
+            MN_y_Rd = min(Mpl_y_Rd_kNm, max(0.0, MN_y_Rd))
+            MN_z_Rd = min(Mpl_z_Rd_kNm, max(0.0, MN_z_Rd))
+        
+            # Exponents for RHS (8.56 excerpt)
+            if n <= 0.8:
+                denom = (1.0 - 1.13 * (n**2))
+                alpha = min(6.0, 1.66 / denom) if denom > 0 else 6.0
+            else:
+                alpha = 6.0
+            alpha_y = alpha
+            alpha_z = alpha
+        
+            st.latex(r"\frac{M_{Ed}}{M_{N,Rd}} \le 1.0")
+            _eq_line("Reduced resistance (y):", rf"M_{{N,y,Rd}}={MN_y_Rd:.3f}\,\mathrm{{kNm}}")
+            _eq_line("Reduced resistance (z):", rf"M_{{N,z,Rd}}={MN_z_Rd:.3f}\,\mathrm{{kNm}}")
+            _eq_line("Exponents (8.56):", rf"\alpha_y=\alpha_z={alpha:.3f}")
+        
         # --------------------------
         # C) Fallback (unknown family)
         # --------------------------
         else:
             st.info(
                 "Section family is not recognized as I/H or rectangular hollow. "
-                "For now, no special axial–bending interaction model is applied here."
+                "If you add a 'section_type' field in the datasheet (IH/RHS/CHS/EHS/etc.), "
+                "this section can be extended with the corresponding Eurocode formula."
             )
+        
+        # --- Utilizations (always from reduced resistances) ---
+        if (MN_y_Rd is not None) and (MN_y_Rd > 0.0):
+            uy = abs(My_Ed_kNm) / MN_y_Rd
+            _eq_line("Major-axis utilization:", rf"u_y=\frac{{|M_{{y,Ed}}|}}{{M_{{N,y,Rd}}}}=\frac{{{abs(My_Ed_kNm):.3f}}}{{{MN_y_Rd:.3f}}}={uy:.3f}")
+            report_status_badge(uy)
+        else:
+            uy = None
+            st.warning("Cannot compute u_y because M_N,y,Rd is not available.")
+        
+        if (MN_z_Rd is not None) and (MN_z_Rd > 0.0):
+            uz = abs(Mz_Ed_kNm) / MN_z_Rd
+            _eq_line("Minor-axis utilization:", rf"u_z=\frac{{|M_{{z,Ed}}|}}{{M_{{N,z,Rd}}}}=\frac{{{abs(Mz_Ed_kNm):.3f}}}{{{MN_z_Rd:.3f}}}={uz:.3f}")
+            report_status_badge(uz)
+        else:
+            uz = None
+            st.warning("Cannot compute u_z because M_N,z,Rd is not available.")
+        
+        # --- Biaxial interaction (Eq. 8.56) ---
+        if (uy is not None) and (uz is not None) and (alpha_y is not None) and (alpha_z is not None):
+            u_int = (uy ** alpha_y) + (uz ** alpha_z)
+            st.latex(
+                rf"\left(\frac{{M_{{y,Ed}}}}{{M_{{N,y,Rd}}}}\right)^{{{alpha_y:.2f}}}"
+                rf"+\left(\frac{{M_{{z,Ed}}}}{{M_{{N,z,Rd}}}}\right)^{{{alpha_z:.2f}}}"
+                rf"={u_int:.3f}\le 1.0"
+            )
+            report_status_badge(u_int)
+        else:
+            st.info("Biaxial interaction (8.56) not evaluated because required inputs are missing.")
+
     
         # ----------------------------------------------------
         # (6.2.10) Combined bending, shear and axial force
@@ -5780,6 +5833,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
