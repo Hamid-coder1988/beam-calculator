@@ -4184,7 +4184,7 @@ def render_report_tab():
                     rf" = \frac{{{NEd_comp_kN:.3f}}}{{{Nc_Rd_kN:.3f}}}"
                     rf" = {u_comp_str} \le 1.0"
                 )
-                report_status_badge(status_comp)
+                report_status_badge(util_comp)
         else:
             st.markdown(
                 "Compression resistance could not be evaluated because cross-section area "
@@ -4248,15 +4248,15 @@ def render_report_tab():
             rf" = \frac{{{My_Ed_kNm:.2f}}}{{{Mc_y_Rd_kNm:.2f}}}"
             rf" = {util_My:.3f} \le 1.0"
         )
-        report_status_badge(status_My)
+        report_status_badge(util_My)
 
         st.latex(
             rf"u_z = \frac{{M_{{z,Ed}}}}{{M_{{c,z,Rd}}}}"
             rf" = \frac{{{Mz_Ed_kNm:.2f}}}{{{Mc_z_Rd_kNm:.2f}}}"
             rf" = {util_Mz:.3f} \le 1.0"
         )
-        report_status_badge(status_Mz)
-
+        report_status_badge(util_Mz) 
+        
         st.markdown(
             """
     According to EN 1993-1-1 §6.2.5(4–6), holes may be neglected in bending resistance
@@ -5779,6 +5779,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
