@@ -3699,6 +3699,14 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     doc.build(story)
     buffer.seek(0)
     return buffer
+    
+def report_status_badge(util):
+    if util is None:
+        return
+    if util <= 1.0:
+        st.markdown("✅ **OK**", unsafe_allow_html=True)
+    else:
+        st.markdown("❌ **NOT OK**", unsafe_allow_html=True)
 
 def render_report_tab():
     sr_display = st.session_state.get("sr_display")
@@ -4311,19 +4319,23 @@ def render_report_tab():
     
         # Utilization
         report_h4("Utilization checks")
-    
+        
+        # z-direction shear
         st.latex(
             rf"u_z = \frac{{V_{{z,Ed}}}}{{V_{{c,z,Rd}}}}"
             rf" = \frac{{{Vz_Ed_kN:.2f}}}{{{Vc_z_Rd_kN:.2f}}}"
-            rf" = {util_Vz:.3f} \Rightarrow \textbf{{{status_Vz}}}"
+            rf" = {util_Vz:.3f} \le 1.0"
         )
-    
+        report_status_badge(util_Vz)
+        
+        # y-direction shear
         st.latex(
             rf"u_y = \frac{{V_{{y,Ed}}}}{{V_{{c,y,Rd}}}}"
             rf" = \frac{{{Vy_Ed_kN:.2f}}}{{{Vc_y_Rd_kN:.2f}}}"
-            rf" = {util_Vy:.3f} \Rightarrow \textbf{{{status_Vy}}}"
+            rf" = {util_Vy:.3f} \le 1.0"
         )
-    
+        report_status_badge(util_Vy)
+
         st.markdown("""
         Per EN 1993-1-1 §6.2.6(7), shear resistance does not need to account for fastener holes
         except at joints where EN 1993-1-8 applies.
@@ -5767,6 +5779,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
