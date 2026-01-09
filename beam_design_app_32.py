@@ -4320,21 +4320,21 @@ def render_report_tab():
         # Utilization
         report_h4("Utilization checks")
         
-        # z-direction shear
         st.latex(
             rf"u_z = \frac{{V_{{z,Ed}}}}{{V_{{c,z,Rd}}}}"
             rf" = \frac{{{Vz_Ed_kN:.2f}}}{{{Vc_z_Rd_kN:.2f}}}"
             rf" = {util_Vz:.3f} \le 1.0"
         )
-        report_status_badge(util_Vz)
         
-        # y-direction shear
         st.latex(
             rf"u_y = \frac{{V_{{y,Ed}}}}{{V_{{c,y,Rd}}}}"
             rf" = \frac{{{Vy_Ed_kN:.2f}}}{{{Vc_y_Rd_kN:.2f}}}"
             rf" = {util_Vy:.3f} \le 1.0"
         )
-        report_status_badge(util_Vy)
+        
+        # governing shear utilization
+        report_status_badge(max(util_Vz, util_Vy))
+
 
         st.markdown("""
         Per EN 1993-1-1 §6.2.6(7), shear resistance does not need to account for fastener holes
@@ -5779,6 +5779,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
