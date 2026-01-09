@@ -4184,7 +4184,7 @@ def render_report_tab():
                     rf" = \frac{{{NEd_comp_kN:.3f}}}{{{Nc_Rd_kN:.3f}}}"
                     rf" = {u_comp_str} \le 1.0"
                 )
-                report_status_badge(util_comp)
+                report_status_badge(u_comp)
         else:
             st.markdown(
                 "Compression resistance could not be evaluated because cross-section area "
@@ -5779,6 +5779,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
