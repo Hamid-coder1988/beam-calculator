@@ -3701,12 +3701,30 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     return buffer
     
 def report_status_badge(util):
+    import math
+
     if util is None:
         return
-    if util <= 1.0:
+
+    # If util is a number -> normal check
+    if isinstance(util, (int, float)):
+        if not math.isfinite(float(util)):
+            st.markdown("❓ **n/a**", unsafe_allow_html=True)
+            return
+        if float(util) <= 1.0:
+            st.markdown("✅ **OK**", unsafe_allow_html=True)
+        else:
+            st.markdown("❌ **NOT OK**", unsafe_allow_html=True)
+        return
+
+    # If util is text like "OK" / "NOT OK" / "EXCEEDS"
+    s = str(util).strip().upper()
+    if s in ("OK", "PASS"):
         st.markdown("✅ **OK**", unsafe_allow_html=True)
-    else:
+    elif s in ("NOT OK", "NOTOK", "FAIL", "EXCEEDS", "EXCEEDED"):
         st.markdown("❌ **NOT OK**", unsafe_allow_html=True)
+    else:
+        st.markdown(f"❓ **{util}**", unsafe_allow_html=True)
 
 def render_report_tab():
     sr_display = st.session_state.get("sr_display")
@@ -5762,6 +5780,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
