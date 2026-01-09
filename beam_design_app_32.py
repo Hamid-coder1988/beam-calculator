@@ -4115,7 +4115,7 @@ def render_report_tab():
                 rf" = \frac{{{NEd_ten_kN:.3f}}}{{{Npl_Rd_kN:.3f}}}"
                 rf" = {u_ten_str} \le 1.0"
             )
-            report_status_badge(status_ten)
+            report_status_badge(u_ten)
         else:
             st.markdown(
                 "Tension resistance could not be evaluated because cross-section area or "
@@ -5779,6 +5779,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
