@@ -4553,10 +4553,54 @@ def render_report_tab():
             alpha_z = max(1.0, 5.0 * n)
         
             st.latex(r"\frac{M_{Ed}}{M_{N,Rd}} \le 1.0")
-            _eq_line("Reduced resistance (y):", rf"M_{{N,y,Rd}}={MN_y_Rd:.3f}\,\mathrm{{kNm}}")
-            _eq_line("Reduced resistance (z):", rf"M_{{N,z,Rd}}={MN_z_Rd:.3f}\,\mathrm{{kNm}}")
-            _eq_line("Exponents (8.56):", rf"\alpha_y={alpha_y:.2f},\;\alpha_z=\max(1,5n)={alpha_z:.2f}")
-        
+            
+            # ---- Major axis (Eq. 8.48) ----
+            _eq_line(
+                "Eq. (8.48):",
+                r"M_{N,y,Rd}=\min\!\left(M_{pl,y,Rd},\;M_{pl,y,Rd}\frac{1-n}{1-0.5a}\right)"
+            )
+            
+            _eq_line(
+                "&nbsp;",
+                rf"=\min\!\left({Mpl_y_Rd_kNm:.3f},\;{Mpl_y_Rd_kNm:.3f}"
+                rf"\cdot\frac{{1-{n:.3f}}}{{1-0.5\cdot {a:.3f}}}\right)"
+            )
+            
+            _eq_line(
+                "&nbsp;",
+                rf"= {MN_y_Rd:.3f}\,\mathrm{{kNm}}"
+            )
+            
+            # ---- Minor axis (Eq. 8.49–8.50) ----
+            _eq_line(
+                "Eq. (8.49–8.50):",
+                r"\text{if }n\le a:\;M_{N,z,Rd}=M_{pl,z,Rd}"
+                r"\quad\text{else: }M_{pl,z,Rd}\!\left[1-\left(\frac{n-a}{1-a}\right)^2\right]"
+            )
+            
+            if n <= a:
+                _eq_line(
+                    "&nbsp;",
+                    rf"n={n:.3f}\le a={a:.3f}\;\Rightarrow\;"
+                    rf"M_{{N,z,Rd}}={Mpl_z_Rd_kNm:.3f}\,\mathrm{{kNm}}"
+                )
+            else:
+                _eq_line(
+                    "&nbsp;",
+                    rf"M_{{N,z,Rd}}={Mpl_z_Rd_kNm:.3f}"
+                    rf"\left[1-\left(\frac{{{n:.3f}-{a:.3f}}}{{1-{a:.3f}}}\right)^2\right]"
+                )
+                _eq_line(
+                    "&nbsp;",
+                    rf"= {MN_z_Rd:.3f}\,\mathrm{{kNm}}"
+                )
+            
+            # ---- Biaxial interaction (Eq. 8.56) ----
+            _eq_line(
+                "Exponents (Eq. 8.56):",
+                rf"\alpha_y=2.0,\;\alpha_z=\max(1,5n)=\max(1,5\cdot {n:.3f})={alpha_z:.2f}"
+            )
+
         # --------------------------
         # B) Rectangular hollow sections (RHS/SHS/HSS/BOX)
         # Eq. (8.51–8.52), exponents per 8.56 (RHS rules)
@@ -5833,6 +5877,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
