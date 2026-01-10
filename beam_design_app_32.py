@@ -4867,19 +4867,32 @@ def render_report_tab():
                 uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if Vc_z_Rd_kN > 0 else 0.0
                 uV = (uV_y ** 2) + (uV_z ** 2)
         
-            # (12) My + N + V
-            u12 = (uMy ** alpha_y) + uV if (uMy is not None) else None
+            # -------------------------------------------------
+            # Utilizations (12), (13), (14)
+            # IMPORTANT: if shear is neglected => identical to §6.2.9 (9),(10),(11)
+            # -------------------------------------------------
         
-            # (13) Mz + N + V
-            u13 = (uMz ** alpha_z) + uV if (uMz is not None) else None
+            # Shear term (only active when reduction case is active)
+            uV = 0.0
+            if not shear_small:
+                uV_y = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if Vc_y_Rd_kN > 0 else 0.0
+                uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if Vc_z_Rd_kN > 0 else 0.0
+                uV = (uV_y ** 2) + (uV_z ** 2)
         
-            # (14) My + Mz + N + V
             if shear_small:
-                # Per your requirement: when shear <= 0.5 Vpl,Rd, case (14) = case (12)
-                u14 = u12
+                # EXACT MATCH to §6.2.9:
+                # (12) ↔ (9): major only
+                # (13) ↔ (10): minor only
+                # (14) ↔ (11): biaxial interaction
+                u12 = uMy if (uMy is not None) else None
+                u13 = uMz if (uMz is not None) else None
+                u14 = ((uMy ** alpha_y) + (uMz ** alpha_z)) if (uMy is not None and uMz is not None) else None
             else:
-                u14 = (uMy ** alpha_y) + (uMz ** alpha_z) + uV if (uMy is not None and uMz is not None) else None
-        
+                # Shear present (use same bending-axial interaction form + add shear term)
+                u12 = ((uMy ** alpha_y) + uV) if (uMy is not None) else None
+                u13 = ((uMz ** alpha_z) + uV) if (uMz is not None) else None
+                u14 = ((uMy ** alpha_y) + (uMz ** alpha_z) + uV) if (uMy is not None and uMz is not None) else None
+
             # ---- Show only main equations + final results (centered) ----
             _eq_line("Main interaction form:", r"u=\left(\frac{M_{y,Ed}}{M_{N,y,Rd}}\right)^{\alpha_y}+\left(\frac{M_{z,Ed}}{M_{N,z,Rd}}\right)^{\alpha_z}+u_V")
             if not shear_small:
@@ -5985,6 +5998,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
