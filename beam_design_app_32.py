@@ -4671,13 +4671,22 @@ def render_report_tab():
         
         # --- Biaxial interaction (Eq. 8.56) ---
         if (uy is not None) and (uz is not None) and (alpha_y is not None) and (alpha_z is not None):
-            u_int = (uy ** alpha_y) + (uz ** alpha_z)
+            u_yz = (uy ** alpha_y) + (uz ** alpha_z)
+        
+            # Main equation (symbolic)
             st.latex(
+                rf"u_{{y+z}}="
                 rf"\left(\frac{{M_{{y,Ed}}}}{{M_{{N,y,Rd}}}}\right)^{{{alpha_y:.2f}}}"
                 rf"+\left(\frac{{M_{{z,Ed}}}}{{M_{{N,z,Rd}}}}\right)^{{{alpha_z:.2f}}}"
-                rf"={u_int:.3f}\le 1.0"
             )
-            report_status_badge(u_int)
+        
+            # Result line
+            st.latex(
+                rf"u_{{y+z}}={u_yz:.3f}\le 1.0"
+            )
+        
+            report_status_badge(u_yz)
+
         else:
             st.info("Biaxial interaction (8.56) not evaluated because required inputs are missing.")
             
@@ -5998,6 +6007,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
