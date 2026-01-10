@@ -1269,18 +1269,38 @@ def render_section_selection():
     st.subheader("Section selection")
     types, sizes_map, detected_table = fetch_types_and_sizes()
 
+    # --- optional: manual cache-buster / re-fetch trigger ---
+    if "db_rev" not in st.session_state:
+        st.session_state["db_rev"] = 1
+
+    c0, _ = st.columns([1, 5])
+    with c0:
+        if st.button("Refresh DB data", key="btn_refresh_db"):
+            st.session_state["db_rev"] += 1
+            # Clear cached sr_display so we MUST fetch again
+            st.session_state.pop("sr_display", None)
+            st.session_state.pop("_sr_key_loaded", None)
+            # Also clear computed results
+            for k in ["df_rows", "overall_ok", "governing", "extras"]:
+                st.session_state.pop(k, None)
+
     c1, c2, c3 = st.columns([1, 1, 1])
+
     with c1:
         material = st.selectbox("Material", ["S235", "S275", "S355"], index=2, key="mat_sel")
+        st.session_state["material"] = material  # keep consistent with report tab
+
     with c2:
         family = st.selectbox(
             "Section family / Type (DB)",
             ["-- choose --"] + types if types else ["-- choose --"],
             key="fam_sel"
         )
+
     with c3:
         selected_name = None
         selected_row = None
+
         if family and family != "-- choose --":
             names = sizes_map.get(family, [])
             selected_name = st.selectbox(
@@ -1288,14 +1308,29 @@ def render_section_selection():
                 ["-- choose --"] + names if names else ["-- choose --"],
                 key="size_sel"
             )
+
             if selected_name and selected_name != "-- choose --":
+                # ---- ALWAYS fetch from DB here (fresh) ----
                 selected_row = get_section_row_db(
-                    family, selected_name,
+                    family,
+                    selected_name,
                     detected_table if detected_table != "sample" else None
                 )
 
-    return material, family, selected_name, selected_row, detected_table
+                # ---- Force update sr_display if selection changed OR db_rev changed ----
+                # Key includes db_rev so the same selection can be reloaded after DB refresh
+                sr_key = f"{family}::{selected_name}::{detected_table}::{st.session_state.get('db_rev', 1)}"
+                prev_key = st.session_state.get("_sr_key_loaded")
 
+                if (prev_key != sr_key) or (st.session_state.get("sr_display") is None):
+                    st.session_state["sr_display"] = selected_row
+                    st.session_state["_sr_key_loaded"] = sr_key
+
+                    # Clear computed results so they recompute with the new section properties
+                    for k in ["df_rows", "overall_ok", "governing", "extras"]:
+                        st.session_state.pop(k, None)
+
+    return material, family, selected_name, selected_row, detected_table
 
 def build_section_display(selected_row):
     """
@@ -6007,6 +6042,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
