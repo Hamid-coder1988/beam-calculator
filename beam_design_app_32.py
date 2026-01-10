@@ -2153,10 +2153,42 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     My_Rk_Nm = Wy_m3 * fy * 1e6
     Mz_Rk_Nm = Wz_m3 * fy * 1e6
 
-    # Determine imperfection factors (rolled I/H heuristic; fallback to DB alpha)
+    # Determine imperfection factors for FLEXURAL buckling (EN 1993-1-1 §6.3.1)
+    # If DB provides alpha, DO NOT overwrite it with heuristics.
     alpha_y = float(alpha_curve_db) if alpha_curve_db is not None else 0.49
     alpha_z = float(alpha_curve_db) if alpha_curve_db is not None else 0.49
-    alpha_LT = 0.34  # rolled I-sections curve b (common default)
+    
+    # Optional heuristic only if DB has no value
+    if alpha_curve_db is None:
+        if b_mm > 0 and h_mm > 0 and (h_mm / b_mm) > 1.2 and (tf_mm <= 40.0):
+            alpha_y = 0.21  # curve a
+            alpha_z = 0.34  # curve b
+    
+    # --- LTB imperfection factor alpha_LT (EN 1993-1-1 Table 6.3 + 6.4) ---
+    # Rolled I:   h/b <= 2 -> a (0.21),  h/b > 2 -> b (0.34)
+    # Welded I:   h/b <= 2 -> c (0.49),  h/b > 2 -> d (0.76)
+    # Other:      d (0.76)
+    hb = (h_mm / b_mm) if (b_mm and b_mm > 0) else None
+    
+    sec_label = (
+        str(use_props.get("family") or use_props.get("type") or use_props.get("Type") or
+            use_props.get("section_family") or use_props.get("Section") or use_props.get("name") or "")
+    ).upper()
+    
+    is_welded_i = ("WELD" in sec_label) or ("PLATE" in sec_label) or ("GIRDER" in sec_label)
+    is_rolled_i = any(sec_label.startswith(p) for p in ("IPE", "IPN", "HEA", "HEB", "HEM", "HE", "UB", "UC"))
+    
+    if hb is None:
+        curve_LT = "b"  # safe default
+    elif is_welded_i:
+        curve_LT = "c" if hb <= 2.0 else "d"
+    elif is_rolled_i:
+        curve_LT = "a" if hb <= 2.0 else "b"
+    else:
+        curve_LT = "d"
+    
+    alpha_LT = {"a": 0.21, "b": 0.34, "c": 0.49, "d": 0.76}[curve_LT]
+
 
     if b_mm > 0 and h_mm > 0 and (h_mm / b_mm) > 1.2 and (tf_mm <= 40.0):
         alpha_y = 0.21  # curve a
@@ -2177,6 +2209,10 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     # Flexural buckling about y and z
     buck_results = []
     buck_map = {}  # for report/results mapping
+    # store flexural buckling imperfection factors actually used
+    buck_map["alpha_y"] = alpha_y
+    buck_map["alpha_z"] = alpha_z
+
     for axis_label, I_axis, K_axis, alpha_use in [
         ("y", I_y_m4, K_y, alpha_y),
         ("z", I_z_m4, K_z, alpha_z),
@@ -2227,11 +2263,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     Nb_Rd_T_N = None
     util_T = None
     status_T = "n/a"
+    alpha_T = alpha_z
+    buck_map["alpha_T"] = alpha_T
+
 
     if i0_m > 0 and J_m4 > 0 and Iw_m6 > 0 and Leff_T > 0:
         Ncr_T = (1.0 / (i0_m**2)) * (G * J_m4 + (math.pi**2) * E * Iw_m6 / (Leff_T**2))
         lambda_T = math.sqrt(NRk_N / Ncr_T) if Ncr_T > 0 else float("inf")
-        chi_T = chi_reduction(lambda_T, alpha_z)  # use minor-axis curve
+        chi_T = chi_reduction(lambda_T, alpha_T)  # use stored torsional alpha
         Nb_Rd_T_N = chi_T * NRk_N / gamma_M1
         util_T = abs(N_N) / Nb_Rd_T_N if Nb_Rd_T_N and Nb_Rd_T_N > 0 else float("inf")
         status_T = "OK" if util_T <= 1.0 else "EXCEEDS"
@@ -5260,16 +5299,16 @@ def render_report_tab():
             "$N_{cr,TF}=N_{cr,T}$ (see EN 1993-1-1 §6.3.1.4)."
         )
     
-        # --- Non-dimensional slenderness (torsional / torsional-flexural) ---
-        NcrT_N = float(Ncr_T or 0.0)
-        alpha_T = float(extras.get("buck_alpha_z") or 0.34)  # use minor-axis curve
-        lam_T = math.sqrt((A_mm2 * fy) / NcrT_N) if NcrT_N > 0 else 0.0
-        phi_T = 0.5 * (1.0 + alpha_T * (lam_T - 0.20) + lam_T**2)
-        sqrt_term_T = max(phi_T**2 - lam_T**2, 0.0)
-        denom_T = phi_T + math.sqrt(sqrt_term_T)
-        chi_T_disp = min(1.0, 1.0 / denom_T) if denom_T > 0 else 0.0
-        NbRdT_disp_kN = (chi_T_disp * A_mm2 * fy / gamma_M1) / 1000.0
-        utilT_disp = (abs(NEd_kN) / NbRdT_disp_kN) if NbRdT_disp_kN > 0 else float("inf")
+        # --- (17) Pull values from compute_checks (same pattern as section 16) ---
+        NcrT_N = float(buck_map.get("Ncr_T") or 0.0)
+        alpha_T = float(buck_map.get("alpha_T") or buck_map.get("alpha_z") or 0.34)
+        
+        lam_T = float(buck_map.get("lambda_T") or 0.0)
+        phi_T = float(buck_map.get("phi_T") or 0.0)
+        chi_T_disp = float(buck_map.get("chi_T") or 0.0)
+        
+        NbRdT_disp_kN = float((buck_map.get("Nb_Rd_T") or 0.0) / 1000.0)
+        utilT_disp = float(buck_map.get("util_T") or 0.0)
     
         _eq_line("Non-dimensional slenderness:", r"\bar{\lambda}_T=\sqrt{\frac{A f_y}{N_{cr,T}}}")
         _eq_line("&nbsp;", rf"=\sqrt{{\frac{{{A_mm2:,.0f}\cdot {fy:.0f}}}{{{NcrT_disp_kN:.1f}\times 10^3}}}}={lam_T:.3f}")
@@ -6071,6 +6110,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
