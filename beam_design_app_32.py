@@ -5300,10 +5300,16 @@ def render_report_tab():
         )
     
         # --- (17) Pull values from compute_checks (same pattern as section 16) ---
-        NcrT_N = float(buck_map.get("Ncr_T") or 0.0)
-        alpha_T = float(buck_map.get("alpha_T") or buck_map.get("alpha_z") or 0.34)
+        # --- Non-dimensional slenderness (torsional / torsional-flexural) ---
+        NcrT_val = float(Ncr_T or 0.0)
         
-        lam_T = float(buck_map.get("lambda_T") or 0.0)
+        # Your report sometimes has Ncr_T in kN, sometimes in N (depends what you pass in).
+        # Make it N for lambda calculation:
+        NcrT_N = NcrT_val * 1e3 if (0.0 < NcrT_val < 1e5) else NcrT_val
+        
+        alpha_T = float(buck_map.get("alpha_T") or buck_map.get("alpha_z") or 0.34)  # consistent with checks
+        lam_T = math.sqrt((A_mm2 * fy) / NcrT_N) if NcrT_N > 0 else 0.0
+
         phi_T = float(buck_map.get("phi_T") or 0.0)
         chi_T_disp = float(buck_map.get("chi_T") or 0.0)
         
@@ -6110,6 +6116,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
