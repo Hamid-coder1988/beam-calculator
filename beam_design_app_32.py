@@ -4686,208 +4686,230 @@ def render_report_tab():
         # ----------------------------------------------------
         report_h4("(12), (13), (14) Bending, shear and axial force (EN 1993-1-1 §6.2.10)")
         
+        # Helpers: centered equation column (same as your §6.2.9 layout)
+        def _eq_line(label_html: str, latex_expr: str):
+            cL, cM, cR = st.columns([3, 4, 3])
+            with cL:
+                st.markdown(label_html, unsafe_allow_html=True)
+            with cM:
+                st.latex(latex_expr)
+        
+        # ---- Inputs / section resistances (from DB) ----
+        family = (sr_display.get("family") or "").upper()
+        
+        A_mm2 = float(sr_display.get("A_mm2") or 0.0)
+        h_mm  = float(sr_display.get("h_mm") or 0.0)
+        b_mm  = float(sr_display.get("b_mm") or 0.0)
+        tw_mm = float(sr_display.get("tw_mm") or 0.0)
+        tf_mm = float(sr_display.get("tf_mm") or 0.0)
+        
+        # Shear areas from DB (support both key spellings)
+        Av_z_mm2 = float(sr_display.get("Av_z_mm2", sr_display.get("Avz_mm2", 0.0)) or 0.0)
+        Av_y_mm2 = float(sr_display.get("Av_y_mm2", sr_display.get("Avy_mm2", 0.0)) or 0.0)
+        
+        # Plastic axial & plastic bending resistances from DB (already used in §6.2.9 block)
+        Npl_Rd_kN    = float(sr_display.get("Npl_Rd_kN") or 0.0)
+        Mpl_y_Rd_kNm = float(sr_display.get("Mpl_Rd_y_kNm") or 0.0)
+        Mpl_z_Rd_kNm = float(sr_display.get("Mpl_Rd_z_kNm") or 0.0)
+        
+        # Design actions
+        NEd_kN    = float(cs_combo.get("NEd_kN") or abs(inputs.get("N_kN") or 0.0))
+        My_Ed_kNm = float(inputs.get("My_kNm") or 0.0)
+        Mz_Ed_kNm = float(inputs.get("Mz_kNm") or 0.0)
+        Vy_Ed_kN  = float(inputs.get("Vy_kN") or 0.0)
+        Vz_Ed_kN  = float(inputs.get("Vz_kN") or 0.0)
+        
         st.markdown(
-            "This section evaluates the influence of **shear + axial force** on the bending resistance "
+            "This section considers the influence of **shear force and axial force** on the **bending resistance** "
             "in accordance with **EN 1993-1-1 §6.2.10**."
         )
         
-        # --- Inputs (Ed) ---
-        NEd_kN = float(cs_combo.get("NEd_kN") or inputs.get("N_kN") or 0.0)
-        My_Ed_kNm = float(inputs.get("My_kNm") or 0.0)
-        Mz_Ed_kNm = float(inputs.get("Mz_kNm") or 0.0)
-        Vy_Ed_kN  = float(inputs.get("Vy_kN")  or 0.0)
-        Vz_Ed_kN  = float(inputs.get("Vz_kN")  or 0.0)
+        # ---- Shear resistances (Vc,Rd) for each direction ----
+        Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3.0)) / gamma_M0) / 1e3 if (Av_z_mm2 > 0 and fy > 0 and gamma_M0 > 0) else 0.0
+        Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3.0)) / gamma_M0) / 1e3 if (Av_y_mm2 > 0 and fy > 0 and gamma_M0 > 0) else 0.0
         
-        # --- Section resistances already available in this report section ---
-        # From DB / earlier in your §6.2.9 block:
-        #   Npl_Rd_kN, Mpl_y_Rd_kNm, Mpl_z_Rd_kNm
-        # And shear resistances from DB:
-        #   Vc_y_Rd_kN, Vc_z_Rd_kN  (you already compute these in the report earlier for shear checks)
+        # Ratios
+        eta_vz = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if Vc_z_Rd_kN > 0 else None
+        eta_vy = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if Vc_y_Rd_kN > 0 else None
         
-        # Helper: safe abs ratio
-        def _ratio(num, den):
-            return (abs(num) / den) if (den is not None and den > 0) else None
+        # Case split per EN 1993-1-1 §6.2.10(2): ignore shear effect if VEd <= 0.5 Vpl,Rd (use Vc,Rd as Vpl,Rd here)
+        shear_small = True
+        if (eta_vz is not None) and (eta_vz > 0.50):
+            shear_small = False
+        if (eta_vy is not None) and (eta_vy > 0.50):
+            shear_small = False
         
-        # For bending about:
-        #   - major axis y-y => relevant shear is Vz
-        #   - minor axis z-z => relevant shear is Vy
-        eta_v = 0.50  # EN note: typically 0.5 unless NA
-        Vlim_for_My = eta_v * float(Vc_z_Rd_kN or 0.0)  # threshold for ignoring shear effect for My
-        Vlim_for_Mz = eta_v * float(Vc_y_Rd_kN or 0.0)  # threshold for ignoring shear effect for Mz
+        # ---- Section family detection (same idea as your §6.2.9 block) ----
+        is_rhs = any(k in family for k in ["RHS", "SHS", "HSS", "BOX"])
+        is_ih  = any(k in family for k in ["IPE", "HE", "HEA", "HEB", "HEM", "IPN", "UB", "UC", "W", "I", "H"])
         
-        # Check if shear effect may be neglected (Formula 8.35 style rule used in §6.2.10(2))
-        ignore_shear_for_My = (Vc_z_Rd_kN is not None and Vc_z_Rd_kN > 0 and abs(Vz_Ed_kN) <= Vlim_for_My)
-        ignore_shear_for_Mz = (Vc_y_Rd_kN is not None and Vc_y_Rd_kN > 0 and abs(Vy_Ed_kN) <= Vlim_for_Mz)
+        # ---- Normalized axial force n ----
+        n = (NEd_kN / Npl_Rd_kN) if (Npl_Rd_kN > 0) else None
+        if n is not None:
+            _eq_line("Design axial force:", rf"N_{{Ed}} = {NEd_kN:.2f}\,\mathrm{{kN}}")
+            _eq_line("Normalized axial force:", rf"n=\frac{{N_{{Ed}}}}{{N_{{pl,Rd}}}}=\frac{{{NEd_kN:.2f}}}{{{Npl_Rd_kN:.2f}}}={n:.3f}")
         
-        # If BOTH shears are low => whole §6.2.10 reduces to §6.2.9 interaction (as you requested)
-        if ignore_shear_for_My and ignore_shear_for_Mz:
+        # ---- Show shear check for the §6.2.10 split ----
+        if eta_vz is not None:
+            _eq_line("Shear ratio (z):", rf"\eta_{{v,z}}=\frac{{V_{{z,Ed}}}}{{V_{{c,z,Rd}}}}=\frac{{{abs(Vz_Ed_kN):.2f}}}{{{Vc_z_Rd_kN:.2f}}}={eta_vz:.3f}")
+        if eta_vy is not None:
+            _eq_line("Shear ratio (y):", rf"\eta_{{v,y}}=\frac{{V_{{y,Ed}}}}{{V_{{c,y,Rd}}}}=\frac{{{abs(Vy_Ed_kN):.2f}}}{{{Vc_y_Rd_kN:.2f}}}={eta_vy:.3f}")
+        
+        if shear_small:
             st.markdown(
-                "Since the applied shear forces satisfy the condition "
-                r"$V_{Ed} \le 0.5\,V_{pl,Rd}$, the shear influence may be **neglected**. "
-                "Therefore, **(12)–(14)** are identical to the results of **(9)–(11)** in §6.2.9."
+                "Since **all applied shear components** satisfy "
+                r"$V_{Ed}\le 0.5\,V_{pl,Rd}$, the shear influence may be **neglected** "
+                "per **EN 1993-1-1 §6.2.10(2)**. "
+                "Therefore, this verification reduces to the **same bending–axial formulation** used in **§6.2.9**."
+            )
+        else:
+            st.markdown(
+                "Since **at least one shear component** exceeds "
+                r"$0.5\,V_{pl,Rd}$, a reduction is applied in accordance with **EN 1993-1-1 §6.2.10(3)** "
+                "using a reduced yield strength."
             )
         
-            # Use the same resistances you already computed in §6.2.9 (MN_y_Rd, MN_z_Rd, u_biax there).
-            # If you computed uy/uz/u_biax in §6.2.9 block, reuse them here; otherwise compute quickly:
-            try:
-                # These names exist if you keep them in the same scope as your §6.2.9 code
-                u12 = _ratio(My_Ed_kNm, MN_y_Rd)  # (12) My + N
-                u13 = _ratio(Mz_Ed_kNm, MN_z_Rd)  # (13) Mz + N
-                u14 = u_biax if ("u_biax" in locals() and u_biax is not None) else None  # (14) My+Mz+N
-            except Exception:
-                u12 = None
-                u13 = None
-                u14 = None
+        # =========================================================
+        # Compute reduced yield strength fy,red only if needed
+        # =========================================================
+        fy_red = fy
+        rho = 0.0
+        if (not shear_small) and (fy > 0) and (gamma_M0 > 0):
+            # Use governing shear ratio for the reduction parameter ρ (conservative, simple)
+            eta_gov = 0.0
+            if eta_vz is not None:
+                eta_gov = max(eta_gov, float(eta_vz))
+            if eta_vy is not None:
+                eta_gov = max(eta_gov, float(eta_vy))
         
-            # Show utilization + status (same format as your other sections)
+            # EN 1993-1-1:2022 Eq. (8.61):  ρ = (2*VEd/Vc,Rd - 1)^2
+            rho = max(0.0, (2.0 * eta_gov - 1.0) ** 2)
+            rho = min(rho, 1.0)  # keep physical bounds
+            fy_red = max(0.0, (1.0 - rho) * fy)
+        
+            _eq_line("Reduction parameter:", rf"\rho=\left(2\frac{{V_{{Ed}}}}{{V_{{c,Rd}}}}-1\right)^2={rho:.3f}")
+            _eq_line("Reduced yield strength:", rf"f_{{y,red}}=(1-\rho)f_y={(fy_red):.1f}\,\mathrm{{MPa}}")
+        
+        # =========================================================
+        # Compute reduced bending resistances with axial force:
+        #   Use same §6.2.9 formulas but with fy or fy_red depending on case
+        #   (conservative + consistent with your report style)
+        # =========================================================
+        MN_y_Rd = None
+        MN_z_Rd = None
+        alpha_y = None
+        alpha_z = None
+        
+        # If we cannot evaluate, stop gracefully
+        if (n is None) or (A_mm2 <= 0) or (gamma_M0 <= 0) or (fy <= 0):
+            st.warning("Cannot evaluate §6.2.10 because required section resistances (Npl,Rd / A / fy) are missing.")
+        else:
+            # Use the yield strength that applies in this §6.2.10 case
+            fy_use = fy if shear_small else fy_red
+        
+            # A) I/H sections — use §6.2.9.1(5) formulas (8.48–8.50)
+            if is_ih and (Mpl_y_Rd_kNm > 0 or Mpl_z_Rd_kNm > 0):
+                # a = (A - 2 b_f t_f) / A, limited to 0.5  (as in your §6.2.9 block)
+                a = min(0.5, (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2) if A_mm2 > 0 else 0.5
+        
+                # Scale plastic moments to fy_use (because DB moments were based on fy)
+                scale = (fy_use / fy) if fy > 0 else 1.0
+                Mpl_y_use = Mpl_y_Rd_kNm * scale
+                Mpl_z_use = Mpl_z_Rd_kNm * scale
+        
+                MN_y_Rd = min(Mpl_y_use, Mpl_y_use * (1.0 - n) / (1.0 - 0.5 * a)) if (Mpl_y_use > 0) else 0.0
+                if n <= a:
+                    MN_z_Rd = Mpl_z_use
+                else:
+                    MN_z_Rd = Mpl_z_use * (1.0 - ((n - a) / (1.0 - a)) ** 2) if (Mpl_z_use > 0) else 0.0
+        
+                # Exponents from EN 1993-1-1 §6.2.9(9) for I/H (as you already used)
+                alpha_y = 2.0
+                alpha_z = max(1.0, 5.0 * n)
+        
+            # B) RHS/SHS — use §6.2.9.1(6) formulas (8.51–8.52)
+            elif is_rhs and (Mpl_y_Rd_kNm > 0 or Mpl_z_Rd_kNm > 0):
+                aw = min(0.5, (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2) if (A_mm2 > 0) else 0.5
+                af = min(0.5, (A_mm2 - 2.0 * h_mm * tw_mm) / A_mm2) if (A_mm2 > 0) else 0.5
+        
+                scale = (fy_use / fy) if fy > 0 else 1.0
+                Mpl_y_use = Mpl_y_Rd_kNm * scale
+                Mpl_z_use = Mpl_z_Rd_kNm * scale
+        
+                MN_y_Rd = min(Mpl_y_use, Mpl_y_use * (1.0 - n) / (1.0 - 0.5 * aw)) if (Mpl_y_use > 0) else 0.0
+                MN_z_Rd = min(Mpl_z_use, Mpl_z_use * (1.0 - n) / (1.0 - 0.5 * af)) if (Mpl_z_use > 0) else 0.0
+        
+                # Exponents per EN 1993-1-1 (RHS guidance you already implemented)
+                if n <= 0.8:
+                    alpha_y = min(6.0, 1.66 / (1.0 - 1.13 * (n ** 2)))
+                else:
+                    alpha_y = 6.0
+                alpha_z = alpha_y
+        
+            else:
+                st.info("Section family not recognized for §6.2.10 (I/H or RHS). No interaction model applied here.")
+                MN_y_Rd, MN_z_Rd, alpha_y, alpha_z = None, None, None, None
+        
+        # =========================================================
+        # Utilization factors (12), (13), (14) — centered + badges
+        # Requirement from you:
+        #   - If shear_small: case (14) should be EXACTLY the same as case (12)
+        # =========================================================
+        if (MN_y_Rd is not None) and (MN_z_Rd is not None) and (alpha_y is not None) and (alpha_z is not None) and (MN_y_Rd > 0) and (MN_z_Rd > 0):
+            # Moment-only terms
+            uMy = (abs(My_Ed_kNm) / MN_y_Rd) if MN_y_Rd > 0 else None
+            uMz = (abs(Mz_Ed_kNm) / MN_z_Rd) if MN_z_Rd > 0 else None
+        
+            # Shear term (only active when reduction case is active)
+            uV = 0.0
+            if not shear_small:
+                uV_y = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if Vc_y_Rd_kN > 0 else 0.0
+                uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if Vc_z_Rd_kN > 0 else 0.0
+                uV = (uV_y ** 2) + (uV_z ** 2)
+        
+            # (12) My + N + V
+            u12 = (uMy ** alpha_y) + uV if (uMy is not None) else None
+        
+            # (13) Mz + N + V
+            u13 = (uMz ** alpha_z) + uV if (uMz is not None) else None
+        
+            # (14) My + Mz + N + V
+            if shear_small:
+                # Per your requirement: when shear <= 0.5 Vpl,Rd, case (14) = case (12)
+                u14 = u12
+            else:
+                u14 = (uMy ** alpha_y) + (uMz ** alpha_z) + uV if (uMy is not None and uMz is not None) else None
+        
+            # ---- Show only main equations + final results (centered) ----
+            _eq_line("Main interaction form:", r"u=\left(\frac{M_{y,Ed}}{M_{N,y,Rd}}\right)^{\alpha_y}+\left(\frac{M_{z,Ed}}{M_{N,z,Rd}}\right)^{\alpha_z}+u_V")
+            if not shear_small:
+                _eq_line("Shear term:", r"u_V=\left(\frac{V_{y,Ed}}{V_{c,y,Rd}}\right)^2+\left(\frac{V_{z,Ed}}{V_{c,z,Rd}}\right)^2")
+        
+            # Results (center column) + badges
             if u12 is not None:
-                _eq_line("(12) Utilization (My + N):", r"\frac{M_{y,Ed}}{M_{N,y,Rd}} \le 1.0")
-                st.markdown(f"**u = {u12:.3f}**")
+                _eq_line("Utilization (12):", rf"u_{{12}} = {u12:.3f}\le 1.0")
                 report_status_badge(u12)
         
             if u13 is not None:
-                _eq_line("(13) Utilization (Mz + N):", r"\frac{M_{z,Ed}}{M_{N,z,Rd}} \le 1.0")
-                st.markdown(f"**u = {u13:.3f}**")
+                _eq_line("Utilization (13):", rf"u_{{13}} = {u13:.3f}\le 1.0")
                 report_status_badge(u13)
         
             if u14 is not None:
-                _eq_line("(14) Utilization (My + Mz + N):", r"\left(\frac{M_{y,Ed}}{M_{N,y,Rd}}\right)^{\alpha_y}+\left(\frac{M_{z,Ed}}{M_{N,z,Rd}}\right)^{\alpha_z}\le 1.0")
-                st.markdown(f"**u = {u14:.3f}**")
+                _eq_line("Utilization (14):", rf"u_{{14}} = {u14:.3f}\le 1.0")
                 report_status_badge(u14)
         
+            # Store for tables (so compute_checks can use later if you connect it)
+            cs_combo.update({
+                "u_6210_12": u12,
+                "u_6210_13": u13,
+                "u_6210_14": u14,
+                "shear_small_6210": shear_small,
+                "rho_6210": rho,
+                "fy_red_6210": fy_red,
+            })
         else:
-            # ----------------------------------------------------
-            # Reduction case: VEd > 0.5 Vpl,Rd  => use fy,red (8.60) with rho (8.61)
-            # ----------------------------------------------------
-            st.markdown(
-                "Since the applied shear exceeds the limit in "
-                r"$V_{Ed} \le 0.5\,V_{pl,Rd}$, a reduction is applied using **EN 1993-1-1 §6.2.10**:"
-            )
-            _eq_line("Reduced yield strength:", r"f_{y,red} = (1-\rho)\,f_y")
-            _eq_line("Reduction parameter:", r"\rho = \left(\frac{2V_{Ed}}{V_{c,Rd}}-1\right)^2")
-        
-            # Compute fy_red separately for My (uses Vz) and for Mz (uses Vy)
-            def _fy_red_for_shear(VEd_kN, Vc_Rd_kN, fy_base):
-                if Vc_Rd_kN is None or Vc_Rd_kN <= 0 or fy_base <= 0:
-                    return fy_base, 0.0
-                v = abs(VEd_kN) / Vc_Rd_kN
-                # Only reduce when v > 0.5 (otherwise rho = 0)
-                if v <= 0.5:
-                    return fy_base, 0.0
-                rho = (2.0 * v - 1.0) ** 2
-                rho = max(0.0, min(1.0, rho))
-                fy_red = (1.0 - rho) * fy_base
-                return fy_red, rho
-        
-            fy_red_y, rho_y = _fy_red_for_shear(Vz_Ed_kN, Vc_z_Rd_kN, fy)  # affects My
-            fy_red_z, rho_z = _fy_red_for_shear(Vy_Ed_kN, Vc_y_Rd_kN, fy)  # affects Mz
-        
-            # Scale the plastic resistances by fy_red/fy (proportional-to-fy assumption)
-            def _scale(val, fy_red_local):
-                return val * (fy_red_local / fy) if (fy > 0 and val is not None) else 0.0
-        
-            # Effective resistances for §6.2.9-style axial+bending, but with reduced yield strength
-            Npl_eff_y_kN    = _scale(Npl_Rd_kN,    fy_red_y)
-            Mpl_eff_y_kNm   = _scale(Mpl_y_Rd_kNm, fy_red_y)
-            Mpl_eff_z_kNm_y = _scale(Mpl_z_Rd_kNm, fy_red_y)
-        
-            Npl_eff_z_kN    = _scale(Npl_Rd_kN,    fy_red_z)
-            Mpl_eff_y_kNm_z = _scale(Mpl_y_Rd_kNm, fy_red_z)
-            Mpl_eff_z_kNm   = _scale(Mpl_z_Rd_kNm, fy_red_z)
-        
-            # Keep your “general formula always” approach:
-            # - compute MN_y_Rd and MN_z_Rd with §6.2.9 reduction rules (8.48–8.52) using the reduced resistances
-            # - then check (12),(13),(14) using 8.43 and 8.56 format (same as your modified §6.2.9 block)
-        
-            # Geometry for ratio 'a' (I/H) or aw/af (RHS) — same symbols as your §6.2.9 code
-            family = (sr_display.get("family") or "").upper()
-            is_rhs = any(k in family for k in ["RHS", "SHS", "HSS", "BOX"])
-            is_ih  = any(k in family for k in ["IPE", "HE", "HEA", "HEB", "HEM", "IPN", "UB", "UC", "W", "I", "H"])
-        
-            A_mm2  = float(sr_display.get("A_mm2")  or 0.0)
-            h_mm   = float(sr_display.get("h_mm")  or 0.0)
-            b_mm   = float(sr_display.get("b_mm")  or 0.0)
-            tw_mm  = float(sr_display.get("tw_mm") or 0.0)
-            tf_mm  = float(sr_display.get("tf_mm") or 0.0)
-        
-            # Normalized axial force n uses Npl,eff (use a conservative single n based on the smaller Npl,eff)
-            Npl_eff_kN = min(Npl_eff_y_kN, Npl_eff_z_kN) if (Npl_eff_y_kN > 0 and Npl_eff_z_kN > 0) else max(Npl_eff_y_kN, Npl_eff_z_kN)
-            n = (abs(NEd_kN) / Npl_eff_kN) if (Npl_eff_kN and Npl_eff_kN > 0) else None
-        
-            # --- Reduced bending resistances MN_y_Rd and MN_z_Rd (final only; no number-substitution lines) ---
-            MN_y_Rd = None
-            MN_z_Rd = None
-        
-            if n is None:
-                st.warning("Cannot evaluate §6.2.10 interaction because Npl,Rd (effective) is not available.")
-            else:
-                if is_ih and A_mm2 > 0:
-                    a = min(0.5, (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2) if A_mm2 > 0 else 0.5
-        
-                    # Use “effective” plastic resistances (conservative: take the smaller fy_red-scaling for each axis)
-                    Mpl_y_eff = min(Mpl_eff_y_kNm, Mpl_eff_y_kNm_z) if (Mpl_eff_y_kNm > 0 and Mpl_eff_y_kNm_z > 0) else max(Mpl_eff_y_kNm, Mpl_eff_y_kNm_z)
-                    Mpl_z_eff = min(Mpl_eff_z_kNm, Mpl_eff_z_kNm_y) if (Mpl_eff_z_kNm > 0 and Mpl_eff_z_kNm_y > 0) else max(Mpl_eff_z_kNm, Mpl_eff_z_kNm_y)
-        
-                    MN_y_Rd = min(Mpl_y_eff, Mpl_y_eff * (1.0 - n) / (1.0 - 0.5 * a)) if (Mpl_y_eff and Mpl_y_eff > 0) else 0.0
-                    if n <= a:
-                        MN_z_Rd = Mpl_z_eff
-                    else:
-                        MN_z_Rd = Mpl_z_eff * (1.0 - ((n - a) / (1.0 - a)) ** 2) if (Mpl_z_eff and Mpl_z_eff > 0) else 0.0
-        
-                elif is_rhs and A_mm2 > 0:
-                    aw = min(0.5, (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2) if (A_mm2 > 0) else 0.5
-                    af = min(0.5, (A_mm2 - 2.0 * h_mm * tw_mm) / A_mm2) if (A_mm2 > 0) else 0.5
-        
-                    Mpl_y_eff = min(Mpl_eff_y_kNm, Mpl_eff_y_kNm_z) if (Mpl_eff_y_kNm > 0 and Mpl_eff_y_kNm_z > 0) else max(Mpl_eff_y_kNm, Mpl_eff_y_kNm_z)
-                    Mpl_z_eff = min(Mpl_eff_z_kNm, Mpl_eff_z_kNm_y) if (Mpl_eff_z_kNm > 0 and Mpl_eff_z_kNm_y > 0) else max(Mpl_eff_z_kNm, Mpl_eff_z_kNm_y)
-        
-                    MN_y_Rd = min(Mpl_y_eff, Mpl_y_eff * (1.0 - n) / (1.0 - 0.5 * aw)) if (Mpl_y_eff and Mpl_y_eff > 0) else 0.0
-                    MN_z_Rd = min(Mpl_z_eff, Mpl_z_eff * (1.0 - n) / (1.0 - 0.5 * af)) if (Mpl_z_eff and Mpl_z_eff > 0) else 0.0
-        
-                else:
-                    st.info(
-                        "Section family is not recognized as I/H or rectangular hollow. "
-                        "No §6.2.10 reduction model applied."
-                    )
-        
-            # --- Utilizations (12)-(14) ---
-            if MN_y_Rd is not None and MN_z_Rd is not None and MN_y_Rd > 0 and MN_z_Rd > 0:
-                # (12) My + N (8.43 style)
-                u12 = abs(My_Ed_kNm) / MN_y_Rd
-                _eq_line("(12) Utilization (My + N):", r"\frac{M_{y,Ed}}{M_{N,y,Rd}} \le 1.0")
-                st.markdown(f"**u = {u12:.3f}**")
-                report_status_badge(u12)
-        
-                # (13) Mz + N (8.43 style)
-                u13 = abs(Mz_Ed_kNm) / MN_z_Rd
-                _eq_line("(13) Utilization (Mz + N):", r"\frac{M_{z,Ed}}{M_{N,z,Rd}} \le 1.0")
-                st.markdown(f"**u = {u13:.3f}**")
-                report_status_badge(u13)
-        
-                # (14) Biaxial + N (8.56 style)
-                if is_rhs:
-                    # RHS exponents
-                    if n <= 0.8:
-                        alpha = min(6.0, 1.66 / (1.0 - 1.13 * (n ** 2)))
-                    else:
-                        alpha = 6.0
-                    alpha_y = alpha
-                    alpha_z = alpha
-                else:
-                    # I/H exponents
-                    alpha_y = 2.0
-                    alpha_z = max(1.0, 5.0 * n)
-        
-                uy = abs(My_Ed_kNm) / MN_y_Rd
-                uz = abs(Mz_Ed_kNm) / MN_z_Rd
-                u14 = (uy ** alpha_y) + (uz ** alpha_z)
-        
-                _eq_line(
-                    "(14) Utilization (My + Mz + N):",
-                    r"\left(\frac{M_{y,Ed}}{M_{N,y,Rd}}\right)^{\alpha_y}+\left(\frac{M_{z,Ed}}{M_{N,z,Rd}}\right)^{\alpha_z}\le 1.0"
-                )
-                st.markdown(f"**u = {u14:.3f}**")
-                report_status_badge(u14)
+            st.warning("Cannot compute §6.2.10 utilizations because reduced resistances could not be evaluated.")
+
 
         # ----------------------------------------------------
         # (6.3) Member stability summary (checks 15–22)
@@ -5963,6 +5985,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
