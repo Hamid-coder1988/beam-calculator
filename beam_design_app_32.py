@@ -179,7 +179,6 @@ SAMPLE_ROWS = [
     }
 ]
 
-@st.cache_data(show_spinner=False)
 def run_sql(sql, params=None):
     """
     Execute a SQL query using psycopg2 and return (df, err).
@@ -264,8 +263,6 @@ def detect_table_and_columns():
 
     return priorities[0] if priorities else None, None, "no-type-size-found"
 
-
-@st.cache_data(show_spinner=False)
 def fetch_types_and_sizes():
     if not HAS_PG:
         df = pd.DataFrame(SAMPLE_ROWS)
@@ -308,8 +305,6 @@ def fetch_types_and_sizes():
 
     return types, sizes_map, tbl
 
-
-@st.cache_data(show_spinner=False)
 def get_section_row_db(type_value, size_value, table_name):
     if not HAS_PG:
         df = pd.DataFrame(SAMPLE_ROWS)
@@ -1310,12 +1305,19 @@ def render_section_selection():
             )
 
             if selected_name and selected_name != "-- choose --":
-                # ---- ALWAYS fetch from DB here (fresh) ----
                 selected_row = get_section_row_db(
-                    family,
-                    selected_name,
+                    family, selected_name,
                     detected_table if detected_table != "sample" else None
                 )
+            
+                # Force refresh of stored section properties every rerun
+                if selected_row is not None:
+                    st.session_state["sr_display"] = selected_row
+                    st.session_state["fam_sel_last"] = family
+                    st.session_state["size_sel_last"] = selected_name
+                    st.session_state["detected_table_last"] = detected_table
+                else:
+                    st.session_state["sr_display"] = None
 
                 # ---- Force update sr_display if selection changed OR db_rev changed ----
                 # Key includes db_rev so the same selection can be reloaded after DB refresh
@@ -6042,6 +6044,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
