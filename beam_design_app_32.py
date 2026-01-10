@@ -2158,12 +2158,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     alpha_y = float(alpha_curve_db) if alpha_curve_db is not None else 0.49
     alpha_z = float(alpha_curve_db) if alpha_curve_db is not None else 0.49
     
-    # Optional heuristic only if DB has no value
-    if alpha_curve_db is None:
-        if b_mm > 0 and h_mm > 0 and (h_mm / b_mm) > 1.2 and (tf_mm <= 40.0):
-            alpha_y = 0.21  # curve a
-            alpha_z = 0.34  # curve b
-    
     # --- LTB imperfection factor alpha_LT (EN 1993-1-1 Table 6.3 + 6.4) ---
     # Rolled I:   h/b <= 2 -> a (0.21),  h/b > 2 -> b (0.34)
     # Welded I:   h/b <= 2 -> c (0.49),  h/b > 2 -> d (0.76)
@@ -2270,6 +2264,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     if i0_m > 0 and J_m4 > 0 and Iw_m6 > 0 and Leff_T > 0:
         Ncr_T = (1.0 / (i0_m**2)) * (G * J_m4 + (math.pi**2) * E * Iw_m6 / (Leff_T**2))
         lambda_T = math.sqrt(NRk_N / Ncr_T) if Ncr_T > 0 else float("inf")
+        phi_T = phi_aux(lambda_T, alpha_T)
         chi_T = chi_reduction(lambda_T, alpha_T)  # use stored torsional alpha
         Nb_Rd_T_N = chi_T * NRk_N / gamma_M1
         util_T = abs(N_N) / Nb_Rd_T_N if Nb_Rd_T_N and Nb_Rd_T_N > 0 else float("inf")
@@ -2285,6 +2280,8 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
     buck_map["i0_m"] = i0_m
     buck_map["Ncr_T"] = Ncr_T
+    buck_map["lambda_T"] = lambda_T if "lambda_T" in locals() else None
+    buck_map["phi_T"] = phi_T if "phi_T" in locals() else None
     buck_map["chi_T"] = chi_T
     buck_map["Nb_Rd_T"] = Nb_Rd_T_N
     buck_map["util_T"] = util_T
@@ -2335,6 +2332,8 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     buck_map["Mb_Rd"] = Mb_Rd_Nm
     buck_map["util_LT"] = util_LT
     buck_map["status_LT"] = status_LT
+    buck_map["curve_LT"] = curve_LT
+    buck_map["alpha_LT"] = alpha_LT
 
     # (19)/(20) Buckling interaction for bending + axial compression (Annex A / Annex B style)
     # NOTE: We assume uniform moment diagram (ψ=1) since the app takes single My, Mz.
@@ -6116,6 +6115,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
