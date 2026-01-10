@@ -5319,7 +5319,34 @@ def render_report_tab():
         _eq_line("&nbsp;", rf"=\sqrt{{\frac{{{MRk_kNm:.1f}}}{{{Mcr_kNm:.1f}}}}}={lamLT:.3f}")
     
         # Reduction factor (EN 1993-1-1 §6.3.2 / §8.3.2)
-        alpha_LT = 0.34
+        # --- LTB imperfection factor alpha_LT (EN 1993-1-1 Table 6.3 + 6.4) ---
+        # Decide curve based on cross-section type + h/b
+        # Rolled I:   h/b <= 2 -> a (0.21),  h/b > 2 -> b (0.34)
+        # Welded I:   h/b <= 2 -> c (0.49),  h/b > 2 -> d (0.76)
+        # Other:      d (0.76)
+        
+        hb = (h_mm / b_mm) if (b_mm and b_mm > 0) else None
+        
+        # Try to infer "rolled vs welded vs other" from whatever label exists in use_props
+        sec_label = (
+            str(use_props.get("family") or use_props.get("type") or use_props.get("Type") or
+                use_props.get("section_family") or use_props.get("Section") or use_props.get("name") or "")
+        ).upper()
+        
+        is_welded_i = ("WELD" in sec_label) or ("PLATE" in sec_label) or ("GIRDER" in sec_label)
+        is_rolled_i = any(sec_label.startswith(p) for p in ("IPE", "IPN", "HEA", "HEB", "HEM", "HE", "UB", "UC"))
+        
+        if hb is None:
+            curve_LT = "b"  # safe default if geometry missing
+        elif is_welded_i:
+            curve_LT = "c" if hb <= 2.0 else "d"
+        elif is_rolled_i:
+            curve_LT = "a" if hb <= 2.0 else "b"
+        else:
+            curve_LT = "d"
+        
+        alpha_LT = {"a": 0.21, "b": 0.34, "c": 0.49, "d": 0.76}[curve_LT]
+
         lamLT0 = 0.40
         beta_LT = 0.75
         phiLT = 0.5 * (1.0 + alpha_LT * (lamLT - lamLT0) + beta_LT * lamLT**2)
@@ -6044,6 +6071,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
