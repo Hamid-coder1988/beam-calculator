@@ -4900,15 +4900,15 @@ def render_report_tab():
         
             # Results (center column) + badges
             if u12 is not None:
-                _eq_line("Utilization (12):", rf"u_{{12}} = {u12:.3f}\le 1.0")
+                _eq_line("Utilization (12):", rf"u_{{y}} = {u12:.3f}\le 1.0")
                 report_status_badge(u12)
         
             if u13 is not None:
-                _eq_line("Utilization (13):", rf"u_{{13}} = {u13:.3f}\le 1.0")
+                _eq_line("Utilization (13):", rf"u_{{z}} = {u13:.3f}\le 1.0")
                 report_status_badge(u13)
         
             if u14 is not None:
-                _eq_line("Utilization (14):", rf"u_{{14}} = {u14:.3f}\le 1.0")
+                _eq_line("Utilization (14):", rf"u_{{y+z}} = {u14:.3f}\le 1.0")
                 report_status_badge(u14)
         
             # Store for tables (so compute_checks can use later if you connect it)
@@ -5998,6 +5998,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
