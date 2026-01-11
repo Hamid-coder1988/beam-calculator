@@ -2183,11 +2183,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     
     alpha_LT = {"a": 0.21, "b": 0.34, "c": 0.49, "d": 0.76}[curve_LT]
 
-
-    if b_mm > 0 and h_mm > 0 and (h_mm / b_mm) > 1.2 and (tf_mm <= 40.0):
-        alpha_y = 0.21  # curve a
-        alpha_z = 0.34  # curve b
-
     def chi_reduction(lambda_bar: float, alpha: float) -> float:
         # EN 1993-1-1 §6.3.1.2
         phi = 0.5 * (1.0 + alpha * (lambda_bar - 0.20) + lambda_bar**2)
@@ -2335,189 +2330,102 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     buck_map["curve_LT"] = curve_LT
     buck_map["alpha_LT"] = alpha_LT
 
-    # (19)/(20) Buckling interaction for bending + axial compression (Annex A / Annex B style)
-    # NOTE: We assume uniform moment diagram (ψ=1) since the app takes single My, Mz.
+    # (19),(20) Buckling interaction for bending + axial compression — EN 1993-1-1 Annex B (Method 2)
+    # NOTE: This implements the Annex B "general method" style used in the attached example.
+    # We assume uniform moment diagram (ψ=1) since the app takes single My, Mz.
     psi_y = 1.0
     psi_z = 1.0
     psi_LT = 1.0
 
-    # Pull flexural chi factors from buck_results (fallbacks)
+    # Store ψ for the Report tab
+    buck_map.update({"psi_y": psi_y, "psi_z": psi_z, "psi_LT": psi_LT})
+
+    # Buckling reduction factors
     chi_y = buck_map.get("chi_y", 1.0) or 1.0
     chi_z = buck_map.get("chi_z", 1.0) or 1.0
     chiLT = chi_LT if chi_LT is not None else 1.0
 
-    Ncr_y = buck_map.get("Ncr_y", None) or 0.0
-    Ncr_z = buck_map.get("Ncr_z", None) or 0.0
-    Ncr_T_use = Ncr_T if (Ncr_T is not None) else 0.0
+    # Slenderness (from flexural buckling)
+    lam_y = buck_map.get("lambda_y", 0.0) or 0.0
+    lam_z = buck_map.get("lambda_z", 0.0) or 0.0
+    buck_map.update({"lam_y": lam_y, "lam_z": lam_z})
 
-    lam_y = buck_map.get("lambda_y", None) or 0.0
-    lam_z = buck_map.get("lambda_z", None) or 0.0
+    # Design denominators (use N, Nm internally)
+    Ny_denom_N = (chi_y * NRk_N / gamma_M1) if (chi_y and NRk_N > 0) else 0.0
+    Nz_denom_N = (chi_z * NRk_N / gamma_M1) if (chi_z and NRk_N > 0) else 0.0
+    My_denom_Nm = (chiLT * My_Rk_Nm / gamma_M1) if (chiLT and My_Rk_Nm > 0) else 0.0
+    Mz_denom_Nm = (Mz_Rk_Nm / gamma_M1) if (Mz_Rk_Nm > 0) else 0.0
 
-    # interaction utilities
-    util_int_A = None
-    util_int_B = None
+    # Table B.3 (equivalent uniform moment factors)
+    Cmy_B = max(0.4, 0.60 + 0.40 * psi_y)
+    Cmz_B = max(0.4, 0.60 + 0.40 * psi_z)
+    CmLT_B = max(0.4, 0.60 + 0.40 * psi_LT)
+    buck_map.update({"Cmy_B": Cmy_B, "Cmz_B": Cmz_B, "CmLT_B": CmLT_B})
 
-    if NRk_N > 0 and My_Rk_Nm > 0 and Mz_Rk_Nm > 0 and (Ncr_y > 0) and (Ncr_z > 0):
-        # --- Method 1 (Annex A inspired) ---
-        Cmy0 = 0.79 + 0.21 * psi_y + 0.36 * (psi_y - 0.33) * (abs(N_N) / Ncr_y) if Ncr_y > 0 else 1.0
-        Cmz0 = 0.79 + 0.21 * psi_z + 0.36 * (psi_z - 0.33) * (abs(N_N) / Ncr_z) if Ncr_z > 0 else 1.0
+    # Table B.2 (interaction factors) — as in your example
+    lam_y_use = min(float(lam_y or 0.0), 1.0)
+    lam_z_use = min(float(lam_z or 0.0), 1.0)
 
-        npl = abs(N_N) / (NRk_N / gamma_M0) if (NRk_N > 0) else 0.0
+    Ny_ratio = (abs(N_N) / Ny_denom_N) if Ny_denom_N > 0 else float("inf")
+    Nz_ratio = (abs(N_N) / Nz_denom_N) if Nz_denom_N > 0 else float("inf")
 
-        # epsilon_y (use elastic modulus if available)
-        eps_y = None
-        if Wel_y_m3 > 0 and abs(N_N) > 1e-9:
-            eps_y = (abs(My_Ed_kNm) * 1e3 / Wel_y_m3) / (abs(N_N) / A_m2) if A_m2 > 0 else None
-        elif Wel_y_m3 > 0:
-            eps_y = 1e9
-        else:
-            eps_y = 1.0
+    kyy_B = Cmy_B * (1.0 + (lam_y_use - 0.2) * Ny_ratio)
+    kzz_B = Cmz_B * (1.0 + (2.0 * lam_z_use - 0.6) * Nz_ratio)
+    kyz_B = 0.6 * kzz_B
 
-        wy = min(1.5, (Wpl_y_m3 / Wel_y_m3)) if (Wpl_y_m3 > 0 and Wel_y_m3 > 0) else 1.0
-        wz = min(1.5, (Wpl_z_m3 / Wel_z_m3)) if (Wpl_z_m3 > 0 and Wel_z_m3 > 0) else 1.0
+    if float(lam_z or 0.0) >= 0.4:
+        denom = max((CmLT_B - 0.25), 1e-9)
+        kzy_B = 1.0 - 0.1 * lam_z_use / denom * Nz_ratio
+    else:
+        kzy_B = 1.0
 
-        mu_y = (1 - abs(N_N)/Ncr_y) / (1 - chi_y*abs(N_N)/Ncr_y) if (Ncr_y > 0 and (1 - chi_y*abs(N_N)/Ncr_y) != 0) else 1.0
-        mu_z = (1 - abs(N_N)/Ncr_z) / (1 - chi_z*abs(N_N)/Ncr_z) if (Ncr_z > 0 and (1 - chi_z*abs(N_N)/Ncr_z) != 0) else 1.0
+    buck_map.update({
+        "lam_y_use_B": lam_y_use,
+        "lam_z_use_B": lam_z_use,
+        "Ny_ratio_B": Ny_ratio,
+        "Nz_ratio_B": Nz_ratio,
+        "kyy_B": kyy_B,
+        "kzz_B": kzz_B,
+        "kyz_B": kyz_B,
+        "kzy_B": kzy_B,
+    })
 
-        aLT = max(0.0, 1.0 - (J_m4 / I_y_m4)) if (I_y_m4 > 0 and J_m4 > 0) else 0.0
+    # Verification expressions → labeled as (19) and (20)
+    term_Ny = Ny_ratio
+    term_My1 = (kyy_B * (abs(My_Ed_kNm) * 1e3) / My_denom_Nm) if My_denom_Nm > 0 else float("inf")
+    term_Mz1 = (kyz_B * (abs(Mz_Ed_kNm) * 1e3) / Mz_denom_Nm) if Mz_denom_Nm > 0 else float("inf")
+    util_19 = term_Ny + term_My1 + term_Mz1
 
-        # Apply simple Cmy correction (as in your text)
-        if eps_y is None:
-            eps_y = 1.0
-        Cmy = Cmy0 + (1.0 - Cmy0) * (math.sqrt(max(eps_y, 0.0)) * aLT) / (1.0 + math.sqrt(max(eps_y, 0.0)) * aLT)
-        Cmz = Cmz0
+    term_Nz = Nz_ratio
+    term_My2 = (kzy_B * (abs(My_Ed_kNm) * 1e3) / My_denom_Nm) if My_denom_Nm > 0 else float("inf")
+    term_Mz2 = (kzz_B * (abs(Mz_Ed_kNm) * 1e3) / Mz_denom_Nm) if Mz_denom_Nm > 0 else float("inf")
+    util_20 = term_Nz + term_My2 + term_Mz2
 
-        denom_CM = math.sqrt(max((1 - abs(N_N)/Ncr_z) * (1 - abs(N_N)/max(Ncr_T_use, 1e-9)), 1e-9))
-        CmLT = max(1.0, (Cmy**2) * aLT / denom_CM)
+    status_19 = "OK" if util_19 <= 1.0 else "EXCEEDS"
+    status_20 = "OK" if util_20 <= 1.0 else "EXCEEDS"
 
-        # Table A.1 constants (class 1/2 I-sections, common values)
-        Cyy, Cyz, Czy, Czz = 0.973, 0.657, 0.939, 0.968
+    buck_map.update({
+        "term_Ny_B": term_Ny, "term_My1_B": term_My1, "term_Mz1_B": term_Mz1,
+        "term_Nz_B": term_Nz, "term_My2_B": term_My2, "term_Mz2_B": term_Mz2,
+        "util_19_B": util_19, "util_20_B": util_20,
+        "status_19_B": status_19, "status_20_B": status_20,
+    })
 
-        kyy = Cmy * CmLT * mu_y / max((1 - abs(N_N)/Ncr_y), 1e-9) * (1.0 / Cyy)
-        kyz = Cmz * mu_y / max((1 - abs(N_N)/Ncr_z), 1e-9) * (1.0 / Cyz) * 0.6 * math.sqrt(max(wz / max(wy, 1e-9), 0.0))
-        kzy = Cmy * CmLT * mu_z / max((1 - abs(N_N)/Ncr_y), 1e-9) * (1.0 / Czy) * 0.6 * math.sqrt(max(wy / max(wz, 1e-9), 0.0))
-        kzz = Cmz * mu_z / max((1 - abs(N_N)/Ncr_z), 1e-9) * (1.0 / Czz)
+    rows.append({
+        "Check": "(19) Buckling interaction (Annex B Method 2) — Expr. 1",
+        "Applied": "Interaction",
+        "Resistance": "≤ 1.0",
+        "Utilization": f"{util_19:.3f}",
+        "Status": status_19,
+    })
+    rows.append({
+        "Check": "(20) Buckling interaction (Annex B Method 2) — Expr. 2",
+        "Applied": "Interaction",
+        "Resistance": "≤ 1.0",
+        "Utilization": f"{util_20:.3f}",
+        "Status": status_20,
+    })
 
-        # Utilizations (6.61/6.62 simplified)
-        Ny = abs(N_N) / (chi_y * NRk_N / gamma_M1) if (chi_y * NRk_N) > 0 else float("inf")
-        Nz = abs(N_N) / (chi_z * NRk_N / gamma_M1) if (chi_z * NRk_N) > 0 else float("inf")
-
-        My_term = kyy * (abs(My_Ed_kNm) * 1e3) / (chiLT * My_Rk_Nm / gamma_M1) if (chiLT * My_Rk_Nm) > 0 else float("inf")
-        Mz_term = kyz * (abs(Mz_Ed_kNm) * 1e3) / (Mz_Rk_Nm / gamma_M1) if Mz_Rk_Nm > 0 else float("inf")
-        util_61 = Ny + My_term + Mz_term
-
-        My_term2 = kzy * (abs(My_Ed_kNm) * 1e3) / (chiLT * My_Rk_Nm / gamma_M1) if (chiLT * My_Rk_Nm) > 0 else float("inf")
-        Mz_term2 = kzz * (abs(Mz_Ed_kNm) * 1e3) / (Mz_Rk_Nm / gamma_M1) if Mz_Rk_Nm > 0 else float("inf")
-        util_62 = Nz + My_term2 + Mz_term2
-
-        util_int_A = max(util_61, util_62)
-
-
-        # Store Method 1 (Annex A) intermediate values for the Report tab
-        buck_map.update({
-            "Cmy0_A": Cmy0,
-            "Cmz0_A": Cmz0,
-            "npl_A": npl,
-            "eps_y_A": eps_y,
-            "wy_A": wy,
-            "wz_A": wz,
-            "mu_y_A": mu_y,
-            "mu_z_A": mu_z,
-            "aLT_A": aLT,
-            "Cmy_A": Cmy,
-            "Cmz_A": Cmz,
-            "CmLT_A": CmLT,
-            "kyy_A": kyy,
-            "kyz_A": kyz,
-            "kzy_A": kzy,
-            "kzz_A": kzz,
-            "util_61_A": util_61,
-            "util_62_A": util_62,
-            "util_int_A": util_int_A,
-            "util_int_A_y": util_61,
-            "util_int_A_z": util_62,
-            "status_int_A_y": "OK" if util_61 <= 1.0 else "EXCEEDS",
-            "status_int_A_z": "OK" if util_62 <= 1.0 else "EXCEEDS",
-        })
-
-        # (19) / (20) — Method 1 (Annex A): two interaction expressions
-        rows.append({
-            "Check": "Buckling interaction (Method 1, Annex A) — Eq. (y)",
-            "Applied": "Interaction",
-            "Resistance": "≤ 1.0",
-            "Utilization": f"{util_61:.3f}",
-            "Status": "OK" if util_61 <= 1.0 else "EXCEEDS",
-        })
-        rows.append({
-            "Check": "Buckling interaction (Method 1, Annex A) — Eq. (z)",
-            "Applied": "Interaction",
-            "Resistance": "≤ 1.0",
-            "Utilization": f"{util_62:.3f}",
-            "Status": "OK" if util_62 <= 1.0 else "EXCEEDS",
-        })
-
-        # --- Method 2 (Annex B inspired) ---
-        Cmy_B = max(0.4, 0.60 + 0.40 * psi_y)
-        Cmz_B = max(0.4, 0.60 + 0.40 * psi_z)
-        CmLT_B = max(0.4, 0.60 + 0.40 * psi_LT)
-
-        kyy_B = Cmy_B * (1.0 + (min(lam_y, 1.0) - 0.2) * abs(N_N) / (chi_y * NRk_N / gamma_M1)) if (chi_y * NRk_N) > 0 else 1.0
-        kzz_B = Cmz_B * (1.0 + (2.0 * min(lam_z, 1.0) - 0.6) * abs(N_N) / (chi_z * NRk_N / gamma_M1)) if (chi_z * NRk_N) > 0 else 1.0
-        kyz_B = 0.6 * kzz_B
-
-        if lam_z >= 0.4:
-            kzy_B = 1.0 - 0.1 * min(lam_z, 1.0) / max((CmLT_B - 0.25), 1e-9) * abs(N_N) / (chi_z * NRk_N / gamma_M1)
-        else:
-            kzy_B = 1.0
-
-        util_61_B = Ny + kyy_B * (abs(My_Ed_kNm) * 1e3) / (chiLT * My_Rk_Nm / gamma_M1) + kyz_B * (abs(Mz_Ed_kNm) * 1e3) / (Mz_Rk_Nm / gamma_M1)
-        util_62_B = Nz + kzy_B * (abs(My_Ed_kNm) * 1e3) / (chiLT * My_Rk_Nm / gamma_M1) + kzz_B * (abs(Mz_Ed_kNm) * 1e3) / (Mz_Rk_Nm / gamma_M1)
-
-        util_int_B = max(util_61_B, util_62_B)
-
-
-        # Store Method 2 (Annex B) intermediate values for the Report tab
-        buck_map.update({
-            "Cmy_B": Cmy_B,
-            "Cmz_B": Cmz_B,
-            "CmLT_B": CmLT_B,
-            "kyy_B": kyy_B,
-            "kzz_B": kzz_B,
-            "kyz_B": kyz_B,
-            "kzy_B": kzy_B,
-            "util_61_B": util_61_B,
-            "util_62_B": util_62_B,
-            "util_int_B": util_int_B,
-            "util_int_B_y": util_61_B,
-            "util_int_B_z": util_62_B,
-            "status_int_B_y": "OK" if util_61_B <= 1.0 else "EXCEEDS",
-            "status_int_B_z": "OK" if util_62_B <= 1.0 else "EXCEEDS",
-        })
-
-        # (21) / (22) — Method 2 (Annex B): two interaction expressions
-        rows.append({
-            "Check": "Buckling interaction (Method 2, Annex B) — Eq. (y)",
-            "Applied": "Interaction",
-            "Resistance": "≤ 1.0",
-            "Utilization": f"{util_61_B:.3f}",
-            "Status": "OK" if util_61_B <= 1.0 else "EXCEEDS",
-        })
-        rows.append({
-            "Check": "Buckling interaction (Method 2, Annex B) — Eq. (z)",
-            "Applied": "Interaction",
-            "Resistance": "≤ 1.0",
-            "Utilization": f"{util_62_B:.3f}",
-            "Status": "OK" if util_62_B <= 1.0 else "EXCEEDS",
-        })
-
-        buck_map.update({
-            "Cmy0": Cmy0, "Cmz0": Cmz0, "Cmy": Cmy, "Cmz": Cmz, "CmLT": CmLT,
-            "kyy": kyy, "kyz": kyz, "kzy": kzy, "kzz": kzz,
-            "util_int_method1": util_int_A,
-            "util_int_method2": util_int_B,
-            "status_int_method1": "OK" if util_int_A <= 1.0 else "EXCEEDS",
-            "status_int_method2": "OK" if util_int_B <= 1.0 else "EXCEEDS",
-        })
 
     # Store detailed buckling numbers for report
     
@@ -2643,10 +2551,8 @@ def render_results(df_rows, overall_ok, governing,
         "Flexural buckling z–z",                                              # 16
         "Torsional / torsional-flexural buckling z",                          # 17
         "Lateral-torsional buckling",                                         # 18
-        "Buckling interaction (Method 1, Annex A) — Eq. (y)",                 # 19
-        "Buckling interaction (Method 1, Annex A) — Eq. (z)",                 # 20
-        "Buckling interaction (Method 2, Annex B) — Eq. (y)",                 # 21
-        "Buckling interaction (Method 2, Annex B) — Eq. (z)",                 # 22
+        "(19) Buckling interaction (Annex B Method 2) — Expr. 1",             # 19
+        "(20) Buckling interaction (Annex B Method 2) — Expr. 2",             # 20
     ]
 
     # For now: placeholders (you'll later replace with real values)
@@ -2905,15 +2811,12 @@ def render_results(df_rows, overall_ok, governing,
     buck_util[3] = _fmt_util(buck_map.get("util_LT", None))
     buck_status[3] = buck_map.get("status_LT", "") or ""
 
-    # 19–22
-    buck_util[4] = _fmt_util(buck_map.get("util_int_A_y", None))
-    buck_status[4] = buck_map.get("status_int_A_y", "") or ""
-    buck_util[5] = _fmt_util(buck_map.get("util_int_A_z", None))
-    buck_status[5] = buck_map.get("status_int_A_z", "") or ""
-    buck_util[6] = _fmt_util(buck_map.get("util_int_B_y", None))
-    buck_status[6] = buck_map.get("status_int_B_y", "") or ""
-    buck_util[7] = _fmt_util(buck_map.get("util_int_B_z", None))
-    buck_status[7] = buck_map.get("status_int_B_z", "") or ""
+    # 19–20 (Annex B Method 2 only)
+    buck_util[4] = _fmt_util(buck_map.get("util_19_B", None))
+    buck_status[4] = buck_map.get("status_19_B", "") or ""
+    buck_util[5] = _fmt_util(buck_map.get("util_20_B", None))
+    buck_status[5] = buck_map.get("status_20_B", "") or ""
+
     # -------------------------------------------------
     # Helper    # -------------------------------------------------
     def build_table_html(title, start_no, names, utils, statuses):
@@ -2994,7 +2897,7 @@ def render_results(df_rows, overall_ok, governing,
     # TABLE 2: Buckling
     # -------------------------------------------------
     buck_html = build_table_html(
-        "Verification of member stability (buckling, checks 15–22)",
+        "Verification of member stability (buckling, checks 15–20)",
         15,
         buck_checks,
         buck_util,
@@ -5851,6 +5754,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
