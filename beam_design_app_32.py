@@ -2555,14 +2555,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     })
 
     rows.append({
-        "Check": "Buckling interaction",
+        "Check": "Buckling interaction y",
         "Applied": "Interaction",
         "Resistance": "≤ 1.0",
         "Utilization": f"{util_19:.3f}",
         "Status": status_19,
     })
     rows.append({
-        "Check": "Buckling interaction",
+        "Check": "Buckling interaction z",
         "Applied": "Interaction",
         "Resistance": "≤ 1.0",
         "Utilization": f"{util_20:.3f}",
@@ -2690,8 +2690,8 @@ def render_results(df_rows, overall_ok, governing,
         "Flexural buckling z–z",                                              # 16
         "Torsional / torsional-flexural buckling z",                          # 17
         "Lateral-torsional buckling",                                         # 18
-        "Buckling interaction",                                               # 19
-        "Buckling interaction",                                               # 20
+        "Buckling interaction y",                                               # 19
+        "Buckling interaction z",                                               # 20
     ]
 
     cs_util = ["" for _ in cs_checks]
@@ -5469,7 +5469,7 @@ def render_report_tab():
         \le 1.0
         """)
         if (tNy is not None) and (tMy1 is not None) and (tMz1 is not None):
-            st.latex(rf"u_{{19}} = {float(tNy):.3f} + {float(tMy1):.3f} + {float(tMz1):.3f} = {u19:.3f}")
+            st.latex(rf"u_{{y}} = {float(tNy):.3f} + {float(tMy1):.3f} + {float(tMz1):.3f} = {u19:.3f}")
         else:
             st.latex(rf"u_{{y}} = {u19:.3f}")
         report_status_badge(util_19)
@@ -5482,7 +5482,7 @@ def render_report_tab():
         \le 1.0
         """)
         if (tNz is not None) and (tMy2 is not None) and (tMz2 is not None):
-            st.latex(rf"u_{{20}} = {float(tNz):.3f} + {float(tMy2):.3f} + {float(tMz2):.3f} = {u20:.3f}")
+            st.latex(rf"u_{{z}} = {float(tNz):.3f} + {float(tMy2):.3f} + {float(tMz2):.3f} = {u20:.3f}")
         else:
             st.latex(rf"u_{{z}} = {u20:.3f}")
         report_status_badge(util_20)
@@ -5806,6 +5806,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
