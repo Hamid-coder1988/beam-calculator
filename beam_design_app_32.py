@@ -2555,14 +2555,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     })
 
     rows.append({
-        "Check": "(19) Buckling interaction (Annex B Method 2) — Expr. 1",
+        "Check": "Buckling interaction",
         "Applied": "Interaction",
         "Resistance": "≤ 1.0",
         "Utilization": f"{util_19:.3f}",
         "Status": status_19,
     })
     rows.append({
-        "Check": "(20) Buckling interaction (Annex B Method 2) — Expr. 2",
+        "Check": "Buckling interaction",
         "Applied": "Interaction",
         "Resistance": "≤ 1.0",
         "Utilization": f"{util_20:.3f}",
@@ -2690,8 +2690,8 @@ def render_results(df_rows, overall_ok, governing,
         "Flexural buckling z–z",                                              # 16
         "Torsional / torsional-flexural buckling z",                          # 17
         "Lateral-torsional buckling",                                         # 18
-        "(19) Buckling interaction (Annex B Method 2) — Expr. 1",             # 19
-        "(20) Buckling interaction (Annex B Method 2) — Expr. 2",             # 20
+        "Buckling interaction",                                               # 19
+        "Buckling interaction",                                               # 20
     ]
 
     cs_util = ["" for _ in cs_checks]
@@ -5806,6 +5806,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
