@@ -5516,7 +5516,7 @@ def render_report_tab():
         if (tNy is not None) and (tMy1 is not None) and (tMz1 is not None):
             st.latex(rf"u_{{19}} = {float(tNy):.3f} + {float(tMy1):.3f} + {float(tMz1):.3f} = {u19:.3f}")
         else:
-            st.latex(rf"u_{{19}} = {u19:.3f}")
+            st.latex(rf"u_{{y}} = {u19:.3f}")
         report_status_badge(util_19)
         
         st.markdown("**(20) Expression 2 (about z):**")
@@ -5529,7 +5529,7 @@ def render_report_tab():
         if (tNz is not None) and (tMy2 is not None) and (tMz2 is not None):
             st.latex(rf"u_{{20}} = {float(tNz):.3f} + {float(tMy2):.3f} + {float(tMz2):.3f} = {u20:.3f}")
         else:
-            st.latex(rf"u_{{20}} = {u20:.3f}")
+            st.latex(rf"u_{{z}} = {u20:.3f}")
         report_status_badge(util_20)
         
         # Optional governing (still useful)
@@ -5851,6 +5851,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
