@@ -1264,21 +1264,6 @@ def render_section_selection():
     st.subheader("Section selection")
     types, sizes_map, detected_table = fetch_types_and_sizes()
 
-    # --- optional: manual cache-buster / re-fetch trigger ---
-    if "db_rev" not in st.session_state:
-        st.session_state["db_rev"] = 1
-
-    c0, _ = st.columns([1, 5])
-    with c0:
-        if st.button("Refresh DB data", key="btn_refresh_db"):
-            st.session_state["db_rev"] += 1
-            # Clear cached sr_display so we MUST fetch again
-            st.session_state.pop("sr_display", None)
-            st.session_state.pop("_sr_key_loaded", None)
-            # Also clear computed results
-            for k in ["df_rows", "overall_ok", "governing", "extras"]:
-                st.session_state.pop(k, None)
-
     c1, c2, c3 = st.columns([1, 1, 1])
 
     with c1:
@@ -5821,6 +5806,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
