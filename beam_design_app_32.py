@@ -5535,7 +5535,7 @@ def render_report_tab():
         # Optional governing (still useful)
         u_g = max(u19, u20)
         st.markdown("Governing utilization (Annex B):")
-        st.latex(rf"u_g = \max(u_{{19}},u_{{20}}) = {u_g:.3f}")
+        st.latex(rf"u_g = \max(u_{{y}},u_{{z}}) = {u_g:.3f}")
         report_status_badge(u_g)
 
     # ----------------------------------------------------
@@ -5851,6 +5851,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
