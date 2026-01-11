@@ -5537,15 +5537,6 @@ def render_report_tab():
         st.markdown("Governing utilization (Annex B):")
         st.latex(rf"u_g = \max(u_{{19}},u_{{20}}) = {u_g:.3f}")
         report_status_badge(u_g)
-        
-        # --- Mini table (ONLY 19 and 20) ---
-        st.markdown("### Summary table (only checks 19 & 20)")
-        summary_rows = [
-            {"Check": "(19) Interaction (Annex B) — Expr. 1", "Utilization": u19, "Status": "OK" if u19 <= 1.0 else "EXCEEDS"},
-            {"Check": "(20) Interaction (Annex B) — Expr. 2", "Utilization": u20, "Status": "OK" if u20 <= 1.0 else "EXCEEDS"},
-        ]
-        st.dataframe(pd.DataFrame(summary_rows))
-
 
     # ----------------------------------------------------
         # 8. References
@@ -5860,6 +5851,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
