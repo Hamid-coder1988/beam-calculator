@@ -5410,135 +5410,51 @@ def render_report_tab():
         report_status_badge(utilLT_disp)
     
         # ----------------------------
-        # (19)–(22) Buckling interaction for bending and axial compression
+        # (19),(20) Buckling interaction for bending and axial compression — EN 1993-1-1 Annex B (Method 2)
         # ----------------------------
-        util_61_A = buck_map.get("util_61_A")
-        util_62_A = buck_map.get("util_62_A")
-        util_61_B = buck_map.get("util_61_B")
-        util_62_B = buck_map.get("util_62_B")
-    
-        # ---- Method 1 (Annex A) ----
-        report_h4("(19),(20) Buckling interaction for bending and axial compression — Method 1 (EN 1993-1-1 Annex A)")
-    
-        # Pull already-calculated values from buck_map (compute_checks)
-        psi_y = float(buck_map.get("psi_y", 1.0) or 1.0)
-        psi_z = float(buck_map.get("psi_z", 1.0) or 1.0)
-    
-        Cmy0_A = float(buck_map.get("Cmy0_A", 0.0) or 0.0)
-        Cmz0_A = float(buck_map.get("Cmz0_A", 0.0) or 0.0)
-    
-        Cmy_A  = float(buck_map.get("Cmy_A", 0.0) or 0.0)
-        Cmz_A  = float(buck_map.get("Cmz_A", 0.0) or 0.0)
-        CmLT_A = float(buck_map.get("CmLT_A", 0.0) or 0.0)
-    
-        kyy_A = float(buck_map.get("kyy_A", 0.0) or 0.0)
-        kyz_A = float(buck_map.get("kyz_A", 0.0) or 0.0)
-        kzy_A = float(buck_map.get("kzy_A", 0.0) or 0.0)
-        kzz_A = float(buck_map.get("kzz_A", 0.0) or 0.0)
-    
-        util_61_A = buck_map.get("util_61_A")
-        util_62_A = buck_map.get("util_62_A")
-        util_int_A = buck_map.get("util_int_A")
-    
-        # --- Short narrative (keep minimal; everything else in math) ---
-        st.markdown(
-            "Method 1 is based on **EN 1993-1-1 Annex A**. "
-            "Equivalent uniform moment factors are from **Table A.2**; interaction factors follow Annex A."
-        )
-    
-        # --- Equivalent uniform moment factors (Table A.2) ---
-        st.markdown("### Equivalent uniform moment factors (Annex A, Table A.2)")
-        st.latex(rf"""
-        \begin{{aligned}}
-        C_{{my,0}} &= 0.79 + 0.21\,\psi_y + 0.36(\psi_y-0.33)\frac{{N_{{Ed}}}}{{N_{{cr,y}}}}
-        = {Cmy0_A:.3f} \\
-        C_{{mz,0}} &= 0.79 + 0.21\,\psi_z + 0.36(\psi_z-0.33)\frac{{N_{{Ed}}}}{{N_{{cr,z}}}}
-        = {Cmz0_A:.3f}
-        \end{{aligned}}
-        """)
-    
-        # --- Moment factors including LTB effect ---
-        st.markdown("### Moment factors including LTB effect (Annex A)")
-        st.latex(rf"""
-        \begin{{aligned}}
-        \psi_y &= {psi_y:.3f}, \qquad \psi_z = {psi_z:.3f} \\
-        C_{{my}} &= {Cmy_A:.3f}, \qquad
-        C_{{mz}} = {Cmz_A:.3f}, \qquad
-        C_{{mLT}} = {CmLT_A:.3f}
-        \end{{aligned}}
-        """)
-    
-        # --- Interaction factors ---
-        st.markdown("### Interaction factors (Annex A)")
-        st.latex(rf"""
-        \begin{{aligned}}
-        k_{{yy}} &= {kyy_A:.3f}, \qquad
-        k_{{yz}} = {kyz_A:.3f}, \qquad
-        k_{{zy}} = {kzy_A:.3f}, \qquad
-        k_{{zz}} = {kzz_A:.3f}
-        \end{{aligned}}
-        """)
-    
-        # --- Verification (Annex A) ---
-        st.markdown("### Verification (Annex A)")
-    
-        u_y_A = float(util_61_A) if util_61_A is not None else float("nan")
-        u_z_A = float(util_62_A) if util_62_A is not None else float("nan")
-        u_g_A = float(util_int_A) if util_int_A is not None else float("nan")
-    
-        st.markdown("Equation (about y):")
-        st.latex(r"""
-        \frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}
-        +k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}
-        +k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
-        \le 1.0
-        """)
-        st.latex(rf"u_y = {u_y_A:.3f}")
-        report_status_badge(util_61_A)
-    
-        st.markdown("Equation (about z):")
-        st.latex(r"""
-        \frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}
-        +k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}
-        +k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
-        \le 1.0
-        """)
-        st.latex(rf"u_z = {u_z_A:.3f}")
-        report_status_badge(util_62_A)
-    
-        st.markdown("Governing utilization (Annex A):")
-        st.latex(rf"u_{{g}} = \max(u_y,u_z) = {u_g_A:.3f}")
-        report_status_badge(util_int_A)
-    
-        # ---- Method 2 (Annex B) ----
-        report_h4("(21),(22) Buckling interaction for bending and axial compression — Method 2 (EN 1993-1-1 Annex B)")
-    
-        # Inputs (we keep these for the report narrative)
+        
+        # We only keep Annex B Method 2 (your attached example) and we label the two expressions as (19) and (20).
+        
+        report_h4("(19),(20) Buckling interaction for bending and axial compression — Method 2 (EN 1993-1-1 Annex B)")
+        
+        # Pull values from buck_map (computed in compute_checks)
         psi_y  = float(buck_map.get("psi_y", 1.0) or 1.0)
         psi_z  = float(buck_map.get("psi_z", 1.0) or 1.0)
         psi_LT = float(buck_map.get("psi_LT", 1.0) or 1.0)
-    
+        
         lam_y = float(buck_map.get("lam_y", 0.0) or 0.0)
         lam_z = float(buck_map.get("lam_z", 0.0) or 0.0)
-    
+        
+        # Moment factors (Table B.3)
         Cmy_B  = float(buck_map.get("Cmy_B", 0.0) or 0.0)
         Cmz_B  = float(buck_map.get("Cmz_B", 0.0) or 0.0)
         CmLT_B = float(buck_map.get("CmLT_B", 0.0) or 0.0)
-    
+        
+        # Interaction factors (Table B.2)
         kyy_B = float(buck_map.get("kyy_B", 0.0) or 0.0)
         kzz_B = float(buck_map.get("kzz_B", 0.0) or 0.0)
         kyz_B = float(buck_map.get("kyz_B", 0.0) or 0.0)
         kzy_B = float(buck_map.get("kzy_B", 0.0) or 0.0)
-    
-        util_61_B = buck_map.get("util_61_B")
-        util_62_B = buck_map.get("util_62_B")
-        util_int_B = buck_map.get("util_int_B")
-    
+        
+        # Utilizations: prefer the NEW keys (util_19_B/util_20_B).
+        # If you didn’t update compute_checks yet and still store util_61_B/util_62_B, this fallback keeps it working.
+        util_19 = buck_map.get("util_19_B", buck_map.get("util_61_B"))
+        util_20 = buck_map.get("util_20_B", buck_map.get("util_62_B"))
+        
+        # Optional breakdown terms (if you stored them)
+        tNy  = buck_map.get("term_Ny_B")
+        tMy1 = buck_map.get("term_My1_B")
+        tMz1 = buck_map.get("term_Mz1_B")
+        
+        tNz  = buck_map.get("term_Nz_B")
+        tMy2 = buck_map.get("term_My2_B")
+        tMz2 = buck_map.get("term_Mz2_B")
+        
         st.markdown(
-            "Method 2 follows **EN 1993-1-1 Annex B**. "
-            "Moment factors are from **Table B.3**; interaction factors follow **Table B.2** (I-sections susceptible to LTB)."
+            "This verification follows **EN 1993-1-1 Annex B (Method 2)** as in your attached example. "
+            "Moment factors are from **Table B.3** and interaction factors are from **Table B.2** (I-sections susceptible to LTB)."
         )
-    
+        
         # --- Equivalent uniform moment factors (Table B.3) ---
         st.markdown("### Equivalent uniform moment factors (Annex B, Table B.3)")
         st.latex(rf"""
@@ -5555,7 +5471,7 @@ def render_report_tab():
         \psi_{{LT}} = {psi_LT:.3f}
         \end{{aligned}}
         """)
-    
+        
         # --- Slenderness values (reported) ---
         st.markdown("### Slenderness values used (Annex B)")
         st.latex(rf"""
@@ -5564,8 +5480,8 @@ def render_report_tab():
         \bar\lambda_z = {lam_z:.3f}
         \end{{aligned}}
         """)
-    
-        # --- Interaction factors (symbolic + final numeric only) ---
+        
+        # --- Interaction factors (Table B.2) ---
         st.markdown("### Interaction factors (Annex B, Table B.2)")
         st.latex(r"""
         \begin{aligned}
@@ -5583,224 +5499,53 @@ def render_report_tab():
         k_{{zy}} = {kzy_B:.3f}
         \end{{aligned}}
         """)
-    
-        # --- Verification (Annex B) ---
+        
+        # --- Verification expressions (now labeled as 19 and 20 only) ---
         st.markdown("### Verification of member resistance (Annex B)")
-    
-        u_y_B = float(util_61_B) if util_61_B is not None else float("nan")
-        u_z_B = float(util_62_B) if util_62_B is not None else float("nan")
-        u_g_B = float(util_int_B) if util_int_B is not None else float("nan")
-    
-        st.markdown("Equation (about y):")
+        
+        u19 = float(util_19) if util_19 is not None else float("nan")
+        u20 = float(util_20) if util_20 is not None else float("nan")
+        
+        st.markdown("**(19) Expression 1 (about y):**")
         st.latex(r"""
         \frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}
         +k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}
         +k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
         \le 1.0
         """)
-        st.latex(rf"u_y = {u_y_B:.3f}")
-        report_status_badge(util_61_B)
-    
-        st.markdown("Equation (about z):")
+        if (tNy is not None) and (tMy1 is not None) and (tMz1 is not None):
+            st.latex(rf"u_{{19}} = {float(tNy):.3f} + {float(tMy1):.3f} + {float(tMz1):.3f} = {u19:.3f}")
+        else:
+            st.latex(rf"u_{{19}} = {u19:.3f}")
+        report_status_badge(util_19)
+        
+        st.markdown("**(20) Expression 2 (about z):**")
         st.latex(r"""
         \frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}
         +k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}
         +k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}
         \le 1.0
         """)
-        st.latex(rf"u_z = {u_z_B:.3f}")
-        report_status_badge(util_62_B)
-    
+        if (tNz is not None) and (tMy2 is not None) and (tMz2 is not None):
+            st.latex(rf"u_{{20}} = {float(tNz):.3f} + {float(tMy2):.3f} + {float(tMz2):.3f} = {u20:.3f}")
+        else:
+            st.latex(rf"u_{{20}} = {u20:.3f}")
+        report_status_badge(util_20)
+        
+        # Optional governing (still useful)
+        u_g = max(u19, u20)
         st.markdown("Governing utilization (Annex B):")
-        st.latex(rf"u_{{g}} = \max(u_y,u_z) = {u_g_B:.3f}")
-        report_status_badge(util_int_B)
-    
-        # ============================
-        # (19),(20) Method 1 — Annex A
-        # ============================
-        report_h4("(19),(20) Buckling interaction for bending and axial compression — Method 1 (EN 1993-1-1 Annex A)")
-    
-        import math
-    
-        def _sf(x, default=None):
-            """safe-float: returns None if missing/NaN/inf"""
-            try:
-                v = float(x)
-                if not math.isfinite(v):
-                    return default
-                return v
-            except Exception:
-                return default
-    
-        def _latex_block(lines):
-            # lines = list[str] that already contain LaTeX rows
-            st.latex(r"\begin{aligned}" + "\n" + r"\\[3pt]".join(lines) + "\n" + r"\end{aligned}")
-    
-        def _OK(v):
-            return (v is not None) and (v <= 1.0)
-    
-        # --- Pull values from buck_map (computed in compute_checks) ---
-        psi_y = _sf(buck_map.get("psi_y", 1.0), 1.0)
-        psi_z = _sf(buck_map.get("psi_z", 1.0), 1.0)
-    
-        Cmy0_A = _sf(buck_map.get("Cmy0_A"), None)
-        Cmz0_A = _sf(buck_map.get("Cmz0_A"), None)
-    
-        Cmy_A  = _sf(buck_map.get("Cmy_A"),  None)
-        Cmz_A  = _sf(buck_map.get("Cmz_A"),  None)
-        CmLT_A = _sf(buck_map.get("CmLT_A"), None)
-    
-        kyy_A = _sf(buck_map.get("kyy_A"), None)
-        kyz_A = _sf(buck_map.get("kyz_A"), None)
-        kzy_A = _sf(buck_map.get("kzy_A"), None)
-        kzz_A = _sf(buck_map.get("kzz_A"), None)
-    
-        util_61_A  = _sf(buck_map.get("util_61_A"), None)
-        util_62_A  = _sf(buck_map.get("util_62_A"), None)
-        util_int_A = _sf(buck_map.get("util_int_A"), None)
-    
-        st.markdown(
-            "Method 1 is based on **EN 1993-1-1:2022 Annex A**. "
-            "Equivalent uniform moment factors are taken from **Table A.2**. "
-            "Interaction verification follows **8.3.3** using Formulae **(8.88)–(8.89)**."
-        )
-    
-        st.markdown("### Equivalent uniform moment factors (Annex A, Table A.2)")
-        _latex_block([
-            r"C_{my,0}=0.79+0.21\,\psi_y+0.36(\psi_y-0.33)\frac{N_{Ed}}{N_{cr,y}}",
-            rf"\psi_y={psi_y:.3f}\;\;\Rightarrow\;\;C_{{my,0}}={Cmy0_A:.3f}" if Cmy0_A is not None else rf"\psi_y={psi_y:.3f}\;\;\Rightarrow\;\;C_{{my,0}}=\mathrm{{n/a}}",
-            r"C_{mz,0}=0.79+0.21\,\psi_z+0.36(\psi_z-0.33)\frac{N_{Ed}}{N_{cr,z}}",
-            rf"\psi_z={psi_z:.3f}\;\;\Rightarrow\;\;C_{{mz,0}}={Cmz0_A:.3f}" if Cmz0_A is not None else rf"\psi_z={psi_z:.3f}\;\;\Rightarrow\;\;C_{{mz,0}}=\mathrm{{n/a}}",
-        ])
-    
-        st.markdown("### Moment factors including LTB effect (Annex A)")
-        _latex_block([
-            rf"C_{{my}}={Cmy_A:.3f}"  if Cmy_A  is not None else r"C_{my}=\mathrm{n/a}",
-            rf"C_{{mz}}={Cmz_A:.3f}"  if Cmz_A  is not None else r"C_{mz}=\mathrm{n/a}",
-            rf"C_{{mLT}}={CmLT_A:.3f}" if CmLT_A is not None else r"C_{mLT}=\mathrm{n/a}",
-        ])
-    
-        st.markdown("### Interaction factors (Annex A)")
-        _latex_block([
-            rf"k_{{yy}}={kyy_A:.3f}" if kyy_A is not None else r"k_{yy}=\mathrm{n/a}",
-            rf"k_{{yz}}={kyz_A:.3f}" if kyz_A is not None else r"k_{yz}=\mathrm{n/a}",
-            rf"k_{{zy}}={kzy_A:.3f}" if kzy_A is not None else r"k_{zy}=\mathrm{n/a}",
-            rf"k_{{zz}}={kzz_A:.3f}" if kzz_A is not None else r"k_{zz}=\mathrm{n/a}",
-        ])
-    
-        st.markdown("### Verification (Formulae 8.88–8.89)")
-        _latex_block([
-            r"u_y=\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}+k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
-            (rf"u_y={util_61_A:.3f}" if _OK(util_61_A) else rf"u_y={util_61_A:.3f}") if util_61_A is not None else r"u_y=\mathrm{n/a}",
-            r"u_z=\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
-            (rf"u_z={util_62_A:.3f}" if _OK(util_62_A) else rf"u_z={util_62_A:.3f}") if util_62_A is not None else r"u_z=\mathrm{n/a}",
-        ])
-    
-        report_status_badge(util_61_A)
-        report_status_badge(util_62_A)
-    
-        _latex_block([
-            rf"u=\max(u_y,u_z)={util_int_A:.3f}" if _OK(util_int_A)
-            else (rf"u=\max(u_y,u_z)={util_int_A:.3f}" if util_int_A is not None else r"u=\max(u_y,u_z)=\mathrm{n/a}")
-        ])
-    
-        report_status_badge(util_int_A)
-    
-        # ============================
-        # (21),(22) Method 2 — Annex B
-        # ============================
-        report_h4("(21),(22) Buckling interaction for bending and axial compression — Method 2 (EN 1993-1-1 Annex B)")
-    
-        psi_y  = _sf(buck_map.get("psi_y", 1.0), 1.0)
-        psi_z  = _sf(buck_map.get("psi_z", 1.0), 1.0)
-        psi_LT = _sf(buck_map.get("psi_LT", 1.0), 1.0)
-    
-        lam_y = _sf(buck_map.get("lam_y"), None)
-        lam_z = _sf(buck_map.get("lam_z"), None)
-    
-        Cmy_B  = _sf(buck_map.get("Cmy_B"),  None)
-        Cmz_B  = _sf(buck_map.get("Cmz_B"),  None)
-        CmLT_B = _sf(buck_map.get("CmLT_B"), None)
-    
-        kyy_B = _sf(buck_map.get("kyy_B"), None)
-        kzz_B = _sf(buck_map.get("kzz_B"), None)
-        kyz_B = _sf(buck_map.get("kyz_B"), None)
-        kzy_B = _sf(buck_map.get("kzy_B"), None)
-    
-        util_61_B  = _sf(buck_map.get("util_61_B"), None)
-        util_62_B  = _sf(buck_map.get("util_62_B"), None)
-        util_int_B = _sf(buck_map.get("util_int_B"), None)
-    
-        st.markdown(
-            "Method 2 follows **EN 1993-1-1:2022 Annex B**. "
-            "Equivalent uniform moment factors **Cmi** are taken from **Table B.3**. "
-            "For I-sections susceptible to LTB, interaction factors follow **Table B.2** (using the λ-limits via min{λ,1.0})."
-        )
-    
-        st.markdown("### Equivalent uniform moment factors (Annex B, Table B.3)")
-        _latex_block([
-            r"C_{my}=\max\!\left(0.4,\;0.60+0.40\,\psi_y\right)",
-            rf"\psi_y={psi_y:.3f}\;\Rightarrow\;C_{{my}}={Cmy_B:.3f}" if Cmy_B is not None else rf"\psi_y={psi_y:.3f}\;\Rightarrow\;C_{{my}}=\mathrm{{n/a}}",
-            r"C_{mz}=\max\!\left(0.4,\;0.60+0.40\,\psi_z\right)",
-            rf"\psi_z={psi_z:.3f}\;\Rightarrow\;C_{{mz}}={Cmz_B:.3f}" if Cmz_B is not None else rf"\psi_z={psi_z:.3f}\;\Rightarrow\;C_{{mz}}=\mathrm{{n/a}}",
-            r"C_{mLT}=\max\!\left(0.4,\;0.60+0.40\,\psi_{LT}\right)",
-            rf"\psi_{{LT}}={psi_LT:.3f}\;\Rightarrow\;C_{{mLT}}={CmLT_B:.3f}" if CmLT_B is not None else rf"\psi_{{LT}}={psi_LT:.3f}\;\Rightarrow\;C_{{mLT}}=\mathrm{{n/a}}",
-        ])
-    
-        st.markdown("### Interaction factors (Annex B, Table B.2 — susceptible to LTB)")
-        _latex_block([
-            rf"\bar\lambda_y={lam_y:.3f}" if lam_y is not None else r"\bar\lambda_y=\mathrm{n/a}",
-            rf"\bar\lambda_z={lam_z:.3f}" if lam_z is not None else r"\bar\lambda_z=\mathrm{n/a}",
-            r"k_{yy}=C_{my}\left[1+\left(\min(\bar\lambda_y,1.0)-0.2\right)\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}\right]",
-            rf"k_{{yy}}={kyy_B:.3f}" if kyy_B is not None else r"k_{yy}=\mathrm{n/a}",
-            r"k_{zz}=C_{mz}\left[1+\left(2\min(\bar\lambda_z,1.0)-0.6\right)\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}\right]",
-            rf"k_{{zz}}={kzz_B:.3f}" if kzz_B is not None else r"k_{zz}=\mathrm{n/a}",
-            r"k_{yz}=0.6\,k_{zz}",
-            rf"k_{{yz}}={kyz_B:.3f}" if kyz_B is not None else r"k_{yz}=\mathrm{n/a}",
-            r"k_{zy}=1-\frac{0.1\,\min(\bar\lambda_z,1.0)}{(C_{mLT}-0.25)}\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}\,}\quad(\bar\lambda_z\ge 0.4)",
-            rf"k_{{zy}}={kzy_B:.3f}" if kzy_B is not None else r"k_{zy}=\mathrm{n/a}",
-        ])
-    
-        st.markdown("### Verification of member resistance (Annex B)")
-        _latex_block([
-            r"u_y=\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}}+k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
-            (rf"u_y={util_61_B:.3f}" if _OK(util_61_B) else rf"u_y={util_61_B:.3f}") if util_61_B is not None else r"u_y=\mathrm{n/a}",
-            r"u_z=\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}}+k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}}+k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}}\le 1.0",
-            (rf"u_z={util_62_B:.3f}" if _OK(util_62_B) else rf"u_z={util_62_B:.3f}") if util_62_B is not None else r"u_z=\mathrm{n/a}",
-        ])
-    
-        # --- KEEP your existing big LaTeX block, but REMOVE the "⇒ OK/NOT OK" text lines ---
-        uy = float(util_61_B or 0.0)
-        uz = float(util_62_B or 0.0)
-        u_int = float(util_int_B or 0.0)
-    
-        st.latex(
-            rf"""
-            \begin{{aligned}}
-            u_y &=
-            \frac{{N_{{Ed}}}}{{\chi_y N_{{Rk}}/\gamma_{{M1}}}}
-            + k_{{yy}} \frac{{M_{{y,Ed}}}}{{\chi_{{LT}} M_{{y,Rk}}/\gamma_{{M1}}}}
-            + k_{{yz}} \frac{{M_{{z,Ed}}}}{{M_{{z,Rk}}/\gamma_{{M1}}}}
-            \le 1.0
-            \\[10pt]
-            u_y &= {uy:.3f}
-            \\[18pt]
-            u_z &=
-            \frac{{N_{{Ed}}}}{{\chi_z N_{{Rk}}/\gamma_{{M1}}}}
-            + k_{{zy}} \frac{{M_{{y,Ed}}}}{{\chi_{{LT}} M_{{y,Rk}}/\gamma_{{M1}}}}
-            + k_{{zz}} \frac{{M_{{z,Ed}}}}{{M_{{z,Rk}}/\gamma_{{M1}}}}
-            \le 1.0
-            \\[10pt]
-            u_z &= {uz:.3f}
-            \\[18pt]
-            u &= \max(u_y, u_z) = {u_int:.3f}
-            \end{{aligned}}
-            """
-        )
-    
-        report_status_badge(util_61_B)
-        report_status_badge(util_62_B)
-        report_status_badge(util_int_B)
+        st.latex(rf"u_g = \max(u_{{19}},u_{{20}}) = {u_g:.3f}")
+        report_status_badge(u_g)
+        
+        # --- Mini table (ONLY 19 and 20) ---
+        st.markdown("### Summary table (only checks 19 & 20)")
+        summary_rows = [
+            {"Check": "(19) Interaction (Annex B) — Expr. 1", "Utilization": u19, "Status": "OK" if u19 <= 1.0 else "EXCEEDS"},
+            {"Check": "(20) Interaction (Annex B) — Expr. 2", "Utilization": u20, "Status": "OK" if u20 <= 1.0 else "EXCEEDS"},
+        ]
+        st.dataframe(pd.DataFrame(summary_rows))
+
 
     # ----------------------------------------------------
         # 8. References
@@ -6115,6 +5860,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
