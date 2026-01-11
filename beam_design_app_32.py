@@ -1847,6 +1847,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     Wpl_z_cm3 = use_props.get("Wpl_z_cm3", 0.0)
     Wel_y_cm3 = use_props.get("Wel_y_cm3", 0.0)
     Wel_z_cm3 = use_props.get("Wel_z_cm3", 0.0)
+
     # Shear areas: support both old and new keys
     Av_z_mm2 = use_props.get("Av_z_mm2", use_props.get("Avz_mm2", 0.0))
     Av_y_mm2 = use_props.get("Av_y_mm2", use_props.get("Avy_mm2", 0.0))
@@ -1855,34 +1856,47 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     # - a numeric alpha (0.21, 0.34, 0.49, 0.76, ...)
     # - or a curve group string: a0 / a / b / c / d (from your DB)
     _ALPHA_FROM_CURVE = {"a0": 0.13, "a": 0.21, "b": 0.34, "c": 0.49, "d": 0.76}
-    
+
     curve_or_alpha = (
         use_props.get("imperfection_group", None)
         or use_props.get("buckling_curve", None)
         or use_props.get("alpha_curve", None)
     )
-    
+
     if isinstance(curve_or_alpha, str):
         alpha_curve_db = _ALPHA_FROM_CURVE.get(curve_or_alpha.strip().lower(), 0.49)
     else:
         alpha_curve_db = float(curve_or_alpha) if curve_or_alpha is not None else 0.49
-    
 
     if A_m2 <= 0:
         raise ValueError("Section area not provided (A <= 0).")
 
+    # -------------------------------------------------
     # Basic resistances (cross-section)
+    # -------------------------------------------------
     N_Rd_N = A_m2 * fy * 1e6 / gamma_M0
     T_Rd_N = N_Rd_N
+
+    # Plastic (preferred) section modulus in m^3; fallback to 1.1*S (as you had)
     Wpl_y_m3 = (Wpl_y_cm3 * 1e-6) if Wpl_y_cm3 > 0 else 1.1 * S_y_m3
+    Wpl_z_m3 = (Wpl_z_cm3 * 1e-6) if Wpl_z_cm3 > 0 else 1.1 * S_z_m3
+
     M_Rd_y_Nm = Wpl_y_m3 * fy * 1e6 / gamma_M0
+    M_Rd_z_Nm = Wpl_z_m3 * fy * 1e6 / gamma_M0  # <-- needed for §6.2.9/§6.2.10
+
+    # For §6.2.9 / §6.2.10 we need plastic bending resistances in kNm
+    Mpl_Rd_y_kNm = M_Rd_y_Nm / 1e3
+    Mpl_Rd_z_kNm = M_Rd_z_Nm / 1e3
+
     Av_m2 = 0.6 * A_m2
     V_Rd_N = Av_m2 * fy * 1e6 / (math.sqrt(3) * gamma_M0)
 
     # Allowable stress for indicative combined check
     sigma_allow_MPa = 0.6 * fy
 
-    # Stresses
+    # -------------------------------------------------
+    # Stresses (indicative)
+    # -------------------------------------------------
     sigma_axial_Pa = N_N / A_m2
     sigma_by_Pa = My_Nm / S_y_m3 if S_y_m3 > 0 else 0.0
     sigma_bz_Pa = Mz_Nm / S_z_m3 if S_z_m3 > 0 else 0.0
@@ -1994,12 +2008,13 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Utilization": f"{util_Mz:.3f}" if util_Mz is not None else "n/a",
         "Status": status_Mz,
     })
+
     # ---- Shear resistances along z and y (always calculated) ----
     if Av_z_mm2 > 0 and fy > 0:
         Vc_z_Rd_kN = (Av_z_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3
     else:
         Vc_z_Rd_kN = 0.0
-    
+
     if Av_y_mm2 > 0 and fy > 0:
         Vc_y_Rd_kN = (Av_y_mm2 * (fy / math.sqrt(3)) / gamma_M0) / 1e3
     else:
@@ -2037,17 +2052,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     })
 
     # -------------------------------------------------
-    # Combined effects placeholders required for summary tables (checks 7–14)
+    # Combined effects (checks 7–14) — compute real u(9–14) consistently with Report tab
     # -------------------------------------------------
-    # Shear influence on bending (EN 1993-1-1 §6.2.8): if VEd <= 0.5*Vpl,Rd => ignore
+
+    # Shear influence ratios (EN 1993-1-1 §6.2.8) used later in §6.2.10
     shear_ratio_y = (Vy_Ed_kN / Vc_y_Rd_kN) if (Vc_y_Rd_kN and Vc_y_Rd_kN > 0) else None
     shear_ratio_z = (Vz_Ed_kN / Vc_z_Rd_kN) if (Vc_z_Rd_kN and Vc_z_Rd_kN > 0) else None
 
-    shear_ok_y = (shear_ratio_y is not None) and (shear_ratio_y <= 0.50)
-    shear_ok_z = (shear_ratio_z is not None) and (shear_ratio_z <= 0.50)
-
-    # Axial influence on bending (EN 1993-1-1 §6.2.9): I/H doubly symmetric heuristic
-    # Pull basic geometric dims if present (used for hw*tw criteria)
+    # Pull basic geometric dims (needed for §6.2.9 / §6.2.10 formulas)
     h_mm = float(use_props.get("h_mm", use_props.get("h", 0.0)) or 0.0)
     b_mm = float(use_props.get("b_mm", use_props.get("b", 0.0)) or 0.0)
     tw_mm = float(use_props.get("tw_mm", use_props.get("tw", 0.0)) or 0.0)
@@ -2056,37 +2068,197 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
 
     A_mm2 = A_m2 * 1e6
     Npl_Rd_kN = (A_mm2 * fy / gamma_M0) / 1e3 if (A_mm2 > 0 and fy > 0) else 0.0
-
-    hw_mm = 0.0
-    if h_mm > 0 and tf_mm > 0:
-        # reasonable web height approximation
-        hw_mm = max(h_mm - 2.0 * tf_mm, 0.0)
-
-    crit_y_25 = 0.25 * Npl_Rd_kN
-    crit_y_web = (0.50 * hw_mm * tw_mm * fy / gamma_M0) / 1e3 if (hw_mm > 0 and tw_mm > 0 and fy > 0) else None
-    crit_z_web = (hw_mm * tw_mm * fy / gamma_M0) / 1e3 if (hw_mm > 0 and tw_mm > 0 and fy > 0) else None
-
     NEd_kN = abs(N_kN)
-    axial_ok_y = (NEd_kN <= crit_y_25) and (crit_y_web is None or NEd_kN <= crit_y_web)
-    axial_ok_z = (crit_z_web is None) or (NEd_kN <= crit_z_web)
 
-    # Prepare detail values for report
+    # Section “type” (used to select the right §6.2.9 / §6.2.10 branch like your Report tab)
+    sec_label = (
+        str(use_props.get("family") or use_props.get("type") or use_props.get("Type") or
+            use_props.get("section_family") or use_props.get("Section") or use_props.get("name") or "")
+    ).upper()
+    is_rhs = any(k in sec_label for k in ["RHS", "SHS", "HSS", "BOX"])
+    is_ih  = any(sec_label.startswith(p) for p in ("IPE", "IPN", "HEA", "HEB", "HEM", "HE", "UB", "UC"))
+
+    # Axial ratio
+    n = (NEd_kN / Npl_Rd_kN) if (Npl_Rd_kN and Npl_Rd_kN > 0) else None
+
+    # ------------------------------------------------------------
+    # (9)–(11) Bending and axial force — EN 1993-1-1 §6.2.9
+    # ------------------------------------------------------------
+    MN_y_Rd_6209 = None
+    MN_z_Rd_6209 = None
+    alpha_y_6209 = None
+    alpha_z_6209 = None
+    u_6209_9 = None
+    u_6209_10 = None
+    u_6209_11 = None
+
+    if (n is not None) and (A_mm2 > 0) and (Mpl_Rd_y_kNm > 0) and (Mpl_Rd_z_kNm > 0):
+        if is_ih:
+            a = (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2
+            a = max(0.0, min(0.5, a))
+
+            denom_y = (1.0 - 0.5 * a)
+            MN_y_Rd_6209 = Mpl_Rd_y_kNm * (1.0 - n) / denom_y if denom_y > 0 else 0.0
+            MN_y_Rd_6209 = min(Mpl_Rd_y_kNm, max(0.0, MN_y_Rd_6209))
+
+            if n <= a:
+                MN_z_Rd_6209 = Mpl_Rd_z_kNm
+            else:
+                ratio = (n - a) / (1.0 - a) if (1.0 - a) > 0 else 1.0
+                MN_z_Rd_6209 = Mpl_Rd_z_kNm * (1.0 - ratio**2)
+                MN_z_Rd_6209 = max(0.0, MN_z_Rd_6209)
+
+            alpha_y_6209 = 2.0
+            alpha_z_6209 = max(1.0, 5.0 * n)
+
+        elif is_rhs:
+            aw = (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2
+            af = (A_mm2 - 2.0 * h_mm * tw_mm) / A_mm2
+            aw = max(0.0, min(0.5, aw))
+            af = max(0.0, min(0.5, af))
+
+            denom_y = (1.0 - 0.5 * aw)
+            denom_z = (1.0 - 0.5 * af)
+
+            MN_y_Rd_6209 = Mpl_Rd_y_kNm * (1.0 - n) / denom_y if denom_y > 0 else 0.0
+            MN_z_Rd_6209 = Mpl_Rd_z_kNm * (1.0 - n) / denom_z if denom_z > 0 else 0.0
+            MN_y_Rd_6209 = min(Mpl_Rd_y_kNm, max(0.0, MN_y_Rd_6209))
+            MN_z_Rd_6209 = min(Mpl_Rd_z_kNm, max(0.0, MN_z_Rd_6209))
+
+            if n <= 0.8:
+                denom = (1.0 - 1.13 * (n**2))
+                alpha = min(6.0, 1.66 / denom) if denom > 0 else 6.0
+            else:
+                alpha = 6.0
+            alpha_y_6209 = alpha
+            alpha_z_6209 = alpha
+
+        if (MN_y_Rd_6209 is not None) and (MN_z_Rd_6209 is not None) and (MN_y_Rd_6209 > 0) and (MN_z_Rd_6209 > 0):
+            uMy = abs(My_Ed_kNm) / MN_y_Rd_6209
+            uMz = abs(Mz_Ed_kNm) / MN_z_Rd_6209
+            u_6209_9  = (uMy ** alpha_y_6209)
+            u_6209_10 = (uMz ** alpha_z_6209)
+            u_6209_11 = (uMy ** alpha_y_6209) + (uMz ** alpha_z_6209)
+
+    # ------------------------------------------------------------
+    # (12)–(14) Bending, shear and axial force — EN 1993-1-1 §6.2.10
+    # ------------------------------------------------------------
+    eta_gov = 0.0
+    if shear_ratio_y is not None:
+        eta_gov = max(eta_gov, float(abs(shear_ratio_y)))
+    if shear_ratio_z is not None:
+        eta_gov = max(eta_gov, float(abs(shear_ratio_z)))
+
+    shear_small_6210 = True if eta_gov is None else (eta_gov <= 0.50)
+
+    rho_6210 = 0.0
+    fy_red_6210 = fy
+    if not shear_small_6210:
+        rho_6210 = max(0.0, (2.0 * eta_gov - 1.0) ** 2)
+        rho_6210 = min(rho_6210, 1.0)
+        fy_red_6210 = max(0.0, (1.0 - rho_6210) * fy)
+
+    scale = (fy_red_6210 / fy) if (fy > 0 and not shear_small_6210) else 1.0
+
+    MN_y_Rd_6210 = None
+    MN_z_Rd_6210 = None
+    alpha_y_6210 = None
+    alpha_z_6210 = None
+    u_6210_12 = None
+    u_6210_13 = None
+    u_6210_14 = None
+
+    if (n is not None) and (A_mm2 > 0) and (Mpl_Rd_y_kNm > 0) and (Mpl_Rd_z_kNm > 0):
+        Mpl_y_use = Mpl_Rd_y_kNm * scale
+        Mpl_z_use = Mpl_Rd_z_kNm * scale
+
+        if is_ih:
+            a = (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2
+            a = max(0.0, min(0.5, a))
+
+            denom_y = (1.0 - 0.5 * a)
+            MN_y_Rd_6210 = Mpl_y_use * (1.0 - n) / denom_y if denom_y > 0 else 0.0
+            MN_y_Rd_6210 = min(Mpl_y_use, max(0.0, MN_y_Rd_6210))
+
+            if n <= a:
+                MN_z_Rd_6210 = Mpl_z_use
+            else:
+                ratio = (n - a) / (1.0 - a) if (1.0 - a) > 0 else 1.0
+                MN_z_Rd_6210 = Mpl_z_use * (1.0 - ratio**2)
+                MN_z_Rd_6210 = max(0.0, MN_z_Rd_6210)
+
+            alpha_y_6210 = 2.0
+            alpha_z_6210 = max(1.0, 5.0 * n)
+
+        elif is_rhs:
+            aw = (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2
+            af = (A_mm2 - 2.0 * h_mm * tw_mm) / A_mm2
+            aw = max(0.0, min(0.5, aw))
+            af = max(0.0, min(0.5, af))
+
+            denom_y = (1.0 - 0.5 * aw)
+            denom_z = (1.0 - 0.5 * af)
+
+            MN_y_Rd_6210 = Mpl_y_use * (1.0 - n) / denom_y if denom_y > 0 else 0.0
+            MN_z_Rd_6210 = Mpl_z_use * (1.0 - n) / denom_z if denom_z > 0 else 0.0
+            MN_y_Rd_6210 = min(Mpl_y_use, max(0.0, MN_y_Rd_6210))
+            MN_z_Rd_6210 = min(Mpl_z_use, max(0.0, MN_z_Rd_6210))
+
+            if n <= 0.8:
+                denom = (1.0 - 1.13 * (n**2))
+                alpha = min(6.0, 1.66 / denom) if denom > 0 else 6.0
+            else:
+                alpha = 6.0
+            alpha_y_6210 = alpha
+            alpha_z_6210 = alpha
+
+        if (MN_y_Rd_6210 is not None) and (MN_z_Rd_6210 is not None) and (MN_y_Rd_6210 > 0) and (MN_z_Rd_6210 > 0):
+            uMy = abs(My_Ed_kNm) / MN_y_Rd_6210
+            uMz = abs(Mz_Ed_kNm) / MN_z_Rd_6210
+
+            if shear_small_6210:
+                u_6210_12 = uMy
+                u_6210_13 = uMz
+                u_6210_14 = (uMy ** alpha_y_6210) + (uMz ** alpha_z_6210)
+            else:
+                uV_y = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if (Vc_y_Rd_kN and Vc_y_Rd_kN > 0) else 0.0
+                uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if (Vc_z_Rd_kN and Vc_z_Rd_kN > 0) else 0.0
+                uV = (uV_y ** 2) + (uV_z ** 2)
+
+                u_6210_12 = (uMy ** alpha_y_6210) + uV
+                u_6210_13 = (uMz ** alpha_z_6210) + uV
+                u_6210_14 = (uMy ** alpha_y_6210) + (uMz ** alpha_z_6210) + uV
+
+    # Prepare detail values for report + Results table (now includes real u(9–14))
     cs_combo = dict(
         shear_ratio_y=shear_ratio_y,
         shear_ratio_z=shear_ratio_z,
-        shear_ok_y=shear_ok_y,
-        shear_ok_z=shear_ok_z,
         Npl_Rd_kN=Npl_Rd_kN,
-        hw_mm=hw_mm,
-        tw_mm=tw_mm,
-        crit_y_25=crit_y_25,
-        crit_y_web=crit_y_web,
-        crit_z_web=crit_z_web,
         NEd_kN=NEd_kN,
-        axial_ok_y=axial_ok_y,
-        axial_ok_z=axial_ok_z,
         util_My=util_My,
         util_Mz=util_Mz,
+
+        # §6.2.9
+        n_6209=n,
+        MN_y_Rd_6209=MN_y_Rd_6209,
+        MN_z_Rd_6209=MN_z_Rd_6209,
+        alpha_y_6209=alpha_y_6209,
+        alpha_z_6209=alpha_z_6209,
+        u_6209_9=u_6209_9,
+        u_6209_10=u_6209_10,
+        u_6209_11=u_6209_11,
+
+        # §6.2.10
+        shear_small_6210=shear_small_6210,
+        rho_6210=rho_6210,
+        fy_red_6210=fy_red_6210,
+        MN_y_Rd_6210=MN_y_Rd_6210,
+        MN_z_Rd_6210=MN_z_Rd_6210,
+        alpha_y_6210=alpha_y_6210,
+        alpha_z_6210=alpha_z_6210,
+        u_6210_12=u_6210_12,
+        u_6210_13=u_6210_13,
+        u_6210_14=u_6210_14,
     )
 
     # Indicative stress-based checks
@@ -2154,33 +2326,33 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     Mz_Rk_Nm = Wz_m3 * fy * 1e6
 
     # Determine imperfection factors for FLEXURAL buckling (EN 1993-1-1 §6.3.1)
-    # If DB provides alpha, DO NOT overwrite it with heuristics.
     alpha_y = float(alpha_curve_db) if alpha_curve_db is not None else 0.49
     alpha_z = float(alpha_curve_db) if alpha_curve_db is not None else 0.49
-    
+
     # --- LTB imperfection factor alpha_LT (EN 1993-1-1 Table 6.3 + 6.4) ---
     # Rolled I:   h/b <= 2 -> a (0.21),  h/b > 2 -> b (0.34)
     # Welded I:   h/b <= 2 -> c (0.49),  h/b > 2 -> d (0.76)
     # Other:      d (0.76)
     hb = (h_mm / b_mm) if (b_mm and b_mm > 0) else None
-    
+
     sec_label = (
         str(use_props.get("family") or use_props.get("type") or use_props.get("Type") or
             use_props.get("section_family") or use_props.get("Section") or use_props.get("name") or "")
     ).upper()
-    
+
     is_welded_i = ("WELD" in sec_label) or ("PLATE" in sec_label) or ("GIRDER" in sec_label)
     is_rolled_i = any(sec_label.startswith(p) for p in ("IPE", "IPN", "HEA", "HEB", "HEM", "HE", "UB", "UC"))
-    
+
     if hb is None:
         curve_LT = "b"  # safe default
     elif is_welded_i:
         curve_LT = "c" if hb <= 2.0 else "d"
     elif is_rolled_i:
+        # NOTE: your earlier correction: rolled I with h/b <= 2.0 -> curve a (0.21), not b
         curve_LT = "a" if hb <= 2.0 else "b"
     else:
         curve_LT = "d"
-    
+
     alpha_LT = {"a": 0.21, "b": 0.34, "c": 0.49, "d": 0.76}[curve_LT]
 
     def chi_reduction(lambda_bar: float, alpha: float) -> float:
@@ -2189,16 +2361,14 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         sqrt_term = max(phi**2 - lambda_bar**2, 0.0)
         denom = phi + math.sqrt(sqrt_term)
         return min(1.0, 1.0 / denom) if denom > 0 else 0.0
-        
+
     def phi_aux(lambda_bar: float, alpha: float) -> float:
         # EN 1993-1-1 §6.3.1.2 (auxiliary factor Φ)
         return 0.5 * (1.0 + alpha * (lambda_bar - 0.20) + lambda_bar**2)
 
-
     # Flexural buckling about y and z
     buck_results = []
     buck_map = {}  # for report/results mapping
-    # store flexural buckling imperfection factors actually used
     buck_map["alpha_y"] = alpha_y
     buck_map["alpha_z"] = alpha_z
 
@@ -2239,7 +2409,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         })
 
     # (17) Torsional / torsional-flexural buckling (approx, doubly symmetric)
-    # Only meaningful if Iw is available.
     i_y_m = math.sqrt(I_y_m4 / A_m2) if (A_m2 > 0 and I_y_m4 > 0) else 0.0
     i_z_m = math.sqrt(I_z_m4 / A_m2) if (A_m2 > 0 and I_z_m4 > 0) else 0.0
     i0_m = math.sqrt(i_y_m**2 + i_z_m**2)
@@ -2255,12 +2424,11 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     alpha_T = alpha_z
     buck_map["alpha_T"] = alpha_T
 
-
     if i0_m > 0 and J_m4 > 0 and Iw_m6 > 0 and Leff_T > 0:
         Ncr_T = (1.0 / (i0_m**2)) * (G * J_m4 + (math.pi**2) * E * Iw_m6 / (Leff_T**2))
         lambda_T = math.sqrt(NRk_N / Ncr_T) if Ncr_T > 0 else float("inf")
         phi_T = phi_aux(lambda_T, alpha_T)
-        chi_T = chi_reduction(lambda_T, alpha_T)  # use stored torsional alpha
+        chi_T = chi_reduction(lambda_T, alpha_T)
         Nb_Rd_T_N = chi_T * NRk_N / gamma_M1
         util_T = abs(N_N) / Nb_Rd_T_N if Nb_Rd_T_N and Nb_Rd_T_N > 0 else float("inf")
         status_T = "OK" if util_T <= 1.0 else "EXCEEDS"
@@ -2331,38 +2499,29 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     buck_map["alpha_LT"] = alpha_LT
 
     # (19),(20) Buckling interaction for bending + axial compression — EN 1993-1-1 Annex B (Method 2)
-    # NOTE: This implements the Annex B "general method" style used in the attached example.
-    # We assume uniform moment diagram (ψ=1) since the app takes single My, Mz.
     psi_y = 1.0
     psi_z = 1.0
     psi_LT = 1.0
-
-    # Store ψ for the Report tab
     buck_map.update({"psi_y": psi_y, "psi_z": psi_z, "psi_LT": psi_LT})
 
-    # Buckling reduction factors
     chi_y = buck_map.get("chi_y", 1.0) or 1.0
     chi_z = buck_map.get("chi_z", 1.0) or 1.0
     chiLT = chi_LT if chi_LT is not None else 1.0
 
-    # Slenderness (from flexural buckling)
     lam_y = buck_map.get("lambda_y", 0.0) or 0.0
     lam_z = buck_map.get("lambda_z", 0.0) or 0.0
     buck_map.update({"lam_y": lam_y, "lam_z": lam_z})
 
-    # Design denominators (use N, Nm internally)
     Ny_denom_N = (chi_y * NRk_N / gamma_M1) if (chi_y and NRk_N > 0) else 0.0
     Nz_denom_N = (chi_z * NRk_N / gamma_M1) if (chi_z and NRk_N > 0) else 0.0
     My_denom_Nm = (chiLT * My_Rk_Nm / gamma_M1) if (chiLT and My_Rk_Nm > 0) else 0.0
     Mz_denom_Nm = (Mz_Rk_Nm / gamma_M1) if (Mz_Rk_Nm > 0) else 0.0
 
-    # Table B.3 (equivalent uniform moment factors)
     Cmy_B = max(0.4, 0.60 + 0.40 * psi_y)
     Cmz_B = max(0.4, 0.60 + 0.40 * psi_z)
     CmLT_B = max(0.4, 0.60 + 0.40 * psi_LT)
     buck_map.update({"Cmy_B": Cmy_B, "Cmz_B": Cmz_B, "CmLT_B": CmLT_B})
 
-    # Table B.2 (interaction factors) — as in your example
     lam_y_use = min(float(lam_y or 0.0), 1.0)
     lam_z_use = min(float(lam_z or 0.0), 1.0)
 
@@ -2390,7 +2549,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "kzy_B": kzy_B,
     })
 
-    # Verification expressions → labeled as (19) and (20)
     term_Ny = Ny_ratio
     term_My1 = (kyy_B * (abs(My_Ed_kNm) * 1e3) / My_denom_Nm) if My_denom_Nm > 0 else float("inf")
     term_Mz1 = (kyz_B * (abs(Mz_Ed_kNm) * 1e3) / Mz_denom_Nm) if Mz_denom_Nm > 0 else float("inf")
@@ -2426,9 +2584,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         "Status": status_20,
     })
 
-
     # Store detailed buckling numbers for report
-    
     extras_buck_map = buck_map
 
     # Build DataFrame and summary
@@ -2454,6 +2610,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         V_Rd_N=V_Rd_N,
     )
     return df_rows, overall_ok, governing, extras
+
 
 def render_results(df_rows, overall_ok, governing,
                    show_footer=True,
@@ -2491,19 +2648,16 @@ def render_results(df_rows, overall_ok, governing,
             limit_L600 = diag_summary.get("limit_L600")
             limit_L900 = diag_summary.get("limit_L900")
 
-            # format as strings
             val_delta = f"{w_max_mm:.3f}" if w_max_mm is not None else "n/a"
             val_L300  = f"{limit_L300:.3f}" if limit_L300 is not None else "n/a"
             val_L600  = f"{limit_L600:.3f}" if limit_L600 is not None else "n/a"
             val_L900  = f"{limit_L900:.3f}" if limit_L900 is not None else "n/a"
 
-            # keys depend on context (Results vs Report)
             k_delta = f"{key_prefix}delta_max_mm"
             k_L300  = f"{key_prefix}L300_mm"
             k_L600  = f"{key_prefix}L600_mm"
             k_L900  = f"{key_prefix}L900_mm"
 
-            # update state so inputs show latest values
             st.session_state[k_delta] = val_delta
             st.session_state[k_L300]  = val_L300
             st.session_state[k_L600]  = val_L600
@@ -2555,15 +2709,28 @@ def render_results(df_rows, overall_ok, governing,
         "(20) Buckling interaction (Annex B Method 2) — Expr. 2",             # 20
     ]
 
-    # For now: placeholders (you'll later replace with real values)
     cs_util = ["" for _ in cs_checks]
     cs_status = ["" for _ in cs_checks]
     buck_util = ["" for _ in buck_checks]
     buck_status = ["" for _ in buck_checks]
+
     # -----------------------------
+    # Helpers
     # -----------------------------
-    # Map detailed check results into the summary table
-    # -----------------------------
+    def _fmt_util(x):
+        if x is None:
+            return ""
+        try:
+            return f"{float(x):.3f}"
+        except Exception:
+            return str(x)
+
+    def _ok(u):
+        try:
+            return "OK" if float(u) <= 1.0 else "EXCEEDS"
+        except Exception:
+            return ""
+
     def fill_cs_from_df(idx_out, must_contain, must_not_contain=None):
         """
         Find the first df_rows row whose "Check" text contains all strings in must_contain
@@ -2579,7 +2746,6 @@ def render_results(df_rows, overall_ok, governing,
 
         def _norm(x: str) -> str:
             x = (x or "").lower()
-            # keep "+" because we use it as a filter; strip everything else non-alnum
             return re.sub(r"[^a-z0-9+]+", "", x)
 
         must_cont = [_norm(s) for s in must_contain]
@@ -2598,44 +2764,7 @@ def render_results(df_rows, overall_ok, governing,
                 cs_status[idx_out] = row.get("Status", "")
                 break
 
-        # Fallbacks for the first 6 checks (some apps use short labels like "My", "Vz", etc.)
-        if (cs_util[idx_out] == "" or cs_util[idx_out] is None) and idx_out in (0,1,2,3,4,5):
-            for _idx, row in df_rows.iterrows():
-                s_raw = str(row.get("Check", ""))
-                if not s_raw and hasattr(row, "name"):
-                    s_raw = str(row.name)
-                if not s_raw:
-                    s_raw = str(_idx)
-                s = _norm(s_raw)
-                # Map by common Eurocode wording / your check titles
-                if idx_out == 0 and ("tension" in s):
-                    cs_util[idx_out] = row.get("Utilization", "")
-                    cs_status[idx_out] = row.get("Status", "")
-                    break
-                if idx_out == 1 and ("compression" in s) and ("buckling" not in s):
-                    cs_util[idx_out] = row.get("Utilization", "")
-                    cs_status[idx_out] = row.get("Status", "")
-                    break
-                if idx_out == 2 and ("my" in s) and ("+" not in s) and ("vy" not in s) and ("vz" not in s):
-                    cs_util[idx_out] = row.get("Utilization", "")
-                    cs_status[idx_out] = row.get("Status", "")
-                    break
-                if idx_out == 3 and ("mz" in s) and ("+" not in s) and ("vy" not in s) and ("vz" not in s):
-                    cs_util[idx_out] = row.get("Utilization", "")
-                    cs_status[idx_out] = row.get("Status", "")
-                    break
-                if idx_out == 4 and ("vy" in s) and ("+" not in s) and ("shear" in s):
-                    cs_util[idx_out] = row.get("Utilization", "")
-                    cs_status[idx_out] = row.get("Status", "")
-                    break
-                if idx_out == 5 and ("vz" in s) and ("+" not in s) and ("shear" in s):
-                    cs_util[idx_out] = row.get("Utilization", "")
-                    cs_status[idx_out] = row.get("Status", "")
-                    break
-
-        # ---- Fallback for checks 1–6 (robust) ----
-        # If matching fails for any reason (label variations), map directly using the first occurrences
-        # in df_rows by looking for key words.
+        # Robust fallbacks for checks 1–6
         if df_rows is not None:
             def _pick_first(predicate):
                 for __i, __r in df_rows.iterrows():
@@ -2644,156 +2773,99 @@ def render_results(df_rows, overall_ok, governing,
                         return __r
                 return None
 
-            # 1) tension
-            if cs_util[0] == "" and cs_status[0] == "":
+            if idx_out == 0 and cs_util[0] == "" and cs_status[0] == "":
                 r = _pick_first(lambda s: "tension" in s)
                 if r is not None:
                     cs_util[0] = r.get("Utilization","")
                     cs_status[0] = r.get("Status","")
 
-            # 2) compression
-            if cs_util[1] == "" and cs_status[1] == "":
-                r = _pick_first(lambda s: "compression" in s)
+            if idx_out == 1 and cs_util[1] == "" and cs_status[1] == "":
+                r = _pick_first(lambda s: ("compression" in s) and ("buckling" not in s))
                 if r is not None:
                     cs_util[1] = r.get("Utilization","")
                     cs_status[1] = r.get("Status","")
 
-            # 3) My (pure bending)
-            if cs_util[2] == "" and cs_status[2] == "":
+            if idx_out == 2 and cs_util[2] == "" and cs_status[2] == "":
                 r = _pick_first(lambda s: ("my" in s) and ("+" not in s) and ("vy" not in s) and ("vz" not in s))
                 if r is not None:
                     cs_util[2] = r.get("Utilization","")
                     cs_status[2] = r.get("Status","")
 
-            # 4) Mz (pure bending)
-            if cs_util[3] == "" and cs_status[3] == "":
+            if idx_out == 3 and cs_util[3] == "" and cs_status[3] == "":
                 r = _pick_first(lambda s: ("mz" in s) and ("+" not in s) and ("vy" not in s) and ("vz" not in s))
                 if r is not None:
                     cs_util[3] = r.get("Utilization","")
                     cs_status[3] = r.get("Status","")
 
-            # 5) Vy (pure shear)
-            if cs_util[4] == "" and cs_status[4] == "":
+            if idx_out == 4 and cs_util[4] == "" and cs_status[4] == "":
                 r = _pick_first(lambda s: ("vy" in s) and ("+" not in s))
                 if r is not None:
                     cs_util[4] = r.get("Utilization","")
                     cs_status[4] = r.get("Status","")
 
-            # 6) Vz (pure shear)
-            if cs_util[5] == "" and cs_status[5] == "":
+            if idx_out == 5 and cs_util[5] == "" and cs_status[5] == "":
                 r = _pick_first(lambda s: ("vz" in s) and ("+" not in s))
                 if r is not None:
                     cs_util[5] = r.get("Utilization","")
                     cs_status[5] = r.get("Status","")
 
     # 1) N (tension)
-    fill_cs_from_df(
-        idx_out=0,
-        must_contain=["Tension", "N"],
-    )
+    fill_cs_from_df(idx_out=0, must_contain=["Tension", "N"])
 
     # 2) N (compression)
-    fill_cs_from_df(
-        idx_out=1,
-        must_contain=["Compression", "N"],
-    )
+    fill_cs_from_df(idx_out=1, must_contain=["Compression", "N"])
 
-    # 3) My  – pure bending My only (no +, no shear)
-    fill_cs_from_df(
-        idx_out=2,
-        must_contain=["My"],
-        must_not_contain=["+", "Vy", "Vz"],
-    )
-    
-    # 4) Mz  – pure bending Mz only (no +, no shear)
-    fill_cs_from_df(
-        idx_out=3,
-        must_contain=["Mz"],
-        must_not_contain=["+", "Vy", "Vz"],
-    )
+    # 3) My
+    fill_cs_from_df(idx_out=2, must_contain=["My"], must_not_contain=["+", "Vy", "Vz"])
 
-    # 5) Vy – pure shear in y direction
-    fill_cs_from_df(
-        idx_out=4,
-        must_contain=["Vy"],
-        must_not_contain=["+"],
-    )
-    
-    # 6) Vz – pure shear in z direction
-    fill_cs_from_df(
-        idx_out=5,
-        must_contain=["Vz"],
-        must_not_contain=["+"],
-    )
-# Helper to build one nice looking table
+    # 4) Mz
+    fill_cs_from_df(idx_out=3, must_contain=["Mz"], must_not_contain=["+", "Vy", "Vz"])
+
+    # 5) Vy
+    fill_cs_from_df(idx_out=4, must_contain=["Vy"], must_not_contain=["+"])
+
+    # 6) Vz
+    fill_cs_from_df(idx_out=5, must_contain=["Vz"], must_not_contain=["+"])
 
     # -------------------------------------------------
-    # Fill combined checks (7–14) using stored combo flags
+    # Fill combined checks (7–14) using cs_combo computed in compute_checks
     # -------------------------------------------------
     extras = st.session_state.get("extras") or {}
     cs_combo = extras.get("cs_combo") or {}
 
-    def _fmt_util(x):
-        if x is None:
-            return ""
-        try:
-            return f"{float(x):.3f}"
-        except Exception:
-            return str(x)
-
-    def _ok(u):
-        try:
-            return "OK" if float(u) <= 1.0 else "EXCEEDS"
-        except Exception:
-            return ""
-
     util_My = cs_combo.get("util_My", None)
     util_Mz = cs_combo.get("util_Mz", None)
 
-    # (7) My + Vy : if Vy <= 0.5 Vpl,Rd,y => same as My
-    if cs_combo.get("shear_ratio_y", None) is not None and cs_combo.get("shear_ok_y", False):
-        cs_util[6] = _fmt_util(util_My)
-        cs_status[6] = _ok(util_My)
-    else:
-        cs_util[6] = _fmt_util(util_My)
-        cs_status[6] = _ok(util_My)
+    # (7) My + Vy (EN 1993-1-1 §6.2.8) — if shear <= 0.5 Vpl,Rd => ignore shear effect
+    cs_util[6] = _fmt_util(util_My)
+    cs_status[6] = _ok(util_My)
 
-    # (8) Mz + Vz : if Vz <= 0.5 Vpl,Rd,z => same as Mz
-    if cs_combo.get("shear_ratio_z", None) is not None and cs_combo.get("shear_ok_z", False):
-        cs_util[7] = _fmt_util(util_Mz)
-        cs_status[7] = _ok(util_Mz)
-    else:
-        cs_util[7] = _fmt_util(util_Mz)
-        cs_status[7] = _ok(util_Mz)
+    # (8) Mz + Vz (EN 1993-1-1 §6.2.8)
+    cs_util[7] = _fmt_util(util_Mz)
+    cs_status[7] = _ok(util_Mz)
 
-    # (9)-(11) Bending + axial force : if axial criteria met => same as bending
-    if cs_combo.get("axial_ok_y", False):
-        cs_util[8] = _fmt_util(util_My)
-        cs_status[8] = _ok(util_My)
-    else:
-        cs_util[8] = _fmt_util(util_My)
-        cs_status[8] = _ok(util_My)
+    # (9)–(11) §6.2.9 (use u values computed in compute_checks; same as Report tab)
+    cs_util[8] = _fmt_util(cs_combo.get("u_6209_9"))
+    cs_status[8] = _ok(cs_combo.get("u_6209_9"))
 
-    if cs_combo.get("axial_ok_z", False):
-        cs_util[9] = _fmt_util(util_Mz)
-        cs_status[9] = _ok(util_Mz)
-    else:
-        cs_util[9] = _fmt_util(util_Mz)
-        cs_status[9] = _ok(util_Mz)
+    cs_util[9] = _fmt_util(cs_combo.get("u_6209_10"))
+    cs_status[9] = _ok(cs_combo.get("u_6209_10"))
 
-    cs_util[10] = _fmt_util(max([u for u in [util_My, util_Mz] if u is not None], default=None))
-    cs_status[10] = _ok(max([u for u in [util_My, util_Mz] if u is not None], default=0.0))
+    cs_util[10] = _fmt_util(cs_combo.get("u_6209_11"))
+    cs_status[10] = _ok(cs_combo.get("u_6209_11"))
 
-    # (12)-(14) Bending + shear + axial : if shear <=0.5 => same as (9)-(11)
-    cs_util[11] = cs_util[8]
-    cs_status[11] = cs_status[8]
-    cs_util[12] = cs_util[9]
-    cs_status[12] = cs_status[9]
-    cs_util[13] = cs_util[10]
-    cs_status[13] = cs_status[10]
+    # (12)–(14) §6.2.10 (use u values computed in compute_checks; same as Report tab)
+    cs_util[11] = _fmt_util(cs_combo.get("u_6210_12"))
+    cs_status[11] = _ok(cs_combo.get("u_6210_12"))
+
+    cs_util[12] = _fmt_util(cs_combo.get("u_6210_13"))
+    cs_status[12] = _ok(cs_combo.get("u_6210_13"))
+
+    cs_util[13] = _fmt_util(cs_combo.get("u_6210_14"))
+    cs_status[13] = _ok(cs_combo.get("u_6210_14"))
 
     # -------------------------------------------------
-    # Fill member stability checks (15–20) from buckling results in df_rows / extras
+    # Fill member stability checks (15–20) from buck_map
     # -------------------------------------------------
     buck_map = extras.get("buck_map") or {}
 
@@ -2811,14 +2883,15 @@ def render_results(df_rows, overall_ok, governing,
     buck_util[3] = _fmt_util(buck_map.get("util_LT", None))
     buck_status[3] = buck_map.get("status_LT", "") or ""
 
-    # 19–20 (Annex B Method 2 only)
+    # 19–20 (Annex B Method 2)
     buck_util[4] = _fmt_util(buck_map.get("util_19_B", None))
     buck_status[4] = buck_map.get("status_19_B", "") or ""
     buck_util[5] = _fmt_util(buck_map.get("util_20_B", None))
     buck_status[5] = buck_map.get("status_20_B", "") or ""
 
     # -------------------------------------------------
-    # Helper    # -------------------------------------------------
+    # Table builder
+    # -------------------------------------------------
     def build_table_html(title, start_no, names, utils, statuses):
         card_open = """
 <div style="
@@ -2849,17 +2922,14 @@ def render_results(df_rows, overall_ok, governing,
             status = statuses[i] if i < len(statuses) else ""
             number = start_no + i
 
-            # background color based on status
             status_upper = (status or "").strip().upper()
             if status_upper == "OK":
                 bg = "#e6f7e6"
             elif status_upper == "EXCEEDS":
                 bg = "#fde6e6"
             else:
-                # subtle striping for neutral rows
                 bg = "#ffffff" if (i % 2 == 0) else "#f9f9f9"
 
-            # bold if governing
             is_gov = False
             if gov_check is not None:
                 if str(gov_check).strip() == str(number):
@@ -2909,12 +2979,9 @@ def render_results(df_rows, overall_ok, governing,
         return
 
     st.markdown("---")
-
-    # -------------------------------------------------
-    # Bottom hints
-    # -------------------------------------------------
     st.caption("See **Report** tab for full formulas & Eurocode clause references.")
     st.caption("See **Diagrams** / ready cases tab for shear, moment and deflection graphs.")
+
 
 # =========================================================
 # DIAGRAM GENERATION (Beam only for now)
@@ -5754,6 +5821,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
