@@ -1087,6 +1087,107 @@ def fbb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=801):
             delta = delta + delta_F
 
     return x, V, M, delta
+def cant_c1_case(L_mm, w, a, F, M):
+    """
+    Cantilever general case (fixed at x=0, free at x=L):
+    UDL w over [0,L] + point load F at x=a + end moment M (kN·m)
+
+    Inputs: L_mm (mm), w (kN/m), a (m from fixed end), F (kN), M (kN·m)
+    Returns (N, My, Mz, Vy, Vz) based on max |M| and |V|.
+    """
+    x, V, Mx, _ = cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=1001)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(Mx))) if Mx is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+
+def cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=801):
+    """
+    Cantilever general case (fixed at x=0, free at x=L):
+    - UDL w (kN/m) over full span
+    - Point load F (kN) at x=a (m from fixed end)
+    - End moment M (kN·m) applied at free end (treated as constant internal moment)
+
+    Returns:
+      x (m), V (kN), Mx (kN·m), delta (m or None)
+    """
+    L = float(L_mm) / 1000.0  # m
+    w = float(w)              # kN/m
+    F = float(F)              # kN
+    M_end = float(M)          # kN·m
+    a = float(a)              # m
+
+    if L <= 0:
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
+
+    # clamp a into [0, L]
+    a = max(0.0, min(a, L))
+
+    x = np.linspace(0.0, L, n)
+
+    # -------------------------
+    # (1) UDL part (cantilever)
+    # -------------------------
+    # Shear: Vw = -w (L - x)
+    V_w = -w * (L - x)
+
+    # Moment: Mw = -w (L - x)^2 / 2
+    M_w = -w * (L - x) ** 2 / 2.0
+
+    # -------------------------------
+    # (2) Point load part at x = a
+    # -------------------------------
+    # For sections x <= a: shear = -F ; moment = -F (a - x)
+    # For x > a: shear = 0 ; moment = 0
+    mask = (x <= a).astype(float)
+
+    V_F = -F * mask
+    M_F = -F * (a - x) * mask
+
+    # -------------------------
+    # (3) End moment part
+    # -------------------------
+    # Constant internal moment along beam:
+    M_M = -M_end * np.ones_like(x)
+
+    V = V_w + V_F
+    Mx = M_w + M_F + M_M
+
+    # -------------------------
+    # (4) Deflection (optional)
+    # -------------------------
+    delta = None
+    if E and I and I > 0:
+        w_Nm = w * 1000.0          # N/m
+        F_N = F * 1000.0           # N
+        M_Nm = M_end * 1000.0      # N·m
+
+        # UDL: delta = - w x^2 (6L^2 - 4Lx + x^2) / (24 E I)
+        delta_w = -(w_Nm * x**2 * (6.0*L**2 - 4.0*L*x + x**2)) / (24.0 * E * I)
+
+        # Point load (piecewise)
+        delta_F = np.zeros_like(x)
+
+        m1 = x <= a
+        m2 = ~m1
+
+        # x <= a: delta = -F x^2 (3a - x) / (6EI)
+        if np.any(m1):
+            xx = x[m1]
+            delta_F[m1] = -(F_N * xx**2 * (3.0*a - xx)) / (6.0 * E * I)
+
+        # x >= a: delta = -F a^2 (3x - a) / (6EI)
+        if np.any(m2):
+            xx = x[m2]
+            delta_F[m2] = -(F_N * a**2 * (3.0*xx - a)) / (6.0 * E * I)
+
+        # End moment: delta = - M x^2 / (2EI)
+        delta_M = -(M_Nm * x**2) / (2.0 * E * I)
+
+        delta = delta_w + delta_F + delta_M
+
+    return x, V, Mx, delta
 
 READY_CATALOG = {
     "Beam": {
@@ -1097,7 +1198,7 @@ READY_CATALOG = {
         # Category 3: 1 case
         "Beams Fixed at both ends (1 case)": make_cases("FB", 1, {"L_mm": 6000.0, "w": 10.0, "a": 2.0, "F": 20.0}),
         # Category 4: 2 cases
-        "Cantilever Beams (1 case)": make_cases("C", 1, {"L": 3.0, "w": 10.0}),
+        "Cantilever Beams (1 case)": make_cases("C", 1, {"L_mm": 3000.0, "w": 10.0, "a": 1.5, "F": 20.0, "M": 0.0}),
         # Category 5: 3 cases
         "Beams with Overhang (3 cases)": make_cases("OH", 3, {"L": 6.0, "a": 1.5, "w": 10.0}),
         # Category 6: 3 cases
@@ -1226,6 +1327,10 @@ READY_CATALOG["Beam"]["Beams Fixed at both ends (1 case)"][0]["label"] = "FBB - 
 READY_CATALOG["Beam"]["Beams Fixed at both ends (1 case)"][0]["func"] = fbb_c1_case
 READY_CATALOG["Beam"]["Beams Fixed at both ends (1 case)"][0]["diagram_func"] = fbb_c1_diagram
 
+READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["label"] = "CB - C1"
+READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["func"] = cant_c1_case
+READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["diagram_func"] = cant_c1_diagram
+
 
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
     cases = READY_CATALOG[chosen_type][chosen_cat]
@@ -1324,6 +1429,7 @@ def render_ready_cases_panel():
             "w": "w (kN/m)",
             "a": "a (m)",
             "F": "F (kN)",
+            "M": "M (kN·m)",
         }
         
         for i in range(0, len(keys), 3):
@@ -6051,6 +6157,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
