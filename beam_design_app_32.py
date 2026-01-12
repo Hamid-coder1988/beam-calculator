@@ -971,7 +971,122 @@ def feb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=801):
         delta = delta_w + delta_F
 
     return x, V, M, delta
+def fbb_c1_case(L_mm, w, a, F):
+    """
+    FBB-C1: Fixed-Fixed beam (both ends fixed)
+    Loads: full-span UDL w + point load F at x=a (from left)
+    Inputs: L_mm (mm), w (kN/m), a (m), F (kN)
 
+    Returns (N, My, Mz, Vy, Vz) based on max |M| and |V|.
+    """
+    x, V, M, _ = fbb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=1001)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+
+def fbb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=801):
+    """
+    Fixed-Fixed beam (both ends fixed)
+    Loads: full-span UDL w + point load F at x=a (from left)
+    Returns x (m), V (kN), M (kN·m), delta (m or None)
+    """
+    L = float(L_mm) / 1000.0  # m
+    w = float(w)              # kN/m
+    F = float(F)              # kN
+    a = float(a)              # m
+
+    if L <= 0:
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
+
+    # clamp a into [0, L]
+    a = max(0.0, min(a, L))
+    b = L - a
+
+    x = np.linspace(0.0, L, n)
+
+    # -------------------------
+    # (1) UDL part (fixed-fixed)
+    # -------------------------
+    # Reactions: R = wL/2 ; Shear: V = w(L/2 - x)
+    V_w = w * (L / 2.0 - x)
+
+    # Moment: M(x) = (w/12) * (6 L x - L^2 - 6 x^2)
+    M_w = (w / 12.0) * (6.0 * L * x - L**2 - 6.0 * x**2)
+
+    # Deflection: delta(x) = w x^2 (L-x)^2 / (24 E I)
+    delta_w = None
+    if E and I and I > 0:
+        w_Nm = w * 1000.0
+        delta_w = (w_Nm * x**2 * (L - x)**2) / (24.0 * E * I)
+
+    # ------------------------------------------
+    # (2) Point load part (fixed-fixed, at x=a)
+    # ------------------------------------------
+    # Reactions (kN)
+    # R1 = P b^2/L^3 (3a + b), R2 = P a^2/L^3 (a + 3b)
+    if L > 0:
+        R1_F = (F * b**2 * (3.0 * a + b)) / (L**3)
+        # R2_F not needed for V/M construction but shown for completeness:
+        # R2_F = (F * a**2 * (a + 3.0 * b)) / (L**3)
+    else:
+        R1_F = 0.0
+
+    # End moments magnitudes (kN·m), hogging at ends (negative in our sign)
+    M1 = (F * a * b**2) / (L**2) if L > 0 else 0.0  # left end magnitude
+    # M2 = (F * a**2 * b) / (L**2)                   # right end magnitude (not required below)
+
+    H = (x >= a).astype(float)
+
+    # Shear for point load: V = R1 for x<a ; V = R1 - F for x>=a
+    V_F = R1_F - F * H
+
+    # Moment for point load (from your sheet):
+    # for x<a:  M = R1*x - (P a b^2 / L^2)
+    # for x>=a: M = R1*x - P(x-a) - (P a b^2 / L^2)
+    M_F = R1_F * x - M1 - F * (x - a) * H
+
+    # Deflection (piecewise) from standard fixed-fixed point-load expressions
+    delta_F = None
+    if E and I and I > 0:
+        F_N = F * 1000.0
+        delta_F = np.zeros_like(x)
+
+        mask1 = x < a
+        mask2 = ~mask1
+
+        # x < a
+        if np.any(mask1):
+            xx = x[mask1]
+            delta_F[mask1] = (F_N * b**2 * xx**2 / (6.0 * E * I * L**3)) * (
+                3.0 * a * L - xx * (3.0 * a + b)
+            )
+
+        # x >= a
+        if np.any(mask2):
+            xx = x[mask2]
+            uu = (L - xx)
+            delta_F[mask2] = (F_N * a**2 * uu**2 / (6.0 * E * I * L**3)) * (
+                3.0 * b * L - uu * (3.0 * b + a)
+            )
+
+    # -------------------------
+    # (3) Superposition
+    # -------------------------
+    V = V_w + V_F
+    M = M_w + M_F
+
+    delta = None
+    if E and I and I > 0:
+        # delta_w or delta_F could be None if something odd; guard anyway
+        delta = 0.0
+        if delta_w is not None:
+            delta = delta + delta_w
+        if delta_F is not None:
+            delta = delta + delta_F
+
+    return x, V, M, delta
 
 READY_CATALOG = {
     "Beam": {
@@ -980,7 +1095,7 @@ READY_CATALOG = {
         # Category 2: 1 case
         "Beams Fixed at one end (1 case)": make_cases("FE", 1, {"L": 6.0, "w": 10.0}),
         # Category 3: 1 case
-        "Beams Fixed at both ends (1 case)": make_cases("FB", 1, {"L": 6.0, "w": 10.0}),
+        "Beams Fixed at both ends (1 case)": make_cases("FB", 1, {"L_mm": 6000.0, "w": 10.0, "a": 2.0, "F": 20.0}),
         # Category 4: 2 cases
         "Cantilever Beams (1 case)": make_cases("C", 1, {"L": 3.0, "w": 10.0}),
         # Category 5: 3 cases
@@ -1106,6 +1221,11 @@ READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["inputs"] = {
 }
 READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["func"] = feb_c1_case
 READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["diagram_func"] = feb_c1_diagram
+
+READY_CATALOG["Beam"]["Beams Fixed at both ends (1 case)"][0]["label"] = "FBB - C1"
+READY_CATALOG["Beam"]["Beams Fixed at both ends (1 case)"][0]["func"] = fbb_c1_case
+READY_CATALOG["Beam"]["Beams Fixed at both ends (1 case)"][0]["diagram_func"] = fbb_c1_diagram
+
 
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
     cases = READY_CATALOG[chosen_type][chosen_cat]
@@ -5931,6 +6051,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
