@@ -1093,14 +1093,46 @@ def cant_c1_case(L_mm, w, a, F, M):
     - Free end at x=0, Fixed end at x=L
     - UDL w over [0,L]
     - Point load F at x=a (measured from FREE end)
-    - End moment M (kN·m) applied at FREE end (constant internal moment)
+    - End moment M (kN·m) applied at FREE end
 
     Inputs: L_mm (mm), w (kN/m), a (m from FREE end), F (kN), M (kN·m)
     Returns (N, My, Mz, Vy, Vz) based on max |M| and |V|.
+    Also stores max deflection (meters) into: st.session_state["ready_case_delta_max_m"]
     """
     x, V, Mx, _ = cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=1001)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(Mx))) if Mx is not None else 0.0
+
+    # Try to compute Δmax using closed-form (only if E & I are available in session_state)
+    # Adjust these keys if your app stores E/I under different names.
+    try:
+        E = float(st.session_state.get("E", 0.0))          # Pa
+        I_m4 = float(st.session_state.get("I_m4", 0.0))    # m^4
+    except Exception:
+        E, I_m4 = 0.0, 0.0
+
+    if E > 0 and I_m4 > 0:
+        L = float(L_mm) / 1000.0
+        w = float(w)
+        F = float(F)
+        M_end = float(M)
+
+        if L > 0:
+            a = max(0.0, min(float(a), L))   # from FREE end
+            s_a = L - a                      # distance from FIXED end
+
+            w_Nm = w * 1000.0         # N/m
+            F_N = F * 1000.0          # N
+            M_Nm = M_end * 1000.0     # N·m
+
+            # Superposition of maximum deflection magnitudes (at FREE end in classic form)
+            # Using s_a (distance from fixed):
+            delta_w = (w_Nm * L**4) / (8.0 * E * I_m4)
+            delta_F = (F_N * s_a**2 * (3.0*L - s_a)) / (6.0 * E * I_m4)
+            delta_M = (M_Nm * L**2) / (2.0 * E * I_m4)
+
+            st.session_state["ready_case_delta_max_m"] = float(delta_w + delta_F + delta_M)
+
     return (0.0, Mmax, 0.0, Vmax, 0.0)
 
 
@@ -1112,11 +1144,8 @@ def cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=801):
     - Point load F (kN) at x=a (m from FREE end)
     - End moment M (kN·m) applied at FREE end
 
-    Internal computation uses s = distance from FIXED end (classic formulas),
-    where s = L - x.
-
     Returns:
-      x (m), V (kN), Mx (kN·m), delta (m or None)
+      x (m), V (kN), Mx (kN·m), delta=None  (no deflection curve)
     """
     L = float(L_mm) / 1000.0  # m
     w = float(w)              # kN/m
@@ -1134,72 +1163,63 @@ def cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=801):
     # x from FREE end
     x = np.linspace(0.0, L, n)
 
-    # s from FIXED end (classic coordinate)
-    s = L - x
-
-    # location of point load in s-coordinate
-    s_a = L - a
+    # -------------------------
+    # (1) UDL part (cantilever, x from FREE end)
+    # -------------------------
+    # V(x) = -w*x
+    # M(x) = -w*x^2/2
+    V_w = -w * x
+    M_w = -w * x**2 / 2.0
 
     # -------------------------
-    # (1) UDL part (cantilever)
+    # (2) Point load part at x=a (from FREE end)
     # -------------------------
-    # Classic with s: V = -w*s ; M = -w*s^2/2
-    V_w = -w * s
-    M_w = -w * s**2 / 2.0
-
-    # --------------------------------
-    # (2) Point load part at x = a
-    # --------------------------------
-    # Using s:
-    # sections with s >= s_a are between FIXED and load -> affected by load
-    mask = (s >= s_a).astype(float)
-
+    # For sections 0 <= x <= a (between FREE end and load): affected
+    # V = -F ; M = -F (a - x)
+    # For x > a: V = 0 ; M = 0
+    mask = (x <= a).astype(float)
     V_F = -F * mask
-    M_F = -F * (s - s_a) * mask
+    M_F = -F * (a - x) * mask
 
     # -------------------------
-    # (3) End moment part
+    # (3) End moment applied at FREE end
     # -------------------------
-    # Constant internal moment (hogging negative with our sign)
+    # Constant internal moment along beam
     M_M = -M_end * np.ones_like(x)
 
     V = V_w + V_F
     Mx = M_w + M_F + M_M
 
-    # -------------------------
-    # (4) Deflection (optional)
-    # -------------------------
-    delta = None
-    if E and I and I > 0:
-        w_Nm = w * 1000.0          # N/m
-        F_N = F * 1000.0           # N
-        M_Nm = M_end * 1000.0      # N·m
+    # We do NOT return deflection curve (no plot)
+    return x, V, Mx, None
+def cant_c1_delta_max(L_mm, w, a, F, M, E, I):
+    """
+    Max deflection magnitude for cantilever (meters), by closed-form superposition.
+    Convention: x from FREE end, a from FREE end.
+    """
+    L = float(L_mm) / 1000.0
+    if L <= 0 or not E or not I or I <= 0:
+        return None
 
-        # UDL deflection in classic s-coordinate:
-        # delta = - w s^2 (6L^2 - 4Ls + s^2) / (24 E I)
-        delta_w = -(w_Nm * s**2 * (6.0*L**2 - 4.0*L*s + s**2)) / (24.0 * E * I)
+    w = float(w)   # kN/m
+    F = float(F)   # kN
+    M = float(M)   # kN·m
 
-        # Point load deflection (piecewise in s)
-        delta_F = np.zeros_like(x)
-        m1 = s >= s_a   # between fixed and load
-        m2 = ~m1        # between load and free end
+    a = max(0.0, min(float(a), L))   # from FREE end
+    s_a = L - a                      # from FIXED end
 
-        # s >= s_a: delta = -F s^2 (3 s_a - s) / (6EI)
-        if np.any(m1):
-            ss = s[m1]
-            delta_F[m1] = -(F_N * ss**2 * (3.0*s_a - ss)) / (6.0 * E * I)
+    w_Nm = w * 1000.0
+    F_N = F * 1000.0
+    M_Nm = M * 1000.0
 
-        # s <= s_a: delta = -F s_a^2 (3 s - s_a) / (6EI)
-        if np.any(m2):
-            ss = s[m2]
-            delta_F[m2] = -(F_N * s_a**2 * (3.0*ss - s_a)) / (6.0 * E * I)
+    # Superposition (magnitudes):
+    delta_w = (w_Nm * L**4) / (8.0 * E * I)
+    delta_F = (F_N * s_a**2 * (3.0 * L - s_a)) / (6.0 * E * I)
+    delta_M = (M_Nm * L**2) / (2.0 * E * I)
 
-        # End moment deflection: delta = - M s^2 / (2EI)
-        delta_M = -(M_Nm * s**2) / (2.0 * E * I)
+    return float(delta_w + delta_F + delta_M)
 
-        delta = delta_w + delta_F + delta_M
 
-    return x, V, Mx, delta
 
 READY_CATALOG = {
     "Beam": {
@@ -1342,7 +1362,20 @@ READY_CATALOG["Beam"]["Beams Fixed at both ends (1 case)"][0]["diagram_func"] = 
 READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["label"] = "CB - C1"
 READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["func"] = cant_c1_case
 READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["diagram_func"] = cant_c1_diagram
+READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["delta_max_func"] = cant_c1_delta_max
 
+
+def compute_delta_max_from_curve(delta):
+    """Return max |delta| in meters from a deflection array (or None)."""
+    if delta is None:
+        return None
+    try:
+        val = float(np.nanmax(np.abs(delta)))
+        if np.isnan(val):
+            return None
+        return val
+    except Exception:
+        return None
 
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
     cases = READY_CATALOG[chosen_type][chosen_cat]
@@ -3536,6 +3569,18 @@ def render_beam_diagrams_panel():
     summary = get_beam_summary_for_diagrams(x, V, M, delta, L_val)
     summary["bending_axis"] = bending_axis
     st.session_state["diag_summary"] = summary
+    # ---- Fallback: if no deflection curve is returned, use case-specific Δmax (meters) ----
+    if (summary.get("w_max_mm") is None) and isinstance(selected_case, dict):
+        dfunc = selected_case.get("delta_max_func", None)
+        if callable(dfunc):
+            try:
+                delta_max_m = dfunc(*args, E=E, I=I_m4)
+            except TypeError:
+                delta_max_m = dfunc(*args, E, I_m4)
+    
+            if delta_max_m is not None:
+                summary["w_max_mm"] = float(delta_max_m) * 1000.0
+
     # 4b) Export main numbers for Report tab & Loads 3.2
     try:
         # Vmax from the shear diagram
@@ -6169,6 +6214,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
