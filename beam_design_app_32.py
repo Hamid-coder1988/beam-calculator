@@ -870,6 +870,107 @@ def make_cases(prefix, n, default_inputs):
             "func": dummy_case_func
         })
     return cases
+def feb_c1_case(L_mm, w, a, F):
+    """
+    FEB-C1: Propped cantilever (pin at x=0, fixed at x=L)
+    Loads: full-span UDL w + point load F at x=a
+    Inputs: L_mm (mm), w (kN/m), a (m), F (kN)
+
+    Returns (N, My, Mz, Vy, Vz) maxima for prefill.
+    """
+    L = float(L_mm) / 1000.0  # m
+    a = float(a)
+    w = float(w)
+    F = float(F)
+
+    if L <= 0:
+        return (0.0, 0.0, 0.0, 0.0, 0.0)
+
+    # clamp a into [0, L]
+    a = max(0.0, min(a, L))
+    b = L - a
+
+    # Reactions (kN)
+    R1_w = 3.0 * w * L / 8.0
+    R1_F = (F * b**2 * (a + 2.0 * L)) / (2.0 * L**3) if L > 0 else 0.0
+    R1 = R1_w + R1_F
+
+    # Use diagram arrays to get maxima (robust)
+    x, V, M, _ = feb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=1001)
+
+    Mmax = float(np.max(np.abs(M))) if M is not None else 0.0
+    Vmax = float(np.max(np.abs(V))) if V is not None else 0.0
+
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+
+def feb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=801):
+    """
+    Returns x (m), V (kN), M (kN·m), delta (m) for FEB-C1:
+    Propped cantilever: pin at x=0, fixed at x=L
+    Loads: UDL w over [0,L] + point load F at x=a
+    Inputs: L_mm (mm), w (kN/m), a (m), F (kN)
+    """
+    L = float(L_mm) / 1000.0  # m
+    a = float(a)
+    w = float(w)
+    F = float(F)
+
+    if L <= 0:
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
+
+    # clamp a
+    a = max(0.0, min(a, L))
+    b = L - a
+
+    # Reactions at x=0 (kN)
+    R1_w = 3.0 * w * L / 8.0
+    R1_F = (F * b**2 * (a + 2.0 * L)) / (2.0 * L**3)
+    R1 = R1_w + R1_F
+
+    x = np.linspace(0.0, L, n)
+
+    H = (x >= a).astype(float)
+
+    # Shear (kN): V = R1 - w x - F H(x-a)
+    V = R1 - w * x - F * H
+
+    # Moment (kN·m): M = R1 x - w x^2/2 - F (x-a) H(x-a)
+    M = R1 * x - (w * x**2) / 2.0 - F * (x - a) * H
+
+    # Deflection (m) if E and I provided
+    delta = None
+    if E and I and I > 0:
+        w_Nm = w * 1000.0  # kN/m -> N/m
+        F_N = F * 1000.0   # kN -> N
+
+        # UDL deflection
+        delta_w = (w_Nm * x / (48.0 * E * I)) * (L**3 - 3.0*L*x**2 + 2.0*x**3)
+
+        # Point load deflection (piecewise)
+        delta_F = np.zeros_like(x)
+
+        mask1 = x < a
+        mask2 = ~mask1
+
+        # x < a
+        if np.any(mask1):
+            xx = x[mask1]
+            delta_F[mask1] = (F_N * b**2 * xx / (12.0 * E * I * L**3)) * (
+                3.0*a*L**2 - 2.0*L*xx**2 - a*xx**2
+            )
+
+        # x >= a
+        if np.any(mask2):
+            xx = x[mask2]
+            delta_F[mask2] = (F_N * a / (12.0 * E * I * L**3)) * (L - xx)**2 * (
+                3.0*L**2*xx - a**2*xx - 2.0*a**2*L
+            )
+
+        delta = delta_w + delta_F
+
+    return x, V, M, delta
 
 
 READY_CATALOG = {
@@ -995,6 +1096,17 @@ READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["inputs"] = {
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["func"] = ssb_c5_case
 READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["diagram_func"] = ssb_c5_diagram
 
+# ---- Patch "Beams Fixed at one end (1 case)" to be FEB-C1 (propped cantilever: UDL + point load) ----
+READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["label"] = "FEB - C1"
+READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["inputs"] = {
+    "L_mm": 6000.0,
+    "w": 10.0,
+    "a": 2.0,
+    "F": 20.0
+}
+READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["func"] = feb_c1_case
+READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["diagram_func"] = feb_c1_diagram
+
 def render_case_gallery(chosen_type, chosen_cat, n_per_row=5):
     cases = READY_CATALOG[chosen_type][chosen_cat]
     cols = st.columns(n_per_row)
@@ -1084,17 +1196,27 @@ def render_ready_cases_panel():
         input_vals = {}
         inputs_dict = selected_case.get("inputs", {})
         keys = list(inputs_dict.keys())
-
+        
+        # Map keys -> nice labels
+        label_map = {
+            "L_mm": "L (mm)",
+            "L": "L (m)",
+            "w": "w (kN/m)",
+            "a": "a (m)",
+            "F": "F (kN)",
+        }
+        
         for i in range(0, len(keys), 3):
             cols = st.columns(3)
             for col, k in zip(cols, keys[i : i + 3]):
                 with col:
+                    label = label_map.get(k, k)
                     input_vals[k] = st.number_input(
-                        k,
+                        label,
                         value=float(inputs_dict[k]),
                         key=f"ready_param_{case_key}_{k}",
                     )
-
+        
         st.session_state["ready_selected_case"] = selected_case
         st.session_state["ready_input_vals"] = input_vals
 
@@ -3164,6 +3286,9 @@ def render_beam_diagrams_panel():
 
     # span length
     L_val = float(input_vals.get("L", 0.0))
+    if (not L_val or L_val <= 0.0) and ("L_mm" in input_vals):
+        L_val = float(input_vals["L_mm"]) / 1000.0
+
     if (not L_val or L_val <= 0.0) and x is not None and len(x) > 1:
         L_val = float(x[-1] - x[0])
 
@@ -5806,6 +5931,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
