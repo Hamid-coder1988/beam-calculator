@@ -1089,10 +1089,13 @@ def fbb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=801):
     return x, V, M, delta
 def cant_c1_case(L_mm, w, a, F, M):
     """
-    Cantilever general case (fixed at x=0, free at x=L):
-    UDL w over [0,L] + point load F at x=a + end moment M (kN·m)
+    Cantilever general case (x measured from FREE end):
+    - Free end at x=0, Fixed end at x=L
+    - UDL w over [0,L]
+    - Point load F at x=a (measured from FREE end)
+    - End moment M (kN·m) applied at FREE end (constant internal moment)
 
-    Inputs: L_mm (mm), w (kN/m), a (m from fixed end), F (kN), M (kN·m)
+    Inputs: L_mm (mm), w (kN/m), a (m from FREE end), F (kN), M (kN·m)
     Returns (N, My, Mz, Vy, Vz) based on max |M| and |V|.
     """
     x, V, Mx, _ = cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=1001)
@@ -1103,10 +1106,14 @@ def cant_c1_case(L_mm, w, a, F, M):
 
 def cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=801):
     """
-    Cantilever general case (fixed at x=0, free at x=L):
+    Cantilever general case (x measured from FREE end):
+    - Free end at x=0, Fixed end at x=L
     - UDL w (kN/m) over full span
-    - Point load F (kN) at x=a (m from fixed end)
-    - End moment M (kN·m) applied at free end (treated as constant internal moment)
+    - Point load F (kN) at x=a (m from FREE end)
+    - End moment M (kN·m) applied at FREE end
+
+    Internal computation uses s = distance from FIXED end (classic formulas),
+    where s = L - x.
 
     Returns:
       x (m), V (kN), Mx (kN·m), delta (m or None)
@@ -1115,40 +1122,45 @@ def cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=801):
     w = float(w)              # kN/m
     F = float(F)              # kN
     M_end = float(M)          # kN·m
-    a = float(a)              # m
+    a = float(a)              # m (from FREE end)
 
     if L <= 0:
         x = np.array([0.0, 0.0])
         return x, np.zeros_like(x), np.zeros_like(x), None
 
-    # clamp a into [0, L]
+    # clamp a into [0, L] (from FREE end)
     a = max(0.0, min(a, L))
 
+    # x from FREE end
     x = np.linspace(0.0, L, n)
+
+    # s from FIXED end (classic coordinate)
+    s = L - x
+
+    # location of point load in s-coordinate
+    s_a = L - a
 
     # -------------------------
     # (1) UDL part (cantilever)
     # -------------------------
-    # Shear: Vw = -w (L - x)
-    V_w = -w * (L - x)
+    # Classic with s: V = -w*s ; M = -w*s^2/2
+    V_w = -w * s
+    M_w = -w * s**2 / 2.0
 
-    # Moment: Mw = -w (L - x)^2 / 2
-    M_w = -w * (L - x) ** 2 / 2.0
-
-    # -------------------------------
+    # --------------------------------
     # (2) Point load part at x = a
-    # -------------------------------
-    # For sections x <= a: shear = -F ; moment = -F (a - x)
-    # For x > a: shear = 0 ; moment = 0
-    mask = (x <= a).astype(float)
+    # --------------------------------
+    # Using s:
+    # sections with s >= s_a are between FIXED and load -> affected by load
+    mask = (s >= s_a).astype(float)
 
     V_F = -F * mask
-    M_F = -F * (a - x) * mask
+    M_F = -F * (s - s_a) * mask
 
     # -------------------------
     # (3) End moment part
     # -------------------------
-    # Constant internal moment along beam:
+    # Constant internal moment (hogging negative with our sign)
     M_M = -M_end * np.ones_like(x)
 
     V = V_w + V_F
@@ -1163,27 +1175,27 @@ def cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=801):
         F_N = F * 1000.0           # N
         M_Nm = M_end * 1000.0      # N·m
 
-        # UDL: delta = - w x^2 (6L^2 - 4Lx + x^2) / (24 E I)
-        delta_w = -(w_Nm * x**2 * (6.0*L**2 - 4.0*L*x + x**2)) / (24.0 * E * I)
+        # UDL deflection in classic s-coordinate:
+        # delta = - w s^2 (6L^2 - 4Ls + s^2) / (24 E I)
+        delta_w = -(w_Nm * s**2 * (6.0*L**2 - 4.0*L*s + s**2)) / (24.0 * E * I)
 
-        # Point load (piecewise)
+        # Point load deflection (piecewise in s)
         delta_F = np.zeros_like(x)
+        m1 = s >= s_a   # between fixed and load
+        m2 = ~m1        # between load and free end
 
-        m1 = x <= a
-        m2 = ~m1
-
-        # x <= a: delta = -F x^2 (3a - x) / (6EI)
+        # s >= s_a: delta = -F s^2 (3 s_a - s) / (6EI)
         if np.any(m1):
-            xx = x[m1]
-            delta_F[m1] = -(F_N * xx**2 * (3.0*a - xx)) / (6.0 * E * I)
+            ss = s[m1]
+            delta_F[m1] = -(F_N * ss**2 * (3.0*s_a - ss)) / (6.0 * E * I)
 
-        # x >= a: delta = -F a^2 (3x - a) / (6EI)
+        # s <= s_a: delta = -F s_a^2 (3 s - s_a) / (6EI)
         if np.any(m2):
-            xx = x[m2]
-            delta_F[m2] = -(F_N * a**2 * (3.0*xx - a)) / (6.0 * E * I)
+            ss = s[m2]
+            delta_F[m2] = -(F_N * s_a**2 * (3.0*ss - s_a)) / (6.0 * E * I)
 
-        # End moment: delta = - M x^2 / (2EI)
-        delta_M = -(M_Nm * x**2) / (2.0 * E * I)
+        # End moment deflection: delta = - M s^2 / (2EI)
+        delta_M = -(M_Nm * s**2) / (2.0 * E * I)
 
         delta = delta_w + delta_F + delta_M
 
@@ -6157,6 +6169,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
