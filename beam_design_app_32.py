@@ -1322,6 +1322,91 @@ def oh_c1_diagram(L_mm, a, w1, w2, E=None, I=None, n=1001):
 
     return x, V, M, delta
 
+def oh_c2_case(L_mm, a, F):
+    """
+    OH - C2: Overhanging beam, point load at free end of overhang.
+    Supports at x=0 and x=L, overhang length a to x=L+a, load F at x=L+a (down).
+
+    Inputs: L_mm (mm), a (m), F (kN)
+    Returns (N, My, Mz, Vy, Vz) from max |M| and |V|.
+    """
+    x, V, M, _ = oh_c2_diagram(L_mm, a, F, E=None, I=None, n=1201)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+
+def oh_c2_diagram(L_mm, a, F, E=None, I=None, n=1001):
+    """
+    OH - C2: Overhanging beam, point load at free end of overhang.
+    Supports: x=0 and x=L. Overhang: [L, L+a]. Load F at x=L+a (down).
+
+    Returns: x (m), V (kN), M (kN·m), delta (m or None)
+    Deflection computed numerically from curvature with y(0)=0 and y(L)=0.
+    """
+    L = float(L_mm) / 1000.0  # m
+    a = float(a)              # m
+    F = float(F)              # kN
+
+    if L <= 0:
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
+
+    a = max(0.0, a)
+    Lt = L + a
+
+    x = np.linspace(0.0, Lt, n)
+
+    # ---- Reactions by statics ----
+    # About x=0: R2*L = F*(L+a)  -> R2 = F*(L+a)/L
+    # Vertical: R1 + R2 = F      -> R1 = F - R2 = -F*a/L
+    R2 = (F * (L + a)) / L
+    R1 = F - R2  # = -F*a/L (uplift possible)
+
+    # ---- Shear V(x) ----
+    # 0<=x<L:      V = R1
+    # L<=x<L+a:    V = R1 + R2 = F
+    # At x=L+a:    drop by F to 0
+    H_L  = (x >= L).astype(float)
+    H_t  = (x >= (L + a)).astype(float)
+    V = R1 + R2 * H_L - F * H_t
+
+    # ---- Moment M(x) ----
+    # 0<=x<=L:     M = R1*x
+    # L<=x<=L+a:   M = -F*(L+a - x)  (matches your sheet: Mx1 = F(a - x1))
+    M = np.zeros_like(x)
+    m1 = x <= L
+    M[m1] = R1 * x[m1]
+    m2 = x >= L
+    M[m2] = -F * (L + a - x[m2])
+
+    # ---- Deflection (numerical), enforce y(0)=0 and y(L)=0 ----
+    delta = None
+    if E and I and I > 0:
+        M_Nm = M * 1000.0  # kN·m -> N·m
+        kappa = M_Nm / (E * I)
+
+        dx = x[1] - x[0]
+
+        # integrate curvature -> slope (theta), theta(0)=0
+        theta = np.zeros_like(x)
+        theta[1:] = np.cumsum((kappa[:-1] + kappa[1:]) * 0.5 * dx)
+
+        # integrate slope -> deflection y, y(0)=0
+        y = np.zeros_like(x)
+        y[1:] = np.cumsum((theta[:-1] + theta[1:]) * 0.5 * dx)
+
+        # enforce y(L)=0 with linear correction y += C1*x
+        iL = int(np.argmin(np.abs(x - L)))
+        yL = y[iL]
+        C1 = -yL / x[iL] if x[iL] != 0 else 0.0
+        y = y + C1 * x
+
+        delta = y
+
+    return x, V, M, delta
+
+
 READY_CATALOG = {
     "Beam": {
         # Category 1: 5 cases
@@ -1470,6 +1555,12 @@ READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["label"] = "OH - C1 (w
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["func"] = oh_c1_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["diagram_func"] = oh_c1_diagram
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["inputs"] = {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}
+
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["label"] = "OH - C2 (Point load at end)"
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["func"] = oh_c2_case
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["diagram_func"] = oh_c2_diagram
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["inputs"] = {"L_mm": 6000.0, "a": 1.5, "F": 20.0}
+
 
 def compute_delta_max_from_curve(delta):
     """Return max |delta| in meters from a deflection array (or None)."""
@@ -6323,6 +6414,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
