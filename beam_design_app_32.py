@@ -1573,7 +1573,207 @@ def oh_c4_diagram(a, b, c, w, E=None, I=None, n=1201):
         delta = y
 
     return x, V, M, delta
+def _beam2span_delta_fe(L1, L2, E, I, w1_Nm=0.0, w2_Nm=0.0, point_loads=None, n_per_elem=301):
+    """
+    2-element Euler-Bernoulli beam FE, nodes at [0, L1, L1+L2].
+    Simple supports at ALL 3 nodes -> v=0 at nodes, rotations free.
+    Returns x (m) and deflection v(x) (m). (Sign depends on load sign; you use max abs anyway.)
+    point_loads: list of tuples (elem_index, x_local, P_N) with elem_index 0 or 1
+    """
+    import numpy as np
 
+    point_loads = point_loads or []
+    Ls = [float(L1), float(L2)]
+    n_nodes = 3
+    ndof = 2 * n_nodes  # [v0,th0, v1,th1, v2,th2]
+    K = np.zeros((ndof, ndof), dtype=float)
+    f = np.zeros((ndof,), dtype=float)
+
+    def ke(EI, Le):
+        Le = float(Le)
+        return (EI / Le**3) * np.array([
+            [ 12,   6*Le, -12,   6*Le],
+            [  6*Le, 4*Le**2, -6*Le, 2*Le**2],
+            [-12,  -6*Le,  12,  -6*Le],
+            [  6*Le, 2*Le**2, -6*Le, 4*Le**2]
+        ], dtype=float)
+
+    def fe_udl(q, Le):
+        # consistent nodal loads for uniform q (N/m) downward positive with v positive
+        return q * Le / 2.0 * np.array([1.0, Le/6.0, 1.0, -Le/6.0], dtype=float)
+
+    def fe_point(P, Le, xloc):
+        r = float(xloc) / float(Le)
+        N1 = 1 - 3*r**2 + 2*r**3
+        N2 = Le * (r - 2*r**2 + r**3)
+        N3 = 3*r**2 - 2*r**3
+        N4 = Le * (-r**2 + r**3)
+        return P * np.array([N1, N2, N3, N4], dtype=float)
+
+    EI = float(E) * float(I)
+
+    # assemble 2 elements: e0=[0-1], e1=[1-2]
+    x_nodes = [0.0, Ls[0], Ls[0] + Ls[1]]
+    for e in [0, 1]:
+        Le = Ls[e]
+        k_e = ke(EI, Le)
+
+        # dof map
+        n1 = e
+        n2 = e + 1
+        dofs = [2*n1, 2*n1+1, 2*n2, 2*n2+1]
+
+        # assemble K
+        for i in range(4):
+            for j in range(4):
+                K[dofs[i], dofs[j]] += k_e[i, j]
+
+        # UDL on element
+        q = w1_Nm if e == 0 else w2_Nm
+        if abs(q) > 0:
+            f_e = fe_udl(q, Le)
+            for i in range(4):
+                f[dofs[i]] += f_e[i]
+
+    # point loads
+    for (e, xloc, P) in point_loads:
+        e = int(e)
+        Le = Ls[e]
+        xloc = max(0.0, min(float(xloc), Le))
+        P = float(P)
+        n1 = e
+        n2 = e + 1
+        dofs = [2*n1, 2*n1+1, 2*n2, 2*n2+1]
+        f_e = fe_point(P, Le, xloc)
+        for i in range(4):
+            f[dofs[i]] += f_e[i]
+
+    # boundary conditions: v=0 at all 3 nodes -> dof 0,2,4 fixed
+    fixed = {0, 2, 4}
+    free = [i for i in range(ndof) if i not in fixed]
+
+    Kff = K[np.ix_(free, free)]
+    ff = f[free]
+
+    # solve
+    u = np.zeros((ndof,), dtype=float)
+    if len(free) > 0:
+        u_free = np.linalg.solve(Kff, ff)
+        u[free] = u_free
+
+    # sample deflection along beam
+    def shape_v(Le, xloc):
+        r = xloc / Le
+        N1 = 1 - 3*r**2 + 2*r**3
+        N2 = Le * (r - 2*r**2 + r**3)
+        N3 = 3*r**2 - 2*r**3
+        N4 = Le * (-r**2 + r**3)
+        return np.array([N1, N2, N3, N4], dtype=float)
+
+    xs = []
+    vs = []
+
+    # element 0
+    Le0 = Ls[0]
+    dofs0 = [0, 1, 2, 3]
+    ue0 = u[dofs0]
+    for xi in np.linspace(0.0, Le0, n_per_elem, endpoint=False):
+        N = shape_v(Le0, xi)
+        vxi = float(N @ ue0)
+        xs.append(x_nodes[0] + xi)
+        vs.append(vxi)
+
+    # element 1
+    Le1 = Ls[1]
+    dofs1 = [2, 3, 4, 5]
+    ue1 = u[dofs1]
+    for xi in np.linspace(0.0, Le1, n_per_elem, endpoint=True):
+        N = shape_v(Le1, xi)
+        vxi = float(N @ ue1)
+        xs.append(x_nodes[1] + xi)
+        vs.append(vxi)
+
+    return np.array(xs, dtype=float), np.array(vs, dtype=float)
+
+def cs2_c1_case(a, b, w):
+    x, V, M, _ = cs2_c1_diagram(a, b, w, E=None, I=None, n=1201)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+def cs2_c1_diagram(a, b, w, E=None, I=None, n=1201):
+    """
+    Continuous Beam - Two Unequal Spans with UDL on both spans.
+    Spans: a (left), b (right). Supports at x=0, x=a, x=a+b.
+    """
+    a = float(a); b = float(b); w = float(w)
+    a = max(1e-9, a); b = max(1e-9, b)
+    L = a + b
+    x = np.linspace(0.0, L, n)
+
+    # From your sheet:
+    # M1 (internal support moment at x=a)
+    M1 = -(w*b**3 + w*a**3) / (8.0*(a+b))
+
+    R1 = M1 / a + w*a/2.0
+    R3 = M1 / b + w*b/2.0
+    R2 = w*a + w*b - R1 - R3
+
+    H_a = (x >= a).astype(float)
+    H_L = (x >= L).astype(float)
+
+    # UDL over whole length -> -w*x in shear, -w*x^2/2 in moment
+    V = R1 + R2*H_a + R3*H_L - w*x
+    M = R1*x + R2*(x-a)*H_a + R3*(x-L)*H_L - (w*x**2)/2.0
+
+    # Deflection by FE (v=0 at 0, a, a+b)
+    delta = None
+    if E and I and I > 0:
+        xs, vs = _beam2span_delta_fe(a, b, E, I, w1_Nm=w*1000.0, w2_Nm=w*1000.0, point_loads=None)
+        # interpolate FE deflection to diagram x-grid
+        delta = np.interp(x, xs, vs)
+
+    return x, V, M, delta
+
+def cs2_c2_case(L, w):
+    x, V, M, _ = cs2_c2_diagram(L, w, E=None, I=None, n=1201)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+def cs2_c2_diagram(L, w, E=None, I=None, n=1201):
+    """
+    Continuous Beam - Two Span with One Span UDL (left span loaded).
+    Spans: L and L. Supports at x=0, x=L, x=2L.
+    """
+    L = float(L); w = float(w)
+    L = max(1e-9, L)
+    Lt = 2.0 * L
+    x = np.linspace(0.0, Lt, n)
+
+    # From your sheet:
+    R1 = 7.0*w*L/16.0
+    R2 = 5.0*w*L/8.0
+    R3 = -w*L/16.0
+
+    H_L  = (x >= L).astype(float)
+    H_2L = (x >= 2.0*L).astype(float)
+
+    # UDL only on [0,L]:
+    # use singularity: -w*x + w*(x-L)H(x-L) in shear
+    V = R1 + R2*H_L + R3*H_2L - w*x + w*(x-L)*H_L
+
+    # Moment: -w*x^2/2 + w*(x-L)^2/2 *H(x-L)
+    M = R1*x + R2*(x-L)*H_L + R3*(x-2.0*L)*H_2L - (w*x**2)/2.0 + (w*(x-L)**2)/2.0*H_L
+
+    delta = None
+    if E and I and I > 0:
+        xs, vs = _beam2span_delta_fe(L, L, E, I, w1_Nm=w*1000.0, w2_Nm=0.0, point_loads=None)
+        delta = np.interp(x, xs, vs)
+
+    return x, V, M, delta
+
+def cs2_c3_case
 
 READY_CATALOG = {
     "Beam": {
@@ -1588,7 +1788,24 @@ READY_CATALOG = {
         # Category 5: 3 cases
         "Beams with Overhang (4 cases)": make_cases("OH", 4, {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}),
         # Category 6: 3 cases
-        "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases("CS2", 3, {"L1": 4.0, "L2": 4.0, "w": 10.0}),
+        cat = "Continuous Beams — Two Spans / Three Supports (3 cases)"
+        cases = READY_CATALOG["Beam"][cat]
+        # Case 1: Two Unequal Span With UDL
+        cases[0]["label"] = "CS2 - C1 (Unequal spans + UDL)"
+        cases[0]["inputs"] = {"a": 4.0, "b": 6.0, "w": 10.0}
+        cases[0]["func"] = cs2_c1_case
+        cases[0]["diagram_func"] = cs2_c1_diagram
+        # Case 2: Two Span with One Span UDL (equal spans)
+        cases[1]["label"] = "CS2 - C2 (One span UDL)"
+        cases[1]["inputs"] = {"L": 5.0, "w": 10.0}
+        cases[1]["func"] = cs2_c2_case
+        cases[1]["diagram_func"] = cs2_c2_diagram
+        # Case 3: Two Unequal Spans with central point loads
+        cases[2]["label"] = "CS2 - C3 (Central point loads)"
+        cases[2]["inputs"] = {"a": 4.0, "b": 6.0, "F1": 20.0, "F2": 20.0}
+        cases[2]["func"] = cs2_c3_case
+        cases[2]["diagram_func"] = cs2_c3_diagram
+
         # Category 7: 1 case
         "Continuous Beams — Three Spans / Four Supports (1 case)": make_cases("CS3", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "w": 10.0}),
         # Category 8: 1 case
@@ -1855,6 +2072,8 @@ def render_ready_cases_panel():
             "b": "b (m)",
             "c": "c (m)",
             "F": "F (kN)",
+            "F1": "F1 (kN)",
+            "F2": "F2 (kN)",
             "M": "M (kN·m)",
             "w1": "w1 (kN/m) on span",
             "w2": "w2 (kN/m) on overhang",
@@ -6598,6 +6817,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
