@@ -1218,8 +1218,109 @@ def cant_c1_delta_max(L_mm, w, a, F, M, E, I):
     delta_M = (M_Nm * L**2) / (2.0 * E * I)
 
     return float(delta_w + delta_F + delta_M)
+def oh_c1_case(L_mm, a, w1, w2):
+    """
+    OH - C1: Overhanging beam (right overhang)
+    Supports at x=0 and x=L, overhang length a (to x=L+a)
+    UDL w1 on [0,L], UDL w2 on [L, L+a]
+
+    Inputs:
+      L_mm (mm), a (m), w1 (kN/m), w2 (kN/m)
+
+    Returns (N, My, Mz, Vy, Vz) from max |M| and |V|.
+    """
+    x, V, M, _ = oh_c1_diagram(L_mm, a, w1, w2, E=None, I=None, n=1201)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
 
 
+def oh_c1_diagram(L_mm, a, w1, w2, E=None, I=None, n=1001):
+    """
+    OH - C1: Overhanging beam (right overhang)
+    Supports: x=0 and x=L. Overhang to x=L+a.
+    Loads:
+      w1 (kN/m) on [0,L]
+      w2 (kN/m) on [L,L+a]
+
+    Returns: x (m), V (kN), M (kN·m), delta (m or None)
+    Deflection computed numerically from curvature with y(0)=0 and y(L)=0.
+    """
+    L = float(L_mm) / 1000.0  # m
+    a = float(a)              # m
+    w1 = float(w1)            # kN/m
+    w2 = float(w2)            # kN/m
+
+    if L <= 0:
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
+
+    a = max(0.0, a)
+    Lt = L + a  # total length
+
+    x = np.linspace(0.0, Lt, n)
+
+    # ---- Reactions by statics (supports at 0 and L) ----
+    # W1 = w1*L at x=L/2, W2 = w2*a at x=L + a/2
+    W1 = w1 * L
+    W2 = w2 * a
+
+    # Moments about x=0: R2*L = W1*(L/2) + W2*(L + a/2)
+    R2 = 0.0
+    if L > 0:
+        R2 = (W1 * (L / 2.0) + W2 * (L + a / 2.0)) / L
+    R1 = (W1 + W2) - R2
+
+    # ---- Shear and moment ----
+    V = np.zeros_like(x)
+    M = np.zeros_like(x)
+
+    # region 1: 0 <= x <= L (UDL w1)
+    m1 = x <= L
+    xx = x[m1]
+    V[m1] = R1 - w1 * xx
+    M[m1] = R1 * xx - (w1 * xx**2) / 2.0
+
+    # values just to the left of support at x=L
+    V_L_minus = R1 - w1 * L
+    M_L_minus = R1 * L - (w1 * L**2) / 2.0
+
+    # region 2: L <= x <= L+a (overhang, UDL w2)
+    m2 = x >= L
+    x2 = x[m2]
+    x1 = x2 - L  # local coordinate from support at x=L into overhang
+
+    V_L_plus = V_L_minus + R2
+    V[m2] = V_L_plus - w2 * x1
+    M[m2] = M_L_minus + V_L_plus * x1 - (w2 * x1**2) / 2.0
+
+    # ---- Deflection (numerical), enforce y(0)=0 and y(L)=0 ----
+    delta = None
+    if E and I and I > 0:
+        # curvature k = M/(E I) with consistent units
+        M_Nm = M * 1000.0  # kN·m -> N·m
+        kappa = M_Nm / (E * I)
+
+        dx = x[1] - x[0]
+
+        # integrate curvature -> slope (theta) with theta(0)=0
+        theta = np.zeros_like(x)
+        theta[1:] = np.cumsum((kappa[:-1] + kappa[1:]) * 0.5 * dx)
+
+        # integrate slope -> deflection y with y(0)=0
+        y = np.zeros_like(x)
+        y[1:] = np.cumsum((theta[:-1] + theta[1:]) * 0.5 * dx)
+
+        # enforce y(L)=0 by adding a linear correction: y_corr = y + C1*x
+        # find index closest to L
+        iL = int(np.argmin(np.abs(x - L)))
+        yL = y[iL]
+        C1 = -yL / x[iL] if x[iL] != 0 else 0.0
+        y = y + C1 * x
+
+        delta = y
+
+    return x, V, M, delta
 
 READY_CATALOG = {
     "Beam": {
@@ -1232,7 +1333,7 @@ READY_CATALOG = {
         # Category 4: 2 cases
         "Cantilever Beams (1 case)": make_cases("C", 1, {"L_mm": 3000.0, "w": 10.0, "a": 1.5, "F": 20.0, "M": 0.0}),
         # Category 5: 3 cases
-        "Beams with Overhang (3 cases)": make_cases("OH", 3, {"L": 6.0, "a": 1.5, "w": 10.0}),
+        "Beams with Overhang (3 cases)": make_cases("OH", 3, {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}),
         # Category 6: 3 cases
         "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases("CS2", 3, {"L1": 4.0, "L2": 4.0, "w": 10.0}),
         # Category 7: 1 case
@@ -1364,6 +1465,11 @@ READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["func"] = cant_c1_case
 READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["diagram_func"] = cant_c1_diagram
 READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["delta_max_func"] = cant_c1_delta_max
 
+READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["label"] = "OH - C1 (w1 on span, w2 on overhang)"
+READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["func"] = oh_c1_case
+READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["diagram_func"] = oh_c1_diagram
+READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["inputs"] = {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}
+
 
 def compute_delta_max_from_curve(delta):
     """Return max |delta| in meters from a deflection array (or None)."""
@@ -1475,6 +1581,9 @@ def render_ready_cases_panel():
             "a": "a (m)",
             "F": "F (kN)",
             "M": "M (kN·m)",
+            "w1": "w1 (kN/m) on span",
+            "w2": "w2 (kN/m) on overhang",
+
         }
         
         for i in range(0, len(keys), 3):
@@ -6214,6 +6323,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
