@@ -1405,6 +1405,91 @@ def oh_c2_diagram(L_mm, a, F, E=None, I=None, n=1001):
         delta = y
 
     return x, V, M, delta
+def oh_c3_case(L_mm, a_over, xP, F):
+    """
+    OH - C3: Overhanging beam (right overhang), point load between supports.
+    Supports at x=0 and x=L, overhang length a_over to x=L+a_over.
+    Point load F at x=xP, where 0 < xP < L.
+
+    Inputs: L_mm (mm), a_over (m), xP (m), F (kN)
+    Returns (N, My, Mz, Vy, Vz) from max |M| and |V|.
+    """
+    x, V, M, _ = oh_c3_diagram(L_mm, a_over, xP, F, E=None, I=None, n=1201)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+
+def oh_c3_diagram(L_mm, a_over, xP, F, E=None, I=None, n=1001):
+    """
+    OH - C3: Overhanging beam (right overhang), point load between supports.
+    Supports: x=0 and x=L. Overhang: [L, L+a_over] (no load on overhang).
+    Point load F at x=xP (0..L).
+
+    Returns: x (m), V (kN), M (kN·m), delta (m or None)
+    Deflection computed numerically from curvature with y(0)=0 and y(L)=0.
+    """
+    L = float(L_mm) / 1000.0  # m
+    a_over = float(a_over)    # m
+    xP = float(xP)            # m from left support
+    F = float(F)              # kN
+
+    if L <= 0:
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
+
+    a_over = max(0.0, a_over)
+    Lt = L + a_over
+
+    # clamp xP to [0, L]
+    xP = max(0.0, min(xP, L))
+
+    x = np.linspace(0.0, Lt, n)
+
+    # ---- Reactions (same as simply supported for load between supports) ----
+    # R1 = F*(L-xP)/L, R2 = F*xP/L
+    R1 = F * (L - xP) / L
+    R2 = F * xP / L
+
+    # ---- Shear V(x) ----
+    # 0<=x<xP: V = R1
+    # xP<=x<L: V = R1 - F
+    # x>=L:    V = R1 - F + R2 = 0  (no loads on overhang)
+    H_P = (x >= xP).astype(float)
+    H_L = (x >= L).astype(float)
+
+    V = R1 - F * H_P + R2 * H_L
+
+    # ---- Moment M(x) ----
+    # for x <= L: M = R1*x - F*(x - xP)*H(x-xP)
+    # for x >= L: M = 0 (no moment on unloaded overhang; continuous at L)
+    M = R1 * x - F * (x - xP) * H_P
+    M[x >= L] = 0.0
+
+    # ---- Deflection (numerical), enforce y(0)=0 and y(L)=0 ----
+    delta = None
+    if E and I and I > 0:
+        M_Nm = M * 1000.0  # kN·m -> N·m
+        kappa = M_Nm / (E * I)
+
+        dx = x[1] - x[0]
+
+        theta = np.zeros_like(x)
+        theta[1:] = np.cumsum((kappa[:-1] + kappa[1:]) * 0.5 * dx)
+
+        y = np.zeros_like(x)
+        y[1:] = np.cumsum((theta[:-1] + theta[1:]) * 0.5 * dx)
+
+        # enforce y(L)=0 with linear correction
+        iL = int(np.argmin(np.abs(x - L)))
+        yL = y[iL]
+        C1 = -yL / x[iL] if x[iL] != 0 else 0.0
+        y = y + C1 * x
+
+        # overhang has no curvature (M=0), so y will be linear there (correct)
+        delta = y
+
+    return x, V, M, delta
 
 
 READY_CATALOG = {
@@ -1561,6 +1646,11 @@ READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["func"] = oh_c2_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["diagram_func"] = oh_c2_diagram
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["inputs"] = {"L_mm": 6000.0, "a": 1.5, "F": 20.0}
 
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["label"] = "OH - C3 (Point load between supports)"
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["func"] = oh_c3_case
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["diagram_func"] = oh_c3_diagram
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["inputs"] = {"L_mm": 6000.0, "a_over": 1.5, "xP": 2.0, "F": 20.0}
+    
 
 def compute_delta_max_from_curve(delta):
     """Return max |delta| in meters from a deflection array (or None)."""
@@ -6414,6 +6504,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
