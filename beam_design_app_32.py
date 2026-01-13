@@ -1865,6 +1865,113 @@ def cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201):
         delta = np.interp(x, xs, vs)
 
     return x, V, M, delta
+def cs3_c1_case(L, w1, w2, w3):
+    x, V, M, _ = cs3_c1_diagram(L, w1, w2, w3, E=None, I=None, n=1601)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+
+def cs3_c1_diagram(L, w1, w2, w3, E=None, I=None, n=1601):
+    """
+    Continuous beam: 3 equal spans (L each), 4 simple supports at x=0, L, 2L, 3L
+    UDLs: w1 on span 1, w2 on span 2, w3 on span 3  (kN/m)
+
+    Unknown internal support moments: M1 at x=L, M2 at x=2L
+    End moments at x=0 and x=3L are zero.
+
+    Returns: x (m), V (kN), M (kN·m), delta (m or None)
+    """
+    L = float(L)
+    L = max(1e-9, L)
+    w1 = float(w1); w2 = float(w2); w3 = float(w3)
+
+    # ---- Solve for internal support moments using slope-deflection / three-moment equivalent ----
+    # For equal spans and prismatic beam with UDL on a span:
+    # Fixed-end moments for UDL on span i: FEM_left = -wL^2/12, FEM_right = +wL^2/12 (sign conv)
+    # We use standard continuous-beam equations at internal joints:
+    #
+    # Joint at x=L:   4*M1 + 1*M2 = - (FEM_right(span1) + FEM_left(span2))*2
+    # Joint at x=2L:  1*M1 + 4*M2 = - (FEM_right(span2) + FEM_left(span3))*2
+    #
+    # This is a compact form of the slope-deflection joint equilibrium for equal spans with far ends pinned.
+    #
+    # FEM_right(span i) = + w_i*L^2/12
+    # FEM_left (span i) = - w_i*L^2/12
+    #
+    # So:
+    # RHS1 = -2*( +w1 L^2/12  + (-w2 L^2/12) ) = - (w1 - w2) * L^2/6
+    # RHS2 = -2*( +w2 L^2/12  + (-w3 L^2/12) ) = - (w2 - w3) * L^2/6
+    rhs1 = - (w1 - w2) * (L**2) / 6.0
+    rhs2 = - (w2 - w3) * (L**2) / 6.0
+
+    A = np.array([[4.0, 1.0],
+                  [1.0, 4.0]], dtype=float)
+    b = np.array([rhs1, rhs2], dtype=float)
+
+    M1, M2 = np.linalg.solve(A, b)  # moments at x=L and x=2L (kN·m)
+
+    # End moments at outer supports (pinned)
+    M0 = 0.0
+    M3 = 0.0
+
+    # ---- Reactions per span from end moments ----
+    # For span with UDL w and end moments Ma (left), Mb (right):
+    # Shear at left end:  Ra = wL/2 + (Mb - Ma)/L
+    # Shear at right end: Rb = wL - Ra
+    def span_end_reactions(w, Ma, Mb):
+        Ra = w * L / 2.0 + (Mb - Ma) / L
+        Rb = w * L - Ra
+        return Ra, Rb
+
+    # span 1: 0..L
+    R0_1, R1_1 = span_end_reactions(w1, M0, M1)
+    # span 2: L..2L
+    R1_2, R2_2 = span_end_reactions(w2, M1, M2)
+    # span 3: 2L..3L
+    R2_3, R3_3 = span_end_reactions(w3, M2, M3)
+
+    # total support reactions (sum contributions from adjacent spans)
+    R1 = R0_1
+    R2 = R1_1 + R1_2
+    R3 = R2_2 + R2_3
+    R4 = R3_3
+
+    # ---- Build diagrams along x ----
+    Ltot = 3.0 * L
+    x = np.linspace(0.0, Ltot, n)
+
+    V = np.zeros_like(x, dtype=float)
+    M = np.zeros_like(x, dtype=float)
+
+    # Span 1
+    m1 = (x <= L)
+    xx = x[m1]
+    V[m1] = R1 - w1 * xx
+    M[m1] = M0 + R1 * xx - (w1 * xx**2) / 2.0
+
+    # Span 2
+    m2 = (x > L) & (x <= 2.0 * L)
+    xx = x[m2] - L
+    V[m2] = (R2) - w2 * xx  # shear just to the right of support 2 includes R2
+    M[m2] = M1 + R2 * xx - (w2 * xx**2) / 2.0
+
+    # Span 3
+    m3 = (x > 2.0 * L)
+    xx = x[m3] - 2.0 * L
+    V[m3] = (R3) - w3 * xx
+    M[m3] = M2 + R3 * xx - (w3 * xx**2) / 2.0
+
+    # ---- Deflection (optional) ----
+    delta = None
+    if E and I and I > 0:
+        # If you already have a 3-span FE helper, use it here.
+        # Otherwise, set delta=None and the app will still show max deflection only where available.
+        if "_beam3span_delta_fe" in globals():
+            xs, vs = _beam3span_delta_fe(L, L, L, E, I, w1_Nm=w1*1000.0, w2_Nm=w2*1000.0, w3_Nm=w3*1000.0)
+            delta = np.interp(x, xs, vs)
+
+    return x, V, M, delta
 
 
 # ================================
@@ -2087,6 +2194,12 @@ READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["func"] = oh_c4_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["diagram_func"] = oh_c4_diagram
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["inputs"] = {"a": 1.0, "b": 6.0, "c": 1.0, "w": 10.0}
 
+READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["label"] = "CS3 - C1 (3 spans UDL)"
+READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["inputs"] = {"L": 5.0, "w1": 10.0, "w2": 10.0, "w3": 10.0}
+READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["func"] = cs3_c1_case
+READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["diagram_func"] = cs3_c1_diagram
+
+
 def compute_delta_max_from_curve(delta):
     """Return max |delta| in meters from a deflection array (or None)."""
     if delta is None:
@@ -2201,8 +2314,9 @@ def render_ready_cases_panel():
             "F1": "F1 (kN)",
             "F2": "F2 (kN)",
             "M": "M (kN·m)",
-            "w1": "w1 (kN/m) on span",
-            "w2": "w2 (kN/m) on overhang",
+            "w1": "w1 (kN/m)",
+            "w2": "w2 (kN/m)",
+            "w3": "w₃ (kN/m)
 
         }
         
@@ -6943,6 +7057,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
