@@ -1736,6 +1736,75 @@ def cs2_c1_diagram(a, b, w, E=None, I=None, n=1201):
     return x, V, M, delta
 
 # ================================
+# CS2 - CASE 2 (equal spans, UDL on ONE span)
+# ================================
+def cs2_c2_case(L, w):
+    x, V, M, _ = cs2_c2_diagram(L, w, E=None, I=None, n=1201)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+def cs2_c2_diagram(L, w, E=None, I=None, n=1201):
+    """
+    Continuous Beam - Two equal spans with UDL on ONE span (left span).
+    Spans: L (left), L (right). Supports at x=0, x=L, x=2L.
+    Load: UDL w [kN/m] on span 1 only (0..L). No load on span 2.
+
+    Uses Clapeyron (three-moment) for internal support moment:
+      M_mid = - w*L^2/16
+
+    Returns:
+      x (m), V (kN), M (kN·m), delta (m or None)
+    """
+    L = float(L)
+    w = float(w)
+    L = max(1e-9, L)
+
+    Ltot = 2.0 * L
+    x = np.linspace(0.0, Ltot, n)
+
+    # Internal support moment at x=L
+    M_mid = -(w * L**2) / 16.0  # kN·m (hogging negative)
+
+    # Reactions via span-end moment relations
+    # Span 1 (0..L), UDL w, end moments M0=0, M1=M_mid:
+    # M(L) = M0 + R1*L - w*L^2/2  => R1 = (M1 - M0 + w*L^2/2)/L
+    R1 = (M_mid + w * L**2 / 2.0) / L          # kN
+    R2_left = w * L - R1                        # kN (middle support contribution from left span)
+
+    # Span 2 (L..2L), no load, end moments M1=M_mid, M2=0:
+    # 0 = M_mid + R2_right*L  => R2_right = -M_mid/L
+    R2_right = -M_mid / L                       # kN (middle support contribution from right span)
+    R3 = -R2_right                              # kN (right support reaction)
+
+    # Total middle support reaction:
+    R2 = R2_left + R2_right
+
+    # Build V and M piecewise
+    V = np.zeros_like(x, dtype=float)
+    M = np.zeros_like(x, dtype=float)
+
+    # Span 1: 0..L
+    m1 = (x <= L)
+    xx = x[m1]
+    V[m1] = R1 - w * xx
+    M[m1] = 0.0 + R1 * xx - (w * xx**2) / 2.0
+
+    # Span 2: L..2L
+    m2 = ~m1
+    xx = x[m2] - L  # local coordinate from middle support
+    V[m2] = R2_right  # constant (no distributed load)
+    M[m2] = M_mid + R2_right * xx
+
+    # Deflection (use your FE helper, simple supports at 0, L, 2L)
+    delta = None
+    if E and I and I > 0:
+        xs, vs = _beam2span_delta_fe(L, L, E, I, w1_Nm=w*1000.0, w2_Nm=0.0, point_loads=None)
+        delta = np.interp(x, xs, vs)
+
+    return x, V, M, delta
+    
+# ================================
 # CS2 - CASE 3 (F1, F2 at midspans)
 # ================================
 def cs2_c3_case(a, b, F1, F2):
@@ -6874,6 +6943,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
