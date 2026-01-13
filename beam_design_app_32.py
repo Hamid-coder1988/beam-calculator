@@ -1790,40 +1790,47 @@ def cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201):
 READY_CATALOG = {
     "Beam": {
         # Category 1: 5 cases
-        "Simply Supported Beams (5 cases)": make_cases("SS", 5, {"L": 6.0, "w": 10.0}),
+        "Simply Supported Beams (5 cases)": make_cases(
+            "SS", 5, {"L": 6.0, "w": 10.0}
+        ),
+
         # Category 2: 1 case
-        "Beams Fixed at one end (1 case)": make_cases("FE", 1, {"L": 6.0, "w": 10.0}),
+        "Beams Fixed at one end (1 case)": make_cases(
+            "FE", 1, {"L": 6.0, "w": 10.0}
+        ),
+
         # Category 3: 1 case
-        "Beams Fixed at both ends (1 case)": make_cases("FB", 1, {"L_mm": 6000.0, "w": 10.0, "a": 2.0, "F": 20.0}),
-        # Category 4: 2 cases
-        "Cantilever Beams (1 case)": make_cases("C", 1, {"L_mm": 3000.0, "w": 10.0, "a": 1.5, "F": 20.0, "M": 0.0}),
-        # Category 5: 3 cases
-        "Beams with Overhang (4 cases)": make_cases("OH", 4, {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}),
-        # Category 6: 3 cases
-        cat = "Continuous Beams — Two Spans / Three Supports (3 cases)"
-        cases = READY_CATALOG["Beam"][cat]
-        # Case 1: Two Unequal Span With UDL
-        cases[0]["label"] = "CS2 - C1 (Unequal spans + UDL)"
-        cases[0]["inputs"] = {"a": 4.0, "b": 6.0, "w": 10.0}
-        cases[0]["func"] = cs2_c1_case
-        cases[0]["diagram_func"] = cs2_c1_diagram
-        # Case 2: Two Span with One Span UDL (equal spans)
-        cases[1]["label"] = "CS2 - C2 (One span UDL)"
-        cases[1]["inputs"] = {"L": 5.0, "w": 10.0}
-        cases[1]["func"] = cs2_c2_case
-        cases[1]["diagram_func"] = cs2_c2_diagram
-        # Case 3: Two Unequal Spans with central point loads
-        cases[2]["label"] = "CS2 - C3 (Central point loads)"
-        cases[2]["inputs"] = {"a": 4.0, "b": 6.0, "F1": 20.0, "F2": 20.0}
-        cases[2]["func"] = cs2_c3_case
-        cases[2]["diagram_func"] = cs2_c3_diagram
+        "Beams Fixed at both ends (1 case)": make_cases(
+            "FB", 1, {"L_mm": 6000.0, "w": 10.0, "a": 2.0, "F": 20.0}
+        ),
+
+        # Category 4: 1 case
+        "Cantilever Beams (1 case)": make_cases(
+            "C", 1, {"L_mm": 3000.0, "w": 10.0, "a": 1.5, "F": 20.0, "M": 0.0}
+        ),
+
+        # Category 5: 4 cases
+        "Beams with Overhang (4 cases)": make_cases(
+            "OH", 4, {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}
+        ),
+
+        # Category 6: 3 cases  ✅ IMPORTANT: ONLY make_cases here
+        "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases(
+            "CS2", 3, {}
+        ),
 
         # Category 7: 1 case
-        "Continuous Beams — Three Spans / Four Supports (1 case)": make_cases("CS3", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "w": 10.0}),
+        "Continuous Beams — Three Spans / Four Supports (1 case)": make_cases(
+            "CS3", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "w": 10.0}
+        ),
+
         # Category 8: 1 case
-        "Continuous Beams — Four Spans / Five Supports (1 case)": make_cases("CS4", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "L4": 4.0, "w": 10.0}),
-    },
+        "Continuous Beams — Four Spans / Five Supports (1 case)": make_cases(
+            "CS4", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "L4": 4.0, "w": 10.0}
+        ),
+    }
 }
+
 
 # Image mapping for ready beam cases (only cases 1 and 2 for now)
 # Image mapping for ready beam cases
@@ -1971,7 +1978,30 @@ READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["label"] = "OH - C4"
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["func"] = oh_c4_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["diagram_func"] = oh_c4_diagram
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["inputs"] = {"a": 1.0, "b": 6.0, "c": 1.0, "w": 10.0}
-    
+
+# -------------------------------------------------
+# Patch: Continuous Beams — Two Spans / Three Supports
+# -------------------------------------------------
+_cat = "Continuous Beams — Two Spans / Three Supports (3 cases)"
+_cases = READY_CATALOG["Beam"][_cat]
+
+# Case 1: Two Unequal Spans with UDL
+_cases[0]["label"] = "CS2 - C1 (Unequal spans + UDL)"
+_cases[0]["inputs"] = {"a": 4.0, "b": 6.0, "w": 10.0}
+_cases[0]["func"] = cs2_c1_case
+_cases[0]["diagram_func"] = cs2_c1_diagram
+
+# Case 2: Two equal spans, UDL on one span
+_cases[1]["label"] = "CS2 - C2 (One span UDL)"
+_cases[1]["inputs"] = {"L": 5.0, "w": 10.0}
+_cases[1]["func"] = cs2_c2_case
+_cases[1]["diagram_func"] = cs2_c2_diagram
+
+# Case 3: Two Unequal Spans with central point loads
+_cases[2]["label"] = "CS2 - C3 (Central point loads)"
+_cases[2]["inputs"] = {"a": 4.0, "b": 6.0, "F1": 20.0, "F2": 20.0}
+_cases[2]["func"] = cs2_c3_case
+_cases[2]["diagram_func"] = cs2_c3_diagram
 
 def compute_delta_max_from_curve(delta):
     """Return max |delta| in meters from a deflection array (or None)."""
@@ -6829,6 +6859,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
