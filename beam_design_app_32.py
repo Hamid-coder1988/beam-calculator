@@ -1973,6 +1973,126 @@ def cs3_c1_diagram(L, w1, w2, w3, E=None, I=None, n=1601):
 
     return x, V, M, delta
 
+def cs4_c1_case(L, w1, w2, w3, w4):
+    x, V, M, _ = cs4_c1_diagram(L, w1, w2, w3, w4, E=None, I=None, n=2001)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+
+def cs4_c1_diagram(L, w1, w2, w3, w4, E=None, I=None, n=2001):
+    """
+    Continuous beam: 4 equal spans (L each), 5 supports at x=0, L, 2L, 3L, 4L
+    UDLs: w1 on span 1, w2 on span 2, w3 on span 3, w4 on span 4 (kN/m)
+
+    Unknown internal support moments:
+      M1 at x=L, M2 at x=2L, M3 at x=3L
+    End moments at x=0 and x=4L are zero (pinned ends).
+
+    Returns: x (m), V (kN), M (kN·m), delta (m or None)
+    """
+    L = float(L)
+    L = max(1e-9, L)
+    w1 = float(w1); w2 = float(w2); w3 = float(w3); w4 = float(w4)
+
+    # -----------------------------
+    # 1) Solve internal moments M1,M2,M3
+    # -----------------------------
+    # Same compact joint-equilibrium form used in CS3 (equal spans, pinned outer ends):
+    #   4*M1 + 1*M2       = -(w1 - w2) * L^2 / 6
+    #   1*M1 + 4*M2 + 1*M3 = -(w2 - w3) * L^2 / 6
+    #         1*M2 + 4*M3  = -(w3 - w4) * L^2 / 6
+    rhs1 = - (w1 - w2) * (L**2) / 6.0
+    rhs2 = - (w2 - w3) * (L**2) / 6.0
+    rhs3 = - (w3 - w4) * (L**2) / 6.0
+
+    A = np.array([
+        [4.0, 1.0, 0.0],
+        [1.0, 4.0, 1.0],
+        [0.0, 1.0, 4.0],
+    ], dtype=float)
+    b = np.array([rhs1, rhs2, rhs3], dtype=float)
+
+    M1, M2, M3 = np.linalg.solve(A, b)  # kN·m at x=L,2L,3L
+
+    # end moments at outer supports
+    M0 = 0.0
+    M4 = 0.0
+
+    # -----------------------------
+    # 2) Span end reactions from end moments
+    # -----------------------------
+    # For span with UDL w and end moments Ma (left), Mb (right):
+    #   Ra = wL/2 + (Mb - Ma)/L
+    #   Rb = wL - Ra
+    def span_end_reactions(w, Ma, Mb):
+        Ra = w * L / 2.0 + (Mb - Ma) / L
+        Rb = w * L - Ra
+        return Ra, Rb
+
+    # span 1 (0..L): moments M0 -> M1
+    R0_1, R1_1 = span_end_reactions(w1, M0, M1)
+    # span 2 (L..2L): moments M1 -> M2
+    R1_2, R2_2 = span_end_reactions(w2, M1, M2)
+    # span 3 (2L..3L): moments M2 -> M3
+    R2_3, R3_3 = span_end_reactions(w3, M2, M3)
+    # span 4 (3L..4L): moments M3 -> M4
+    R3_4, R4_4 = span_end_reactions(w4, M3, M4)
+
+    # total support reactions (sum adjacent-span contributions)
+    R1 = R0_1
+    R2 = R1_1 + R1_2
+    R3 = R2_2 + R2_3
+    R4 = R3_3 + R3_4
+    R5 = R4_4
+
+    # -----------------------------
+    # 3) Build V(x), M(x) piecewise
+    # -----------------------------
+    Ltot = 4.0 * L
+    x = np.linspace(0.0, Ltot, n)
+
+    V = np.zeros_like(x, dtype=float)
+    M = np.zeros_like(x, dtype=float)
+
+    # Span 1: 0..L
+    s1 = (x <= L)
+    xx = x[s1]
+    V[s1] = R1 - w1 * xx
+    M[s1] = M0 + R1 * xx - (w1 * xx**2) / 2.0
+
+    # Span 2: L..2L
+    s2 = (x > L) & (x <= 2.0 * L)
+    xx = x[s2] - L
+    V[s2] = R2 - w2 * xx
+    M[s2] = M1 + R2 * xx - (w2 * xx**2) / 2.0
+
+    # Span 3: 2L..3L
+    s3 = (x > 2.0 * L) & (x <= 3.0 * L)
+    xx = x[s3] - 2.0 * L
+    V[s3] = R3 - w3 * xx
+    M[s3] = M2 + R3 * xx - (w3 * xx**2) / 2.0
+
+    # Span 4: 3L..4L
+    s4 = (x > 3.0 * L)
+    xx = x[s4] - 3.0 * L
+    V[s4] = R4 - w4 * xx
+    M[s4] = M3 + R4 * xx - (w4 * xx**2) / 2.0
+
+    # -----------------------------
+    # 4) Deflection (optional)
+    # -----------------------------
+    delta = None
+    if E and I and I > 0:
+        # If you have a 4-span FE helper, use it.
+        if "_beam4span_delta_fe" in globals():
+            xs, vs = _beam4span_delta_fe(L, L, L, L, E, I,
+                                         w1_Nm=w1*1000.0, w2_Nm=w2*1000.0,
+                                         w3_Nm=w3*1000.0, w4_Nm=w4*1000.0)
+            delta = np.interp(x, xs, vs)
+
+    return x, V, M, delta
+
 
 # ================================
 # READY CATALOG (DATA ONLY)
@@ -2199,6 +2319,16 @@ READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)
 READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["func"] = cs3_c1_case
 READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["diagram_func"] = cs3_c1_diagram
 
+READY_CATALOG["Beam"]["Continuous Beams — Four Spans / Five Supports (1 case)"][0]["label"] = "CS4 - C1 (4 spans UDL)"
+READY_CATALOG["Beam"]["Continuous Beams — Four Spans / Five Supports (1 case)"][0]["inputs"] = {
+    "L": 5.0,
+    "w1": 10.0,
+    "w2": 10.0,
+    "w3": 10.0,
+    "w4": 10.0,
+}
+READY_CATALOG["Beam"]["Continuous Beams — Four Spans / Five Supports (1 case)"][0]["func"] = cs4_c1_case
+READY_CATALOG["Beam"]["Continuous Beams — Four Spans / Five Supports (1 case)"][0]["diagram_func"] = cs4_c1_diagram
 
 def compute_delta_max_from_curve(delta):
     """Return max |delta| in meters from a deflection array (or None)."""
@@ -2316,8 +2446,8 @@ def render_ready_cases_panel():
             "M": "M (kN·m)",
             "w1": "w1 (kN/m)",
             "w2": "w2 (kN/m)",
-            "w3": "w3 (kN/m)"
-
+            "w3": "w3 (kN/m)",
+            "w4": "w4 (kN/m),
         }
         
         for i in range(0, len(keys), 3):
@@ -7057,6 +7187,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
