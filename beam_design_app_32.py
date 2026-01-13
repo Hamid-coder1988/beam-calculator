@@ -1735,40 +1735,54 @@ def cs2_c1_diagram(a, b, w, E=None, I=None, n=1201):
 
     return x, V, M, delta
 
-def cs2_c2_case(L, w):
-    x, V, M, _ = cs2_c2_diagram(L, w, E=None, I=None, n=1201)
+def cs2_c3_case(a, b, F1, F2):
+    x, V, M, _ = cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
     return (0.0, Mmax, 0.0, Vmax, 0.0)
 
-def cs2_c2_diagram(L, w, E=None, I=None, n=1201):
-    """
-    Continuous Beam - Two Span with One Span UDL (left span loaded).
-    Spans: L and L. Supports at x=0, x=L, x=2L.
-    """
-    L = float(L); w = float(w)
-    L = max(1e-9, L)
-    Lt = 2.0 * L
-    x = np.linspace(0.0, Lt, n)
 
-    # From your sheet:
-    R1 = 7.0*w*L/16.0
-    R2 = 5.0*w*L/8.0
-    R3 = -w*L/16.0
+def cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201):
+    """
+    Continuous Beam - Two Unequal Spans with Point Loads central to each span.
+    Spans: a (left), b (right). Supports at x=0, x=a, x=a+b.
+    Loads: F1 at x=a/2, F2 at x=a + b/2.
+    """
+    a = float(a); b = float(b); F1 = float(F1); F2 = float(F2)
+    a = max(1e-9, a); b = max(1e-9, b)
+    L = a + b
 
+    xF1 = a / 2.0
+    xF2 = a + b / 2.0
+
+    x = np.linspace(0.0, L, n)
+
+    # From your sheet (same formula, just rename):
+    M2 = -(3.0 / 16.0) * (F1 * a**2 + F2 * b**2) / (a + b)
+
+    R1 = M2 / a + F1 / 2.0
+    R3 = M2 / b + F2 / 2.0
+    R2 = F1 + F2 - R1 - R3
+
+    H_a  = (x >= a).astype(float)
     H_L  = (x >= L).astype(float)
-    H_2L = (x >= 2.0*L).astype(float)
+    H_F1 = (x >= xF1).astype(float)
+    H_F2 = (x >= xF2).astype(float)
 
-    # UDL only on [0,L]:
-    # use singularity: -w*x + w*(x-L)H(x-L) in shear
-    V = R1 + R2*H_L + R3*H_2L - w*x + w*(x-L)*H_L
-
-    # Moment: -w*x^2/2 + w*(x-L)^2/2 *H(x-L)
-    M = R1*x + R2*(x-L)*H_L + R3*(x-2.0*L)*H_2L - (w*x**2)/2.0 + (w*(x-L)**2)/2.0*H_L
+    V = R1 + R2 * H_a + R3 * H_L - F1 * H_F1 - F2 * H_F2
+    M = (R1 * x
+         + R2 * (x - a) * H_a
+         + R3 * (x - L) * H_L
+         - F1 * (x - xF1) * H_F1
+         - F2 * (x - xF2) * H_F2)
 
     delta = None
     if E and I and I > 0:
-        xs, vs = _beam2span_delta_fe(L, L, E, I, w1_Nm=w*1000.0, w2_Nm=0.0, point_loads=None)
+        pls = [
+            (0, a / 2.0, F1 * 1000.0),
+            (1, b / 2.0, F2 * 1000.0),
+        ]
+        xs, vs = _beam2span_delta_fe(a, b, E, I, w1_Nm=0.0, w2_Nm=0.0, point_loads=pls)
         delta = np.interp(x, xs, vs)
 
     return x, V, M, delta
@@ -6815,6 +6829,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
