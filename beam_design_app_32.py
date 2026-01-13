@@ -1735,17 +1735,28 @@ def cs2_c1_diagram(a, b, w, E=None, I=None, n=1201):
 
     return x, V, M, delta
 
+# ================================
+# CS2 - CASE 3 (F1, F2 at midspans)
+# ================================
 def cs2_c3_case(a, b, F1, F2):
+    """
+    Continuous beam (2 spans / 3 supports) - Case 3:
+    Two unequal spans with point loads at the center of each span.
+    Inputs: a (m), b (m), F1 (kN), F2 (kN)
+    """
     x, V, M, _ = cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
     return (0.0, Mmax, 0.0, Vmax, 0.0)
+
 
 def cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201):
     """
     Continuous Beam - Two Unequal Spans with Point Loads central to each span.
     Spans: a (left), b (right). Supports at x=0, x=a, x=a+b.
     Loads: F1 at x=a/2, F2 at x=a + b/2.
+
+    Returns: x (m), V (kN), M (kN·m), delta (m or None)
     """
     a = float(a); b = float(b); F1 = float(F1); F2 = float(F2)
     a = max(1e-9, a); b = max(1e-9, b)
@@ -1756,7 +1767,7 @@ def cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201):
 
     x = np.linspace(0.0, L, n)
 
-    # From your sheet (same formula, just rename):
+    # From your sheet:
     M2 = -(3.0 / 16.0) * (F1 * a**2 + F2 * b**2) / (a + b)
 
     R1 = M2 / a + F1 / 2.0
@@ -1786,30 +1797,10 @@ def cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201):
 
     return x, V, M, delta
 
-# -------------------------------------------------
-# Patch: Continuous Beams — Two Spans / Three Supports
-# -------------------------------------------------
-_cat = "Continuous Beams — Two Spans / Three Supports (3 cases)"
-_cases = READY_CATALOG["Beam"][_cat]
 
-# Case 1: Two Unequal Spans with UDL
-_cases[0]["label"] = "CS2 - C1 (Unequal spans + UDL)"
-_cases[0]["inputs"] = {"a": 4.0, "b": 6.0, "w": 10.0}
-_cases[0]["func"] = cs2_c1_case
-_cases[0]["diagram_func"] = cs2_c1_diagram
-
-# Case 2: Two equal spans, UDL on one span
-_cases[1]["label"] = "CS2 - C2 (One span UDL)"
-_cases[1]["inputs"] = {"L": 5.0, "w": 10.0}
-_cases[1]["func"] = cs2_c2_case
-_cases[1]["diagram_func"] = cs2_c2_diagram
-
-# Case 3: Two Unequal Spans with central point loads
-_cases[2]["label"] = "CS2 - C3 (Central point loads)"
-_cases[2]["inputs"] = {"a": 4.0, "b": 6.0, "F1": 20.0, "F2": 20.0}
-_cases[2]["func"] = cs2_c3_case
-_cases[2]["diagram_func"] = cs2_c3_diagram
-
+# ================================
+# READY CATALOG (DATA ONLY)
+# ================================
 READY_CATALOG = {
     "Beam": {
         # Category 1: 5 cases
@@ -1837,7 +1828,7 @@ READY_CATALOG = {
             "OH", 4, {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}
         ),
 
-        # Category 6: 3 cases  ✅ IMPORTANT: ONLY make_cases here
+        # Category 6: 3 cases (patched below)
         "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases(
             "CS2", 3, {}
         ),
@@ -1853,6 +1844,31 @@ READY_CATALOG = {
         ),
     }
 }
+
+
+# ================================
+# PATCH CS2 (AFTER READY_CATALOG EXISTS)
+# ================================
+_cat = "Continuous Beams — Two Spans / Three Supports (3 cases)"
+_cases = READY_CATALOG["Beam"][_cat]
+
+# Case 1: Two Unequal Spans with UDL
+_cases[0]["label"] = "CS2 - C1 (Unequal spans + UDL)"
+_cases[0]["inputs"] = {"a": 4.0, "b": 6.0, "w": 10.0}
+_cases[0]["func"] = cs2_c1_case
+_cases[0]["diagram_func"] = cs2_c1_diagram
+
+# Case 2: Two equal spans, UDL on one span
+_cases[1]["label"] = "CS2 - C2 (One span UDL)"
+_cases[1]["inputs"] = {"L": 5.0, "w": 10.0}
+_cases[1]["func"] = cs2_c2_case
+_cases[1]["diagram_func"] = cs2_c2_diagram
+
+# Case 3: Two Unequal Spans with central point loads
+_cases[2]["label"] = "CS2 - C3 (Central point loads)"
+_cases[2]["inputs"] = {"a": 4.0, "b": 6.0, "F1": 20.0, "F2": 20.0}
+_cases[2]["func"] = cs2_c3_case
+_cases[2]["diagram_func"] = cs2_c3_diagram
 
 
 # Image mapping for ready beam cases (only cases 1 and 2 for now)
@@ -6858,6 +6874,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
