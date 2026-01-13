@@ -1333,7 +1333,7 @@ READY_CATALOG = {
         # Category 4: 2 cases
         "Cantilever Beams (1 case)": make_cases("C", 1, {"L_mm": 3000.0, "w": 10.0, "a": 1.5, "F": 20.0, "M": 0.0}),
         # Category 5: 3 cases
-        "Beams with Overhang (3 cases)": make_cases("OH", 3, {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}),
+        "Beams with Overhang (4 cases)": make_cases("OH", 4, {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}),
         # Category 6: 3 cases
         "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases("CS2", 3, {"L1": 4.0, "L2": 4.0, "w": 10.0}),
         # Category 7: 1 case
@@ -1364,11 +1364,12 @@ CASE_IMAGE_MAP = {
     # so mapping is for C-01.
     "C-01": "beam_case_img/CB-C1.png",
 
-    # --- Beams with Overhang (3 cases) ---
+    # --- Beams with Overhang (4 cases) ---
     # NOTE: your catalog prefix is "OH"
     "OH-01": "beam_case_img/OB-C1.png",
     "OH-02": "beam_case_img/OB-C2.png",
     "OH-03": "beam_case_img/OB-C3.png",
+    "OH-04": "beam_case_img/OB-C4.png",
 
     # --- Continuous Beams — Two Spans / Three Supports ---
     # NOTE: your catalog currently defines 2 cases (CS2-01, CS2-02)
@@ -1465,11 +1466,10 @@ READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["func"] = cant_c1_case
 READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["diagram_func"] = cant_c1_diagram
 READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["delta_max_func"] = cant_c1_delta_max
 
-READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["label"] = "OH - C1"
-READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["func"] = oh_c1_case
-READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["diagram_func"] = oh_c1_diagram
-READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["inputs"] = {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}
-
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["label"] = "OH - C1 (w1 on span, w2 on overhang)"
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["func"] = oh_c1_case
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["diagram_func"] = oh_c1_diagram
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["inputs"] = {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}
 
 def compute_delta_max_from_curve(delta):
     """Return max |delta| in meters from a deflection array (or None)."""
@@ -6323,6 +6323,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
