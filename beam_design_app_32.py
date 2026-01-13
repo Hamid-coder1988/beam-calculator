@@ -1773,8 +1773,6 @@ def cs2_c2_diagram(L, w, E=None, I=None, n=1201):
 
     return x, V, M, delta
 
-def cs2_c3_case
-
 READY_CATALOG = {
     "Beam": {
         # Category 1: 5 cases
@@ -6817,6 +6815,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
