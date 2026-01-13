@@ -1740,30 +1740,6 @@ def cs2_c3_case(a, b, F1, F2):
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
     return (0.0, Mmax, 0.0, Vmax, 0.0)
-# -------------------------------------------------
-# Patch: Continuous Beams — Two Spans / Three Supports
-# -------------------------------------------------
-_cat = "Continuous Beams — Two Spans / Three Supports (3 cases)"
-_cases = READY_CATALOG["Beam"][_cat]
-
-# Case 1: Two Unequal Spans with UDL
-_cases[0]["label"] = "CS2 - C1 (Unequal spans + UDL)"
-_cases[0]["inputs"] = {"a": 4.0, "b": 6.0, "w": 10.0}
-_cases[0]["func"] = cs2_c1_case
-_cases[0]["diagram_func"] = cs2_c1_diagram
-
-# Case 2: Two equal spans, UDL on one span
-_cases[1]["label"] = "CS2 - C2 (One span UDL)"
-_cases[1]["inputs"] = {"L": 5.0, "w": 10.0}
-_cases[1]["func"] = cs2_c2_case
-_cases[1]["diagram_func"] = cs2_c2_diagram
-
-# Case 3: Two Unequal Spans with central point loads
-_cases[2]["label"] = "CS2 - C3 (Central point loads)"
-_cases[2]["inputs"] = {"a": 4.0, "b": 6.0, "F1": 20.0, "F2": 20.0}
-_cases[2]["func"] = cs2_c3_case
-_cases[2]["diagram_func"] = cs2_c3_diagram
-
 
 def cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201):
     """
@@ -1809,6 +1785,30 @@ def cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201):
         delta = np.interp(x, xs, vs)
 
     return x, V, M, delta
+
+# -------------------------------------------------
+# Patch: Continuous Beams — Two Spans / Three Supports
+# -------------------------------------------------
+_cat = "Continuous Beams — Two Spans / Three Supports (3 cases)"
+_cases = READY_CATALOG["Beam"][_cat]
+
+# Case 1: Two Unequal Spans with UDL
+_cases[0]["label"] = "CS2 - C1 (Unequal spans + UDL)"
+_cases[0]["inputs"] = {"a": 4.0, "b": 6.0, "w": 10.0}
+_cases[0]["func"] = cs2_c1_case
+_cases[0]["diagram_func"] = cs2_c1_diagram
+
+# Case 2: Two equal spans, UDL on one span
+_cases[1]["label"] = "CS2 - C2 (One span UDL)"
+_cases[1]["inputs"] = {"L": 5.0, "w": 10.0}
+_cases[1]["func"] = cs2_c2_case
+_cases[1]["diagram_func"] = cs2_c2_diagram
+
+# Case 3: Two Unequal Spans with central point loads
+_cases[2]["label"] = "CS2 - C3 (Central point loads)"
+_cases[2]["inputs"] = {"a": 4.0, "b": 6.0, "F1": 20.0, "F2": 20.0}
+_cases[2]["func"] = cs2_c3_case
+_cases[2]["diagram_func"] = cs2_c3_diagram
 
 READY_CATALOG = {
     "Beam": {
@@ -6858,6 +6858,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
