@@ -1465,7 +1465,7 @@ READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["func"] = cant_c1_case
 READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["diagram_func"] = cant_c1_diagram
 READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["delta_max_func"] = cant_c1_delta_max
 
-READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["label"] = "OH - C1 (w1 on span, w2 on overhang)"
+READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["label"] = "OH - C1"
 READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["func"] = oh_c1_case
 READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["diagram_func"] = oh_c1_diagram
 READY_CATALOG["Beam"]["Beams with Overhang (3 cases)"][0]["inputs"] = {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}
@@ -6323,6 +6323,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
