@@ -2447,7 +2447,7 @@ def render_ready_cases_panel():
             "w1": "w1 (kN/m)",
             "w2": "w2 (kN/m)",
             "w3": "w3 (kN/m)",
-            "w4": "w4 (kN/m),
+            "w4": "w4 (kN/m)",
         }
         
         for i in range(0, len(keys), 3):
@@ -7187,6 +7187,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
