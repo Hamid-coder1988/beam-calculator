@@ -5080,14 +5080,18 @@ def render_report_tab():
         """
         <style>
         @media print {
-          header, footer, #MainMenu {visibility: hidden;}
-          section[data-testid="stSidebar"] {display: none;}
-          .block-container {padding-top: 0rem; padding-bottom: 0rem;}
+          header, footer, #MainMenu { display: none !important; }
+          section[data-testid="stSidebar"] { display: none !important; }
+    
+          /* Make sure main content is visible */
+          div[data-testid="stAppViewContainer"] { display: block !important; }
+          .block-container { padding-top: 0rem !important; padding-bottom: 0rem !important; }
         }
         </style>
         """,
         unsafe_allow_html=True
     )
+
     sr_display = st.session_state.get("sr_display")
     import math
     # Alias: section properties used throughout the report
@@ -5222,16 +5226,37 @@ def render_report_tab():
         components.html(
             """
             <script>
-              setTimeout(function(){
-                window.focus();
-                window.print();
-              }, 1200);
+              (function () {
+                function doPrint() {
+                  try {
+                    // Try printing the top window (best case)
+                    top.window.focus();
+                    top.window.print();
+                    return;
+                  } catch (e1) {}
+    
+                  try {
+                    // If top is blocked, try parent
+                    parent.window.focus();
+                    parent.window.print();
+                    return;
+                  } catch (e2) {}
+    
+                  try {
+                    // Last fallback
+                    window.focus();
+                    window.print();
+                  } catch (e3) {}
+                }
+    
+                // Give Streamlit a moment to finish rendering
+                setTimeout(doPrint, 1500);
+              })();
             </script>
             """,
             height=1,
         )
-    
-    st.markdown("---")
+
 
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
@@ -7184,6 +7209,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
