@@ -5202,7 +5202,10 @@ def render_report_tab():
         components.html(
             """
             <script>
-                window.print();
+                setTimeout(function () {
+                    parent.window.focus();
+                    parent.window.print();
+                }, 250);
             </script>
             """,
             height=0,
@@ -7161,6 +7164,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
