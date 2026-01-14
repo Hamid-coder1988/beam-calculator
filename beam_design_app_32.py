@@ -5345,17 +5345,17 @@ def render_report_tab():
     
         # Selected section summary — already nice (6 boxes per 2 rows)
         render_section_summary_like_props(material, sr_display, key_prefix="rpt_sum")
-    
+
     with cs2:
-        
         img_path = get_section_image(fam)
-        if img_path:
+    
+        if img_path and Path(img_path).exists():
             # push it a bit down + center horizontally in the right column
             st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
     
-            _l, _m, _r = st.columns([0.2, 1.6, 0.2])
+            _l, _m, _r = st.columns([0.35, 1.3, 0.35])  # slightly less huge than 0.2/1.6/0.2
             with _m:
-                st.image(img_path, width=400)
+                st.image(img_path, use_container_width=True)
         else:
             st.info("No image available for this family.")
 
@@ -7147,6 +7147,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
