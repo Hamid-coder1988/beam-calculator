@@ -432,429 +432,358 @@ def get_section_image(family: str):
 
     return None
     
-# =========================================================
-# READY CASES GALLERY SYSTEM (77 placeholders)
-# =========================================================
-# ============================
-# CASE 1: SSB-UDL
-# ============================
-def ss_udl_case(L, w):
-    """
-    Simply supported beam with full-span UDL.
-    Inputs: L (m), w (kN/m)
-    Returns (N, My, Mz, Vy, Vz) maxima for prefill.
-    """
-    Mmax = w * L**2 / 8.0   # kN·m
-    Vmax = w * L / 2.0      # kN
-    return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
+# ============================================================
+# Simply Supported Beams (SSB) — ALL LENGTHS IN mm
+# Units:
+#   L_mm, a, b, c, a1, a2 in mm
+#   w, w1, w2 in kN/m
+#   F, F1, F2, P in kN
+#   M1, M2 in kN·m
+#   E in Pa, I in m^4
+# ============================================================
 
-def ss_udl_diagram(L, w, E=None, I=None, n=200):
-    """
-    Returns x (m), V (kN), M (kN·m), delta (m) for SSB-UDL.
+import numpy as np
 
-    V(x) = w(L/2 - x)
-    M(x) = w x (L - x) / 2
-    δ(x) = w x / (24 E I) * (L^3 - 2Lx^2 + x^3)
-    """
-    x = np.linspace(0.0, L, n)
-
-    V = w * (L/2.0 - x)                 # kN
-    M = w * x * (L - x) / 2.0           # kN·m
-
-    delta = None
-    if E and I and I > 0:
-        w_Nm = w * 1000.0               # N/m
-        delta = (w_Nm * x / (24.0 * E * I)) * (L**3 - 2*L*x**2 + x**3)  # m
-
-    return x, V, M, delta
-
-def ss_udl_deflection_max(L, w, E, I):
-    """
-    δ_max = 5 w L^4 / (384 E I)
-    Inputs: L (m), w (kN/m), E (Pa), I (m^4)
-    Returns δ_max in meters.
-    """
-    w_Nm = w * 1000.0
-    return 5.0 * w_Nm * L**4 / (384.0 * E * I)
+def _mm_to_m(x_mm: float) -> float:
+    return float(x_mm) / 1000.0
 
 
-# ============================
-# CASE 2: SSB-CLAC (central point load)
-# ============================
-def ss_central_point_case(L, P):
-    """
-    Simply supported beam with a point load at midspan.
-    Inputs: L (m), P (kN)
-    Returns (N, My, Mz, Vy, Vz) maxima for prefill.
-    """
-    Mmax = P * L / 4.0      # kN·m
-    Vmax = P / 2.0          # kN
-    return (0.0, float(Mmax), 0.0, float(Vmax), 0.0)
-
-
-def ss_central_point_diagram(L, P, E=None, I=None, n=200):
-    """
-    Returns x (m), V (kN), M (kN·m), delta (m) for midspan point load.
-
-    Reactions: R = P/2
-    V(x) = +P/2 for x<L/2, -P/2 for x>=L/2
-    M(x) = P x /2 for x<L/2,  P(L-x)/2 for x>=L/2
-
-    Deflection:
-      δ(x) = P x / (48 E I) * (3L^2 - 4x^2) for x<=L/2
-      symmetrical about midspan
-    """
-    x = np.linspace(0.0, L, n)
-
-    V = np.where(x < L/2.0, P/2.0, -P/2.0)  # kN
-    M = np.where(x < L/2.0, P*x/2.0, P*(L-x)/2.0)  # kN·m
-
-    delta = None
-    if E and I and I > 0:
-        P_N = P * 1000.0  # N
-        # use left-half formula, mirror automatically by x definition
-        delta = (P_N * x / (48.0 * E * I)) * (3*L**2 - 4*x**2)  # m
-        # for x>L/2, formula gives negative; take symmetric absolute
-        # so we mirror shape:
-        delta = np.where(x <= L/2.0, delta, (P_N * (L-x) / (48.0 * E * I)) * (3*L**2 - 4*(L-x)**2))
-
-    return x, V, M, delta
-
-
-def ss_central_point_deflection_max(L, P, E, I):
-    """
-    δ_max = P L^3 / (48 E I)
-    Inputs: L (m), P (kN), E (Pa), I (m^4)
-    Returns δ_max in meters.
-    """
-    P_N = P * 1000.0
-    return P_N * L**3 / (48.0 * E * I)
-
-# ============================
-# CASE 3: SSB-C3
-# Simply supported beam, 2 unequal point loads + partial UDL
-# ============================
-
-def ssb_c3_diagram(L, P1, a1, P2, a2, w, a_udl, b_udl, E=None, I=None, n=801):
-    """
-    Simply supported beam with:
-      - Point load P1 at x = a1
-      - Point load P2 at x = a2
-      - Partial UDL of intensity w from x = a_udl to x = a_udl + b_udl
-
-    Units:
-      L, a1, a2, a_udl, b_udl in m
-      P1, P2 in kN
-      w in kN/m
-      E in Pa, I in m^4
-
-    Returns:
-      x (m), V (kN), M (kN·m), delta (m or None if E/I not given)
-    """
-    L = float(L)
-    P1 = float(P1)
-    P2 = float(P2)
-    w = float(w)
-    a1 = float(a1)
-    a2 = float(a2)
-    a_udl = float(a_udl)
-    b_udl = float(b_udl)
-
-    # clamp UDL to the span
-    udl_start = max(0.0, a_udl)
-    udl_end = min(L, a_udl + b_udl)
-    b_eff = max(0.0, udl_end - udl_start)
-
-    # x grid
-    x = np.linspace(0.0, L, n)
-
-    # ------------------
-    # Reactions R1, R2
-    # ------------------
-    W_udl = w * b_eff  # kN
-    if b_eff > 0.0:
-        x_udl_c = udl_start + b_eff / 2.0
-    else:
-        x_udl_c = 0.0
-
-    M_total = P1 * a1 + P2 * a2 + W_udl * x_udl_c
-    R1 = M_total / L
-    R2 = P1 + P2 + W_udl - R1
-
-    # ------------------
-    # Shear V(x)
-    # ------------------
-    V = np.full_like(x, R1, dtype=float)
-
-    # subtract point loads when x >= their positions
-    V = V - P1 * (x >= a1) - P2 * (x >= a2)
-
-    # UDL contribution
-    if b_eff > 0.0:
-        mask1 = (x >= udl_start) & (x <= udl_end)
-        mask2 = (x > udl_end)
-
-        V[mask1] -= w * (x[mask1] - udl_start)
-        V[mask2] -= w * b_eff
-
-    # ------------------
-    # Moment M(x)
-    # ------------------
-    M = R1 * x
-    M -= P1 * np.clip(x - a1, 0.0, None)
-    M -= P2 * np.clip(x - a2, 0.0, None)
-
-    if b_eff > 0.0:
-        M_udl = np.zeros_like(x)
-        # within UDL region
-        mask1 = (x >= udl_start) & (x <= udl_end)
-        M_udl[mask1] = w * (x[mask1] - udl_start)**2 / 2.0
-        # to the right of UDL
-        mask2 = (x > udl_end)
-        M_udl[mask2] = w * b_eff * (x[mask2] - (udl_start + b_eff / 2.0))
-        M -= M_udl
-
-    # ------------------
-    # Deflection δ(x) via numeric double integration of M/EI
-    # ------------------
-    delta = None
-    if E and I and I > 0 and L > 0:
-        M_Nm = M * 1000.0  # kN·m -> N·m
-        curvature = M_Nm / (E * I)  # 1/m
-
-        dx = np.diff(x)
-        theta = np.zeros_like(x)
-        delta_raw = np.zeros_like(x)
-
-        # integrate curvature -> slope
-        for i in range(len(x) - 1):
-            theta[i+1] = theta[i] + 0.5 * (curvature[i] + curvature[i+1]) * dx[i]
-
-        # integrate slope -> deflection
-        for i in range(len(x) - 1):
-            delta_raw[i+1] = delta_raw[i] + 0.5 * (theta[i] + theta[i+1]) * dx[i]
-
-        # enforce simply supported: δ(0) = δ(L) = 0
-        delta = delta_raw - (x / L) * delta_raw[-1]
-
-    return x, V, M, delta
-
-
-def ssb_c3_case(L, P1, a1, P2, a2, w, a_udl, b_udl):
-    """
-    Case function for SSB-C1 used to prefill Loads tab.
-    Returns (N, My, Mz, Vy, Vz) maxima (strong axis).
-    """
-    x, V, M, _ = ssb_c3_diagram(L, P1, a1, P2, a2, w, a_udl, b_udl, E=None, I=None)
+# ----------------------------
+# CASE 1: SSB-C1 (UDL full span)
+# ----------------------------
+def ss_udl_case(L_mm, w):
+    x, V, M, delta = ss_udl_diagram(L_mm, w, E=None, I=None, n=801)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
     return (0.0, Mmax, 0.0, Vmax, 0.0)
 
-def ssb_c4_diagram(L, a, b, c, w1, w2, E=None, I=None, n=400):
-    """
-    SSB - C4:
-      Simply supported beam, two different partial UDLs:
-        w1 over length a from the left support,
-        w2 over length c starting at x = a + b.
-      Total span = L.
+def ss_udl_diagram(L_mm, w, E=None, I=None, n=801):
+    L = _mm_to_m(L_mm)
+    w = float(w)
 
-    Inputs (all in m / kN/m):
-        L  - span length
-        a  - length of left UDL w1
-        b  - distance between the two UDLs
-        c  - length of right UDL w2
-        w1 - left UDL intensity (kN/m)
-        w2 - right UDL intensity (kN/m)
+    if L <= 0:
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
 
-    Returns:
-        x (m), V (kN), M (kN·m), delta (m or None if E/I not given)
-    """
-    L = float(L)
-    a = float(a)
-    b = float(b)
-    c = float(c)
+    x = np.linspace(0.0, L, n)
+
+    # Reactions
+    R1 = w * L / 2.0
+    R2 = w * L / 2.0
+
+    # Shear and moment
+    V = R1 - w * x
+    M = R1 * x - w * x**2 / 2.0
+
+    # Deflection (classic)
+    delta = None
+    if E and I and I > 0:
+        w_Nm = w * 1000.0  # kN/m -> N/m
+        delta = (w_Nm * x * (L**3 - 2*L*x**2 + x**3)) / (24.0 * E * I)
+
+    return x, V, M, delta
+
+def ss_udl_deflection_max(L_mm, w, E, I):
+    L = _mm_to_m(L_mm)
+    if not E or not I or I <= 0 or L <= 0:
+        return None
+    # max at midspan: 5 w L^4 / (384 EI)
+    w_Nm = float(w) * 1000.0
+    return (5.0 * w_Nm * L**4) / (384.0 * E * I)  # m
+
+
+# --------------------------------
+# CASE 2: SSB-C2 (central point load)
+# --------------------------------
+def ss_central_point_case(L_mm, F):
+    x, V, M, delta = ss_central_point_diagram(L_mm, F, E=None, I=None, n=801)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+def ss_central_point_diagram(L_mm, F, E=None, I=None, n=801):
+    L = _mm_to_m(L_mm)
+    F = float(F)
+
+    if L <= 0:
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
+
+    x = np.linspace(0.0, L, n)
+    xP = L / 2.0
+
+    # Reactions
+    R1 = F / 2.0
+    R2 = F / 2.0
+
+    # Heaviside for point load
+    H = (x >= xP).astype(float)
+
+    V = R1 - F * H
+    M = R1 * x - F * (x - xP) * H
+
+    delta = None
+    if E and I and I > 0:
+        # standard piecewise deflection, implemented numerically via M/EI integration
+        M_Nm = M * 1000.0  # kN·m -> N·m
+        kappa = M_Nm / (E * I)
+
+        dx = x[1] - x[0]
+        theta = np.cumsum(kappa) * dx
+        y = np.cumsum(theta) * dx
+
+        # enforce y(0)=0 and y(L)=0 via linear correction
+        y = y - (y[-1] / L) * x
+        delta = y
+
+    return x, V, M, delta
+
+def ss_central_point_deflection_max(L_mm, F, E, I):
+    L = _mm_to_m(L_mm)
+    if not E or not I or I <= 0 or L <= 0:
+        return None
+    # max at midspan: F L^3 / (48 EI)
+    F_N = float(F) * 1000.0
+    return (F_N * L**3) / (48.0 * E * I)  # m
+
+
+# -------------------------------------------------------------------------
+# CASE 3: SSB-C3 (Two point loads + partial UDL at any point)
+#
+# Your inputs:
+#   L_mm : span in mm
+#   F1   : kN, at distance a1 (mm) from LEFT support
+#   F2   : kN, at distance a2 (mm) from RIGHT support  -> x2 = L - a2
+#   w    : kN/m, partial UDL intensity
+#   a    : mm, distance from LEFT support to start of partial UDL
+#   b    : mm, length of partial UDL
+# -------------------------------------------------------------------------
+def ssb_c3_case(L_mm, F1, a1, F2, a2, w, a, b):
+    x, V, M, delta = ssb_c3_diagram(L_mm, F1, a1, F2, a2, w, a, b, E=None, I=None, n=1001)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+def ssb_c3_diagram(L_mm, F1, a1, F2, a2, w, a, b, E=None, I=None, n=1001):
+    L = _mm_to_m(L_mm)
+    F1 = float(F1)
+    F2 = float(F2)
+    w = float(w)
+
+    x1 = _mm_to_m(a1)                 # from left
+    x2 = L - _mm_to_m(a2)             # from left (because a2 is from right)
+
+    udl_start = _mm_to_m(a)
+    udl_len = _mm_to_m(b)
+    udl_end = udl_start + udl_len
+
+    if L <= 0:
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
+
+    # clamp positions into [0, L]
+    x1 = max(0.0, min(x1, L))
+    x2 = max(0.0, min(x2, L))
+    udl_start = max(0.0, min(udl_start, L))
+    udl_len = max(0.0, udl_len)
+    udl_end = max(udl_start, min(udl_end, L))
+    b_eff = max(0.0, udl_end - udl_start)
+
+    x = np.linspace(0.0, L, n)
+
+    # Resultant of partial UDL
+    W = w * b_eff
+    xW = udl_start + b_eff / 2.0 if b_eff > 0 else 0.0
+
+    # Reactions (classic simply supported)
+    # moment about left: R2*L = F1*x1 + F2*x2 + W*xW
+    Mtot = F1 * x1 + F2 * x2 + W * xW
+    R2 = Mtot / L
+    R1 = (F1 + F2 + W) - R2
+
+    # Shear using step functions
+    H1 = (x >= x1).astype(float)
+    H2 = (x >= x2).astype(float)
+
+    V = R1 - F1 * H1 - F2 * H2
+
+    # subtract partial UDL shear contribution
+    if b_eff > 0:
+        # within UDL: subtract w*(x-udl_start)
+        in_udl = (x >= udl_start) & (x <= udl_end)
+        V[in_udl] -= w * (x[in_udl] - udl_start)
+        # right of UDL: subtract full resultant W
+        right_udl = (x > udl_end)
+        V[right_udl] -= W
+
+    # Moment = integrate loads in closed form
+    M = R1 * x - F1 * (x - x1) * H1 - F2 * (x - x2) * H2
+
+    if b_eff > 0:
+        M_udl = np.zeros_like(x)
+        in_udl = (x >= udl_start) & (x <= udl_end)
+        M_udl[in_udl] = w * (x[in_udl] - udl_start)**2 / 2.0
+
+        right_udl = (x > udl_end)
+        M_udl[right_udl] = W * (x[right_udl] - xW)
+
+        M -= M_udl
+
+    # Deflection by numeric integration of curvature M/EI
+    delta = None
+    if E and I and I > 0:
+        M_Nm = M * 1000.0  # kN·m -> N·m
+        kappa = M_Nm / (E * I)
+
+        dx = x[1] - x[0]
+        theta = np.cumsum(kappa) * dx
+        y = np.cumsum(theta) * dx
+
+        # enforce y(0)=0 and y(L)=0 via linear correction
+        y = y - (y[-1] / L) * x
+        delta = y
+
+    return x, V, M, delta
+
+
+# -----------------------------------------------
+# CASE 4: SSB-C4 (two partial UDLs) — lengths in mm
+# -----------------------------------------------
+def ssb_c4_case(L_mm, a, b, c, w1, w2):
+    x, V, M, delta = ssb_c4_diagram(L_mm, a, b, c, w1, w2, E=None, I=None, n=801)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+def ssb_c4_diagram(L_mm, a, b, c, w1, w2, E=None, I=None, n=801):
+    L = _mm_to_m(L_mm)
+    a = _mm_to_m(a)
+    b = _mm_to_m(b)
+    c = _mm_to_m(c)
     w1 = float(w1)
     w2 = float(w2)
 
-    # Resultant loads and centroids
-    W1 = w1 * a
-    x1 = a / 2.0                      # centroid of left UDL
+    if L <= 0:
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
 
-    x0_2 = a + b                      # start of right UDL
-    W2 = w2 * c
-    x2 = x0_2 + c / 2.0               # centroid of right UDL
+    # spans sanity
+    a = max(0.0, min(a, L))
+    b = max(0.0, b)
+    c = max(0.0, min(c, max(0.0, L - a)))
 
-    # Reactions from global equilibrium
-    R2 = (W1 * x1 + W2 * x2) / L
-    R1 = W1 + W2 - R2
+    x0_1 = 0.0
+    x1_1 = a
+    x0_2 = a + b
+    x1_2 = min(L, x0_2 + c)
 
-    # Discretisation
+    W1 = w1 * max(0.0, x1_1 - x0_1)
+    xW1 = (x0_1 + x1_1) / 2.0 if W1 > 0 else 0.0
+
+    W2 = w2 * max(0.0, x1_2 - x0_2)
+    xW2 = (x0_2 + x1_2) / 2.0 if W2 > 0 else 0.0
+
+    # reactions
+    Mtot = W1 * xW1 + W2 * xW2
+    R2 = Mtot / L
+    R1 = (W1 + W2) - R2
+
     x = np.linspace(0.0, L, n)
 
-    # ------------------
-    # Shear diagram V(x)
-    # ------------------
-    V = np.full_like(x, R1, dtype=float)
+    V = np.full_like(x, R1)
 
-    # UDL1: from 0 to a, intensity w1
-    mask1 = (x >= 0.0) & (x <= a)
-    V[mask1] -= w1 * (x[mask1] - 0.0)
+    # subtract distributed shears
+    # UDL 1 on [0, a]
+    m1 = (x >= x0_1) & (x <= x1_1)
+    V[m1] -= w1 * (x[m1] - x0_1)
+    V[x > x1_1] -= W1
 
-    mask1_right = (x > a)
-    V[mask1_right] -= w1 * a
+    # UDL 2 on [x0_2, x1_2]
+    m2 = (x >= x0_2) & (x <= x1_2)
+    V[m2] -= w2 * (x[m2] - x0_2)
+    V[x > x1_2] -= W2
 
-    # UDL2: from x0_2 = a + b to x0_2 + c, intensity w2
-    x0_2_end = x0_2 + c
-    mask2 = (x >= x0_2) & (x <= x0_2_end)
-    V[mask2] -= w2 * (x[mask2] - x0_2)
+    # moment
+    M = R1 * x
 
-    mask2_right = (x > x0_2_end)
-    V[mask2_right] -= w2 * c
+    # subtract moment of UDLs
+    # UDL1
+    M1 = np.zeros_like(x)
+    m1 = (x >= x0_1) & (x <= x1_1)
+    M1[m1] = w1 * (x[m1] - x0_1)**2 / 2.0
+    M1[x > x1_1] = W1 * (x[x > x1_1] - xW1)
+    M -= M1
 
-    # ------------------
-    # Bending moment M(x) via numeric integration of V(x)
-    # ------------------
-    M = np.zeros_like(x)
-    dx = np.diff(x)
-    for i in range(len(x) - 1):
-        M[i+1] = M[i] + 0.5 * (V[i] + V[i+1]) * dx[i]  # kN·m
+    # UDL2
+    M2 = np.zeros_like(x)
+    m2 = (x >= x0_2) & (x <= x1_2)
+    M2[m2] = w2 * (x[m2] - x0_2)**2 / 2.0
+    M2[x > x1_2] = W2 * (x[x > x1_2] - xW2)
+    M -= M2
 
-    # ------------------
-    # Deflection δ(x) via numeric double integration of M/EI
-    # ------------------
     delta = None
-    if E and I and I > 0 and L > 0:
-        M_Nm = M * 1000.0  # kN·m → N·m
-        curvature = M_Nm / (E * I)  # 1/m
-
-        theta = np.zeros_like(x)
-        delta_raw = np.zeros_like(x)
-
-        # integrate curvature -> slope
-        for i in range(len(x) - 1):
-            theta[i+1] = theta[i] + 0.5 * (curvature[i] + curvature[i+1]) * dx[i]
-
-        # integrate slope -> deflection
-        for i in range(len(x) - 1):
-            delta_raw[i+1] = delta_raw[i] + 0.5 * (theta[i] + theta[i+1]) * dx[i]
-
-        # enforce simply supported: δ(0) = δ(L) = 0
-        delta = delta_raw - (x / L) * delta_raw[-1]
+    if E and I and I > 0:
+        M_Nm = M * 1000.0
+        kappa = M_Nm / (E * I)
+        dx = x[1] - x[0]
+        theta = np.cumsum(kappa) * dx
+        y = np.cumsum(theta) * dx
+        y = y - (y[-1] / L) * x
+        delta = y
 
     return x, V, M, delta
 
 
-def ssb_c4_case(L, a, b, c, w1, w2):
-    """
-    Case function for SSB - C4 used to prefill Loads tab.
-    Returns (N, My, Mz, Vy, Vz) maxima (strong axis).
-    """
-    x, V, M, _ = ssb_c4_diagram(L, a, b, c, w1, w2, E=None, I=None)
+# --------------------------------------------
+# CASE 5: SSB-C5 (UDL + mid-point load + end moments) — L in mm
+# --------------------------------------------
+def ssb_c5_case(L_mm, w, P, M1, M2):
+    x, V, M, delta = ssb_c5_diagram(L_mm, w, P, M1, M2, E=None, I=None, n=1001)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
     return (0.0, Mmax, 0.0, Vmax, 0.0)
-# ============================
-# CASE 5: SSB-C5
-# Simply supported beam, full-span UDL + central point load
-# Superposition of C1 (UDL) and C2 (central point load)
-# ============================
 
-# ============================
-# CASE 5: SSB-C5
-# Simply supported beam, UDL + mid-point load + end moments M1, M2
-# ============================
-
-def ssb_c5_diagram(L, w, P, M1, M2, E=None, I=None, n=801):
-    """
-    Simply supported beam with:
-      - uniform load w [kN/m] over full span L
-      - central point load P [kN] at x = L/2
-      - end moments M1, M2 [kN·m] at x = 0 and x = L
-
-    Returns:
-      x (m), V (kN), M (kN·m), delta (m or None)
-    """
-    L = float(L)
+def ssb_c5_diagram(L_mm, w, P, M1, M2, E=None, I=None, n=1001):
+    L = _mm_to_m(L_mm)
     w = float(w)
     P = float(P)
     M1 = float(M1)
     M2 = float(M2)
 
     if L <= 0.0:
-        x = np.array([0.0, 1.0])
-        V = np.array([0.0, 0.0])
-        M = np.array([0.0, 0.0])
-        return x, V, M, None
+        x = np.array([0.0, 0.0])
+        return x, np.zeros_like(x), np.zeros_like(x), None
 
-    # ------------------
-    # Reactions (superposition of UDL + point load + end moments)
-    # ------------------
-    # Total vertical load:
-    #   W = wL + P
-    # Sum of moments about left support:
-    #   -M1 + R2*L - wL*(L/2) - P*(L/2) + M2 = 0
-    # → R2 = wL/2 + P/2 + (M1 - M2)/L
-    W = w * L + P
-    R2 = w * L / 2.0 + P / 2.0 + (M1 - M2) / L
-    R1 = W - R2
-
-    # ------------------
-    # Shear V(x)
-    # ------------------
     x = np.linspace(0.0, L, n)
-    V = np.full_like(x, R1, dtype=float)
+    xP = L / 2.0
 
-    # UDL over full span
-    V -= w * x
+    # Reactions from equilibrium:
+    # SumV: R1 + R2 = wL + P
+    # SumM about left: R2*L = wL*(L/2) + P*(L/2) + M1 + M2  (sign convention as before)
+    # Keep the SAME sign convention you used earlier: end moments directly add to bending diagram.
+    R2 = (w * L * (L / 2.0) + P * (L / 2.0) + M1 + M2) / L
+    R1 = (w * L + P) - R2
 
-    # Point load P at midspan
-    maskP = (x >= L / 2.0)
-    V[maskP] -= P
+    H = (x >= xP).astype(float)
 
-    # ------------------
-    # Bending moment M(x) by integrating V(x), starting from M1 at x=0+
-    # ------------------
-    M = np.zeros_like(x)
-    M[0] = M1
-    dx = np.diff(x)
-    for i in range(len(x) - 1):
-        M[i+1] = M[i] + 0.5 * (V[i] + V[i+1]) * dx[i]
+    V = R1 - w * x - P * H
+    M = R1 * x - w * x**2 / 2.0 - P * (x - xP) * H
 
-    # ------------------
-    # Deflection δ(x) via numeric double integration of M/EI
-    # ------------------
+    # add end moments linearly (same as your older approach)
+    M = M + M1 * (1.0 - x / L) + M2 * (x / L)
+
     delta = None
-    if E and I and I > 0 and L > 0:
-        M_Nm = M * 1000.0  # kN·m -> N·m
-        curvature = M_Nm / (E * I)  # 1/m
-
-        theta = np.zeros_like(x)
-        delta_raw = np.zeros_like(x)
-
-        # integrate curvature -> slope
-        for i in range(len(x) - 1):
-            theta[i+1] = theta[i] + 0.5 * (curvature[i] + curvature[i+1]) * dx[i]
-
-        # integrate slope -> deflection
-        for i in range(len(x) - 1):
-            delta_raw[i+1] = delta_raw[i] + 0.5 * (theta[i] + theta[i+1]) * dx[i]
-
-        # enforce simply supported: δ(0) = δ(L) = 0
-        delta = delta_raw - (x / L) * delta_raw[-1]
+    if E and I and I > 0:
+        M_Nm = M * 1000.0
+        kappa = M_Nm / (E * I)
+        dx = x[1] - x[0]
+        theta = np.cumsum(kappa) * dx
+        y = np.cumsum(theta) * dx
+        y = y - (y[-1] / L) * x
+        delta = y
 
     return x, V, M, delta
 
-
-def ssb_c5_case(L, w, P, M1, M2):
-    """
-    Case function for SSB - C5 used to prefill Loads tab.
-    Returns (N, My, Mz, Vy, Vz) based on max |M| and |V|.
-    """
-    x, V, M, _ = ssb_c5_diagram(L, w, P, M1, M2, E=None, I=None, n=801)
-    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
-    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
-    # N, My, Mz, Vy, Vz → strong axis
-    return (0.0, Mmax, 0.0, Vmax, 0.0)
 
 def dummy_case_func(*args, **kwargs):
     return (0.0, 0.0, 0.0, 0.0, 0.0)
@@ -870,6 +799,8 @@ def make_cases(prefix, n, default_inputs):
             "func": dummy_case_func
         })
     return cases
+
+
 def feb_c1_case(L_mm, w, a, F):
     """
     FEB-C1: Propped cantilever (pin at x=0, fixed at x=L)
@@ -2218,57 +2149,53 @@ if "Beam" in READY_CATALOG:
                 case["img_path"] = CASE_IMAGE_MAP[key]
 
 
-# ---- Patch Case 1 of Simply Supported Beams to real UDL formulas ----
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["label"] = "SSB -  C1"
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["inputs"] = {"L": 6.0, "w": 10.0}
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["func"] = ss_udl_case
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][0]["diagram_func"] = ss_udl_diagram
+# ============================================================
+# Patch: Simply Supported Beams (5 cases)  -> ALL length inputs in mm
+# ============================================================
+_cat = "Simply Supported Beams (5 cases)"
+_cases = READY_CATALOG["Beam"][_cat]
 
-# ---- Patch Case 2 of Simply Supported Beams: central point load ----
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["label"] = "SSB -  C2"
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["inputs"] = {"L": 6.0, "P": 20.0}
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["func"] = ss_central_point_case
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][1]["diagram_func"] = ss_central_point_diagram
+# Case 1: UDL full span
+_cases[0]["label"] = "SSB - C1 (UDL full span)"
+_cases[0]["inputs"] = {"L_mm": 6000.0, "w": 10.0}
+_cases[0]["func"] = ss_udl_case
+_cases[0]["diagram_func"] = ss_udl_diagram
+_cases[0]["delta_max_func"] = ss_udl_deflection_max
 
-# ---- Patch Case 3 of Simply Supported Beams: SSB-C1 (2P + partial UDL) ----
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["label"] = "SSB - C3"
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["inputs"] = {
-    "L": 6.0,
-    "P1": 50.0,
-    "a1": 2.0,
-    "P2": 30.0,
-    "a2": 4.0,
-    "w": 10.0,
-    "a_udl": 1.5,
-    "b_udl": 3.0,
+# Case 2: Central point load
+_cases[1]["label"] = "SSB - C2 (Central point load)"
+_cases[1]["inputs"] = {"L_mm": 6000.0, "F": 20.0}
+_cases[1]["func"] = ss_central_point_case
+_cases[1]["diagram_func"] = ss_central_point_diagram
+_cases[1]["delta_max_func"] = ss_central_point_deflection_max
+
+# Case 3: Two point loads + partial UDL
+_cases[2]["label"] = "SSB - C3 (F1+F2 + partial UDL)"
+_cases[2]["inputs"] = {
+    "L_mm": 6000.0,
+    "F1": 20.0,
+    "a1": 1500.0,  # mm from LEFT support
+    "F2": 25.0,
+    "a2": 1000.0,  # mm from RIGHT support
+    "w": 8.0,
+    "a": 2000.0,   # mm from LEFT to start of partial UDL
+    "b": 1500.0,   # mm length of partial UDL
 }
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["func"] = ssb_c3_case
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][2]["diagram_func"] = ssb_c3_diagram
+_cases[2]["func"] = ssb_c3_case
+_cases[2]["diagram_func"] = ssb_c3_diagram
 
-# ---- Patch Case 4 of Simply Supported Beams: SSB-C4 (two partial UDLs) ----
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["label"] = "SSB - C4"
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["inputs"] = {
-    "L": 6.0,   # total span (m)
-    "a": 2.0,   # length of left UDL w1
-    "b": 2.0,   # gap between UDLs
-    "c": 2.0,   # length of right UDL w2
-    "w1": 20.0, # left UDL (kN/m)
-    "w2": 10.0, # right UDL (kN/m)
-}
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["func"] = ssb_c4_case
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][3]["diagram_func"] = ssb_c4_diagram
+# Case 4: Two partial UDLs (your existing SSB-C4 but in mm)
+_cases[3]["label"] = "SSB - C4 (Two partial UDLs)"
+_cases[3]["inputs"] = {"L_mm": 6000.0, "a": 1500.0, "b": 1000.0, "c": 1500.0, "w1": 10.0, "w2": 6.0}
+_cases[3]["func"] = ssb_c4_case
+_cases[3]["diagram_func"] = ssb_c4_diagram
 
-# ---- Patch Case 5 of Simply Supported Beams: SSB-C5 (UDL + mid-point load + end moments) ----
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["label"] = "SSB - C5"
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["inputs"] = {
-    "L": 6.0,   # span [m]
-    "w": 10.0,  # UDL [kN/m]
-    "P": 20.0,  # midspan point load [kN]
-    "M1": 50.0, # end moment at x=0 [kN·m]
-    "M2": 20.0, # end moment at x=L [kN·m]
-}
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["func"] = ssb_c5_case
-READY_CATALOG["Beam"]["Simply Supported Beams (5 cases)"][4]["diagram_func"] = ssb_c5_diagram
+# Case 5: UDL + mid-point load + end moments (now L_mm)
+_cases[4]["label"] = "SSB - C5"
+_cases[4]["inputs"] = {"L_mm": 6000.0, "w": 10.0, "P": 20.0, "M1": 50.0, "M2": 20.0}
+_cases[4]["func"] = ssb_c5_case
+_cases[4]["diagram_func"] = ssb_c5_diagram
+
 
 # ---- Patch "Beams Fixed at one end (1 case)" to be FEB-C1 (propped cantilever: UDL + point load) ----
 READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["label"] = "FEB - C1"
@@ -2437,9 +2364,11 @@ def render_ready_cases_panel():
             "L_mm": "L (mm)",
             "L": "L (m)",
             "w": "w (kN/m)",
-            "a": "a (m)",
-            "b": "b (m)",
-            "c": "c (m)",
+            "a1": "a1 (mm from LEFT)",
+            "a2": "a2 (mm from RIGHT)",
+            "a": "a (mm)",
+            "b": "b (mm)",
+            "c": "c (mm)",
             "F": "F (kN)",
             "F1": "F1 (kN)",
             "F2": "F2 (kN)",
@@ -2479,8 +2408,12 @@ def render_ready_cases_panel():
                 return
 
             # Basic mapping
-            st.session_state["L_in"] = float(input_vals.get("L", 6.0))
-            st.session_state["L_mm_in"] = st.session_state["L_in"] * 1000.0
+            L_in_m = float(input_vals.get("L", 0.0))
+            if (not L_in_m or L_in_m <= 0.0) and ("L_mm" in input_vals):
+                L_in_m = float(input_vals["L_mm"]) / 1000.0
+            
+            st.session_state["L_in"] = L_in_m
+            st.session_state["L_mm_in"] = L_in_m * 1000.0
 
             st.session_state["N_in"] = float(N)
 
@@ -7187,6 +7120,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
