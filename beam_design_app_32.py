@@ -5468,7 +5468,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 6. Detailed calculations
     # ----------------------------------------------------
-    with st.expander("Detailed calculations", expanded=PRINT_MODE)):
+    with st.expander("Detailed calculations", expanded=PRINT_MODE):
         report_h3("6. Detailed calculations")
         report_h4("6.1 Verification of cross-section strength (ULS, checks 1–14)")
     
@@ -7176,6 +7176,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
