@@ -5355,7 +5355,7 @@ def render_report_tab():
     
             _l, _m, _r = st.columns([1, 2, 1])
             with _m:
-                st.image(img_path, width=340)
+                st.image(img_path, width=400)
         else:
             st.info("No image available for this family.")
 
@@ -7150,6 +7150,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
