@@ -5198,21 +5198,30 @@ def render_report_tab():
     
     st.markdown("### Save report")
     
+    # --- click -> set a flag ---
     if st.button("🖨️ Print / Save as PDF", key="rpt_print_pdf"):
+        st.session_state["do_print_report"] = True
+    
+    # --- render the JS when the flag is set (and then reset the flag) ---
+    if st.session_state.get("do_print_report", False):
         components.html(
             """
             <script>
                 setTimeout(function () {
-                    parent.window.focus();
-                    parent.window.print();
-                }, 250);
+                    try {
+                        top.window.focus();
+                        top.window.print();
+                    } catch (e) {
+                        parent.window.focus();
+                        parent.window.print();
+                    }
+                }, 400);
             </script>
             """,
-            height=0,
+            height=1,
         )
-    
+        st.session_state["do_print_report"] = False
     st.markdown("---")
-
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
     # ----------------------------------------------------
@@ -7164,6 +7173,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
