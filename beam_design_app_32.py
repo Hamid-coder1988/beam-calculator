@@ -5353,7 +5353,7 @@ def render_report_tab():
             # push it a bit down + center horizontally in the right column
             st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
     
-            _l, _m, _r = st.columns([1, 2, 1])
+            _l, _m, _r = st.columns([0.2, 1.6, 0.2])
             with _m:
                 st.image(img_path, width=400)
         else:
@@ -7150,6 +7150,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
