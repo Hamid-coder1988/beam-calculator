@@ -7089,7 +7089,7 @@ with tab3:
         img_path = get_section_image(sr_display.get("family", ""))
         
         # Wider middle column -> bigger image possible
-        _l, _m, _r = st.columns([0.2, 1.6, 0.2])
+        _l, _m, _r = st.columns([0.45, 1.1, 0.45])
         
         with _m:
             if img_path and Path(img_path).exists():
@@ -7147,6 +7147,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
