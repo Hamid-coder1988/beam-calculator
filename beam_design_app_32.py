@@ -5314,21 +5314,52 @@ def render_report_tab():
     report_h4("3.2 Section data")
 
     cs1, cs2 = st.columns(2)
+    
     with cs1:
-        st.text_input("Section family", value=fam, disabled=True, key="rpt_cs_family")
-        st.text_input("Section size", value=name, disabled=True, key="rpt_cs_name")
-
+        # --- one-line section identity (same "box row" vibe as the summary below) ---
+        r1, r2, r3 = st.columns(3)
+    
+        with r1:
+            st.text_input("Section family", value=fam, disabled=True, key="rpt_cs_family")
+        with r2:
+            st.text_input("Section size", value=name, disabled=True, key="rpt_cs_name")
+        with r3:
+            # Total mass = L [m] * unit mass [kg/m]
+            try:
+                unit_mass = float(sr_display.get("m_kg_per_m", 0.0) or 0.0)
+            except Exception:
+                unit_mass = 0.0
+    
+            try:
+                L_m = float(L)
+            except Exception:
+                L_m = 0.0
+    
+            total_mass = unit_mass * L_m
+            st.number_input(
+                "Total mass [kg]",
+                value=float(total_mass),
+                disabled=True,
+                key="rpt_total_mass",
+            )
+    
         # Selected section summary — already nice (6 boxes per 2 rows)
         render_section_summary_like_props(material, sr_display, key_prefix="rpt_sum")
-
+    
     with cs2:
+        st.markdown("Cross-section schematic")
+    
         img_path = get_section_image(fam)
         if img_path:
-            st.markdown("Cross-section schematic")
-            st.image(img_path, width=260)
+            # push it a bit down + center horizontally in the right column
+            st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+    
+            _l, _m, _r = st.columns([1, 2, 1])
+            with _m:
+                st.image(img_path, width=260)
         else:
-            st.markdown("Cross-section schematic")
             st.info("No image available for this family.")
+
 
     # full DB section properties
     with st.expander("3.3 Section properties from DB", expanded=False):
@@ -7120,6 +7151,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
