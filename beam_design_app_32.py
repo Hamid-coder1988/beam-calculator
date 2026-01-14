@@ -7083,33 +7083,30 @@ with tab3:
             key_prefix=f"sum_tab1_{prefix_id}"
         )
 
-        # --- Cross-section preview (centered, with image if available) ---
+        # --- Cross-section preview (bigger + centered) ---
         st.markdown("### Cross-section preview")
-
+        
         img_path = get_section_image(sr_display.get("family", ""))
-
-        # Perfect centering: middle column wider than sides
-        left, center, right = st.columns([3, 4, 3])
-
-        with center:
+        
+        # Wider middle column -> bigger image possible
+        _l, _m, _r = st.columns([0.2, 1.6, 0.2])
+        
+        with _m:
             if img_path and Path(img_path).exists():
-                st.image(
-                    img_path,
-                    width=320,
-                    use_container_width=False
-                )
+                st.image(img_path, use_container_width=True)
             else:
                 render_section_preview_placeholder(
                     title=f"{sr_display.get('family','')} {sr_display.get('name','')}",
                     key_prefix=f"tab1_prev_{prefix_id}"
                 )
-
-        # --- DB properties ---
-        with st.expander("Section properties", expanded=False):
-            render_section_properties_readonly(
-                sr_display,
-                key_prefix=f"tab1_db_{prefix_id}"
-            )
+        
+        
+                # --- DB properties ---
+                with st.expander("Section properties", expanded=False):
+                    render_section_properties_readonly(
+                        sr_display,
+                        key_prefix=f"tab1_db_{prefix_id}"
+                    )
 
     else:
         st.info("Select a section to continue.")
@@ -7150,6 +7147,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
