@@ -5347,8 +5347,7 @@ def render_report_tab():
         render_section_summary_like_props(material, sr_display, key_prefix="rpt_sum")
     
     with cs2:
-        st.markdown("Cross-section schematic")
-    
+        
         img_path = get_section_image(fam)
         if img_path:
             # push it a bit down + center horizontally in the right column
@@ -5356,7 +5355,7 @@ def render_report_tab():
     
             _l, _m, _r = st.columns([1, 2, 1])
             with _m:
-                st.image(img_path, width=260)
+                st.image(img_path, width=340)
         else:
             st.info("No image available for this family.")
 
@@ -7151,6 +7150,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
