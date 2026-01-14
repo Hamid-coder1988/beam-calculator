@@ -10,6 +10,7 @@ import numbers
 import numpy as np
 import matplotlib.pyplot as plt
 import io
+import streamlit.components.v1 as components
 from pathlib import Path
 
 # -------------------------
@@ -5071,6 +5072,19 @@ def report_status_badge(util):
         st.markdown(f"❓ **{util}**", unsafe_allow_html=True)
 
 def render_report_tab():
+    st.markdown(
+    """
+    <style>
+    @media print {
+      /* Hide Streamlit UI junk */
+      header, footer, #MainMenu {visibility: hidden;}
+      /* Reduce page padding a bit */
+      .block-container {padding-top: 0rem; padding-bottom: 0rem;}
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+    )
     sr_display = st.session_state.get("sr_display")
     import math
     # Alias: section properties used throughout the report
@@ -5181,19 +5195,24 @@ def render_report_tab():
     # PDF download (top)
     # ----------------------------------------------------
     report_h4("Save report")
-    if HAS_RL:
-        pdf_buf = build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras)
-        if pdf_buf:
-            st.download_button(
-                "💾 Save as PDF",
-                data=pdf_buf,
-                file_name="EngiSnap_Beam_Report.pdf",
-                mime="application/pdf",
-                key="rpt_pdf_btn_top",
-            )
-    else:
-        st.warning("PDF export not available (reportlab not installed).")
-
+    import streamlit.components.v1 as components
+    
+    st.markdown("### Save report")
+    
+    if st.button("🖨️ Print / Save as PDF", key="rpt_print_pdf"):
+        components.html(
+            """
+            <script>
+                window.print();
+            </script>
+            """,
+            height=0,
+        )
+    
+    st.caption(
+        "Tip: In the print dialog choose 'Save as PDF' and enable 'Background graphics' for best results."
+    )
+    
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -7147,6 +7166,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
