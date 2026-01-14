@@ -5072,21 +5072,21 @@ def report_status_badge(util):
         st.markdown(f"❓ **{util}**", unsafe_allow_html=True)
 
 def render_report_tab():
-    # --- detect print mode via query param ---
-    qp = st.query_params
-    PRINT_MODE = (qp.get("print", "0") == "1")
+    # --- print mode (same tab) ---
+    if "print_mode" not in st.session_state:
+        st.session_state["print_mode"] = False
+    PRINT_MODE = st.session_state["print_mode"]
     st.markdown(
-    """
-    <style>
-    @media print {
-      /* Hide Streamlit UI junk */
-      header, footer, #MainMenu {visibility: hidden;}
-      /* Reduce page padding a bit */
-      .block-container {padding-top: 0rem; padding-bottom: 0rem;}
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
+        """
+        <style>
+        @media print {
+          header, footer, #MainMenu {visibility: hidden;}
+          section[data-testid="stSidebar"] {display: none;}
+          .block-container {padding-top: 0rem; padding-bottom: 0rem;}
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
     )
     sr_display = st.session_state.get("sr_display")
     import math
@@ -5199,25 +5199,33 @@ def render_report_tab():
     # ----------------------------------------------------
     st.markdown("### Save report")
     
-    if not PRINT_MODE:
-        # Open a dedicated print view in a new tab
-        st.link_button(
-            "🖨️ Open print view (then Save as PDF)",
-            url="?print=1",
-            use_container_width=False
-        )
-        st.caption("In the print view: Ctrl+P → Save as PDF (enable Background graphics).")
-    else:
-        st.success("Print view mode: opening print dialog…")
+    c1, c2 = st.columns([1, 2])
     
-        # Auto-print AFTER content is rendered
+    with c1:
+        if not PRINT_MODE:
+            if st.button("🖨️ Print / Save as PDF", key="rpt_print_same_tab"):
+                st.session_state["print_mode"] = True
+                st.rerun()
+        else:
+            if st.button("⬅️ Back to app", key="rpt_print_back"):
+                st.session_state["print_mode"] = False
+                st.rerun()
+    
+    with c2:
+        if not PRINT_MODE:
+            st.caption("Tip: In the print dialog choose 'Save as PDF' and enable 'Background graphics'.")
+        else:
+            st.caption("Print mode is ON. The print dialog will open automatically.")
+    
+    # auto-print when entering print mode
+    if PRINT_MODE:
         components.html(
             """
             <script>
               setTimeout(function(){
-                try { top.window.focus(); top.window.print(); }
-                catch(e){ parent.window.focus(); parent.window.print(); }
-              }, 1800);
+                window.focus();
+                window.print();
+              }, 1200);
             </script>
             """,
             height=1,
@@ -7176,6 +7184,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
