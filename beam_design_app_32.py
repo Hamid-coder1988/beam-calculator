@@ -5207,15 +5207,28 @@ def render_report_tab():
         components.html(
             """
             <script>
-                setTimeout(function () {
-                    try {
-                        top.window.focus();
-                        top.window.print();
-                    } catch (e) {
-                        parent.window.focus();
-                        parent.window.print();
-                    }
-                }, 400);
+              (function () {
+                // 1) Open all expanders (<details>) so content exists in DOM
+                document.querySelectorAll('details').forEach(d => d.open = true);
+        
+                // 2) Force Streamlit to render content by scrolling to bottom then back
+                const y = top.window.scrollY || 0;
+        
+                setTimeout(() => {
+                  top.window.scrollTo(0, document.body.scrollHeight);
+        
+                  setTimeout(() => {
+                    top.window.scrollTo(0, y);
+        
+                    // 3) Now print (after DOM has content)
+                    setTimeout(() => {
+                      top.window.focus();
+                      top.window.print();
+                    }, 400);
+        
+                  }, 700);
+                }, 200);
+              })();
             </script>
             """,
             height=1,
@@ -7173,6 +7186,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
