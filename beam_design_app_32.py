@@ -5208,10 +5208,6 @@ def render_report_tab():
             height=0,
         )
     
-    st.caption(
-        "Tip: In the print dialog choose 'Save as PDF' and enable 'Background graphics' for best results."
-    )
-    
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -7165,6 +7161,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
