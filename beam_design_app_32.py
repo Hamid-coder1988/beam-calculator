@@ -5072,6 +5072,9 @@ def report_status_badge(util):
         st.markdown(f"❓ **{util}**", unsafe_allow_html=True)
 
 def render_report_tab():
+    # --- detect print mode via query param ---
+    qp = st.query_params
+    PRINT_MODE = (qp.get("print", "0") == "1")
     st.markdown(
     """
     <style>
@@ -5194,47 +5197,34 @@ def render_report_tab():
     # ----------------------------------------------------
     # PDF download (top)
     # ----------------------------------------------------
-    import streamlit.components.v1 as components
-    
     st.markdown("### Save report")
     
-    # --- click -> set a flag ---
-    if st.button("🖨️ Print / Save as PDF", key="rpt_print_pdf"):
-        st.session_state["do_print_report"] = True
+    if not PRINT_MODE:
+        # Open a dedicated print view in a new tab
+        st.link_button(
+            "🖨️ Open print view (then Save as PDF)",
+            url="?print=1",
+            use_container_width=False
+        )
+        st.caption("In the print view: Ctrl+P → Save as PDF (enable Background graphics).")
+    else:
+        st.success("Print view mode: opening print dialog…")
     
-    # --- render the JS when the flag is set (and then reset the flag) ---
-    if st.session_state.get("do_print_report", False):
+        # Auto-print AFTER content is rendered
         components.html(
             """
             <script>
-              (function () {
-                // 1) Open all expanders (<details>) so content exists in DOM
-                document.querySelectorAll('details').forEach(d => d.open = true);
-        
-                // 2) Force Streamlit to render content by scrolling to bottom then back
-                const y = top.window.scrollY || 0;
-        
-                setTimeout(() => {
-                  top.window.scrollTo(0, document.body.scrollHeight);
-        
-                  setTimeout(() => {
-                    top.window.scrollTo(0, y);
-        
-                    // 3) Now print (after DOM has content)
-                    setTimeout(() => {
-                      top.window.focus();
-                      top.window.print();
-                    }, 400);
-        
-                  }, 700);
-                }, 200);
-              })();
+              setTimeout(function(){
+                try { top.window.focus(); top.window.print(); }
+                catch(e){ parent.window.focus(); parent.window.print(); }
+              }, 1800);
             </script>
             """,
             height=1,
         )
-        st.session_state["do_print_report"] = False
+    
     st.markdown("---")
+
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
     # ----------------------------------------------------
@@ -5400,7 +5390,7 @@ def render_report_tab():
 
 
     # full DB section properties
-    with st.expander("3.3 Section properties from DB", expanded=False):
+    with st.expander("3.3 Section properties from DB", expanded=PRINT_MODE):
         render_section_properties_readonly(sr_display, key_prefix="rpt_props")
 
     st.markdown("---")
@@ -5478,7 +5468,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 6. Detailed calculations
     # ----------------------------------------------------
-    with st.expander("Detailed calculations", expanded=False):
+    with st.expander("Detailed calculations", expanded=PRINT_MODE)):
         report_h3("6. Detailed calculations")
         report_h4("6.1 Verification of cross-section strength (ULS, checks 1–14)")
     
@@ -7186,6 +7176,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
