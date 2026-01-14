@@ -7101,12 +7101,12 @@ with tab3:
                 )
         
         
-                # --- DB properties ---
-                with st.expander("Section properties", expanded=False):
-                    render_section_properties_readonly(
-                        sr_display,
-                        key_prefix=f"tab1_db_{prefix_id}"
-                    )
+        # --- DB properties ---
+        with st.expander("Section properties", expanded=False):
+                render_section_properties_readonly(
+                    sr_display,
+                    key_prefix=f"tab1_db_{prefix_id}"
+                )
 
     else:
         st.info("Select a section to continue.")
@@ -7147,6 +7147,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
