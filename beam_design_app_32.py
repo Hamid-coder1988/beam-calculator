@@ -5194,7 +5194,6 @@ def render_report_tab():
     # ----------------------------------------------------
     # PDF download (top)
     # ----------------------------------------------------
-    report_h4("Save report")
     import streamlit.components.v1 as components
     
     st.markdown("### Save report")
@@ -7166,6 +7165,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
