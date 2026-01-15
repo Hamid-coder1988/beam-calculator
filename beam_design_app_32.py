@@ -5073,20 +5073,50 @@ def report_status_badge(util):
 
 def render_report_tab():
     EXPAND_ALL = st.checkbox("Expand all sections (recommended before printing)", value=False, key="rpt_expand_all")
-    # --- print mode (same tab) ---
-    if "print_mode" not in st.session_state:
-        st.session_state["print_mode"] = False
-    PRINT_MODE = st.session_state["print_mode"]
     st.markdown(
         """
         <style>
         @media print {
+    
+          /* Hide Streamlit chrome */
           header, footer, #MainMenu { display: none !important; }
           section[data-testid="stSidebar"] { display: none !important; }
     
-          /* Make sure main content is visible */
-          div[data-testid="stAppViewContainer"] { display: block !important; }
-          .block-container { padding-top: 0rem !important; padding-bottom: 0rem !important; }
+          /* KEY FIX: kill the "one-page" scroll container behavior */
+          html, body {
+            height: auto !important;
+            overflow: visible !important;
+          }
+    
+          /* Streamlit app containers (names vary a bit by version) */
+          .stApp,
+          [data-testid="stAppViewContainer"],
+          [data-testid="stMain"],
+          section.main,
+          .main,
+          .block-container {
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+          }
+    
+          /* Sometimes Streamlit uses nested wrappers with overflow */
+          div[data-testid="stAppViewContainer"] > .main,
+          div[data-testid="stAppViewContainer"] > div {
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+          }
+    
+          /* Make it full width on paper */
+          .block-container { 
+            padding-top: 0rem !important; 
+            padding-bottom: 0rem !important;
+            max-width: none !important;
+          }
+    
+          /* Avoid ugly page breaks inside tables/expanders */
+          table, pre, blockquote, .stExpander { page-break-inside: avoid; }
         }
         </style>
         """,
@@ -7196,6 +7226,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
