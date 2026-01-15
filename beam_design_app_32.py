@@ -5072,6 +5072,7 @@ def report_status_badge(util):
         st.markdown(f"❓ **{util}**", unsafe_allow_html=True)
 
 def render_report_tab():
+    EXPAND_ALL = st.checkbox("Expand all sections (recommended before printing)", value=False, key="rpt_expand_all")
     # --- print mode (same tab) ---
     if "print_mode" not in st.session_state:
         st.session_state["print_mode"] = False
@@ -5201,61 +5202,47 @@ def render_report_tab():
     # ----------------------------------------------------
     # PDF download (top)
     # ----------------------------------------------------
+    import streamlit.components.v1 as components
+    
     st.markdown("### Save report")
     
-    c1, c2 = st.columns([1, 2])
-    
-    with c1:
-        if not PRINT_MODE:
-            if st.button("🖨️ Print / Save as PDF", key="rpt_print_same_tab"):
-                st.session_state["print_mode"] = True
-                st.rerun()
-        else:
-            if st.button("⬅️ Back to app", key="rpt_print_back"):
-                st.session_state["print_mode"] = False
-                st.rerun()
-    
-    with c2:
-        if not PRINT_MODE:
-            st.caption("Tip: In the print dialog choose 'Save as PDF' and enable 'Background graphics'.")
-        else:
-            st.caption("Print mode is ON. The print dialog will open automatically.")
-    
-    # auto-print when entering print mode
-    if PRINT_MODE:
+    if st.button("🖨️ Print / Save as PDF", key="rpt_print_simple"):
         components.html(
             """
             <script>
               (function () {
-                function doPrint() {
-                  try {
-                    // Try printing the top window (best case)
-                    top.window.focus();
-                    top.window.print();
-                    return;
-                  } catch (e1) {}
+                // Open all <details> just in case
+                document.querySelectorAll('details').forEach(d => d.open = true);
     
-                  try {
-                    // If top is blocked, try parent
-                    parent.window.focus();
-                    parent.window.print();
-                    return;
-                  } catch (e2) {}
+                // Force render by scrolling down then back
+                const y = top.window.scrollY || 0;
     
-                  try {
-                    // Last fallback
-                    window.focus();
-                    window.print();
-                  } catch (e3) {}
-                }
+                setTimeout(() => {
+                  top.window.scrollTo(0, document.body.scrollHeight);
     
-                // Give Streamlit a moment to finish rendering
-                setTimeout(doPrint, 1500);
+                  setTimeout(() => {
+                    top.window.scrollTo(0, y);
+    
+                    setTimeout(() => {
+                      try {
+                        top.window.focus();
+                        top.window.print();
+                      } catch (e) {
+                        parent.window.focus();
+                        parent.window.print();
+                      }
+                    }, 400);
+    
+                  }, 900);
+                }, 200);
               })();
             </script>
             """,
             height=1,
         )
+    
+    st.caption("Before printing: tick 'Expand all sections' above. In print dialog: Save as PDF + enable Background graphics.")
+    st.markdown("---")
 
 
     # ----------------------------------------------------
@@ -7209,6 +7196,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
