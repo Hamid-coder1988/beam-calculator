@@ -5082,14 +5082,14 @@ def render_report_tab():
           header, footer, #MainMenu { display: none !important; }
           section[data-testid="stSidebar"] { display: none !important; }
     
-          /* KEY: Edge prints only the viewport if the app is in a scroll container */
-          html, body {
+          /* KEY: remove "viewport app" behavior */
+          html, body, #root, #root > div {
             height: auto !important;
             max-height: none !important;
             overflow: visible !important;
           }
     
-          /* Streamlit layout containers */
+          /* Streamlit containers */
           .stApp,
           [data-testid="stAppViewContainer"],
           [data-testid="stMain"],
@@ -5099,21 +5099,26 @@ def render_report_tab():
             height: auto !important;
             max-height: none !important;
             overflow: visible !important;
+            position: static !important;
           }
     
-          /* Some Streamlit builds nest scroll containers; force them open */
+          /* THE EDGE KILLER: disable containment + transforms that clip printing */
+          * {
+            contain: none !important;
+            transform: none !important;
+            filter: none !important;
+          }
+    
+          /* Make sure nothing forces internal scrolling */
           div, section {
             overflow: visible !important;
           }
     
-          /* Page setup */
+          /* Page settings */
           @page { size: A4; margin: 12mm; }
     
           /* Keep colors */
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    
-          /* Don’t limit width on print */
-          .block-container { max-width: none !important; padding-top: 0 !important; padding-bottom: 0 !important; }
         }
         </style>
         """,
@@ -7223,6 +7228,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
