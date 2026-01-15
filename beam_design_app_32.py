@@ -5082,13 +5082,14 @@ def render_report_tab():
           header, footer, #MainMenu { display: none !important; }
           section[data-testid="stSidebar"] { display: none !important; }
     
-          /* KEY FIX: kill the "one-page" scroll container behavior */
+          /* KEY: Edge prints only the viewport if the app is in a scroll container */
           html, body {
             height: auto !important;
+            max-height: none !important;
             overflow: visible !important;
           }
     
-          /* Streamlit app containers (names vary a bit by version) */
+          /* Streamlit layout containers */
           .stApp,
           [data-testid="stAppViewContainer"],
           [data-testid="stMain"],
@@ -5100,23 +5101,19 @@ def render_report_tab():
             overflow: visible !important;
           }
     
-          /* Sometimes Streamlit uses nested wrappers with overflow */
-          div[data-testid="stAppViewContainer"] > .main,
-          div[data-testid="stAppViewContainer"] > div {
-            height: auto !important;
-            max-height: none !important;
+          /* Some Streamlit builds nest scroll containers; force them open */
+          div, section {
             overflow: visible !important;
           }
     
-          /* Make it full width on paper */
-          .block-container { 
-            padding-top: 0rem !important; 
-            padding-bottom: 0rem !important;
-            max-width: none !important;
-          }
+          /* Page setup */
+          @page { size: A4; margin: 12mm; }
     
-          /* Avoid ugly page breaks inside tables/expanders */
-          table, pre, blockquote, .stExpander { page-break-inside: avoid; }
+          /* Keep colors */
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    
+          /* Don’t limit width on print */
+          .block-container { max-width: none !important; padding-top: 0 !important; padding-bottom: 0 !important; }
         }
         </style>
         """,
@@ -7226,6 +7223,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
