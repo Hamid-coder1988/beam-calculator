@@ -5073,58 +5073,6 @@ def report_status_badge(util):
 
 def render_report_tab():
     EXPAND_ALL = st.checkbox("Expand all sections (recommended before printing)", value=False, key="rpt_expand_all")
-    st.markdown(
-        """
-        <style>
-        @media print {
-    
-          /* Hide Streamlit chrome */
-          header, footer, #MainMenu { display: none !important; }
-          section[data-testid="stSidebar"] { display: none !important; }
-    
-          /* KEY: remove "viewport app" behavior */
-          html, body, #root, #root > div {
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
-          }
-    
-          /* Streamlit containers */
-          .stApp,
-          [data-testid="stAppViewContainer"],
-          [data-testid="stMain"],
-          section.main,
-          .main,
-          .block-container {
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
-            position: static !important;
-          }
-    
-          /* THE EDGE KILLER: disable containment + transforms that clip printing */
-          * {
-            contain: none !important;
-            transform: none !important;
-            filter: none !important;
-          }
-    
-          /* Make sure nothing forces internal scrolling */
-          div, section {
-            overflow: visible !important;
-          }
-    
-          /* Page settings */
-          @page { size: A4; margin: 12mm; }
-    
-          /* Keep colors */
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
     sr_display = st.session_state.get("sr_display")
     import math
     # Alias: section properties used throughout the report
@@ -5234,48 +5182,14 @@ def render_report_tab():
     # ----------------------------------------------------
     # PDF download (top)
     # ----------------------------------------------------
-    import streamlit.components.v1 as components
-    
     st.markdown("### Save report")
+    st.info(
+        "1) Tick **Expand all sections** above.\n\n"
+        "2) Press **Ctrl+P** (or ⌘P on Mac) and choose **Save as PDF**.\n\n"
+        "3) Enable **Background graphics** in the print dialog."
+    )
     
-    if st.button("🖨️ Print / Save as PDF", key="rpt_print_simple"):
-        components.html(
-            """
-            <script>
-              (function () {
-                // Open all <details> just in case
-                document.querySelectorAll('details').forEach(d => d.open = true);
-    
-                // Force render by scrolling down then back
-                const y = top.window.scrollY || 0;
-    
-                setTimeout(() => {
-                  top.window.scrollTo(0, document.body.scrollHeight);
-    
-                  setTimeout(() => {
-                    top.window.scrollTo(0, y);
-    
-                    setTimeout(() => {
-                      try {
-                        top.window.focus();
-                        top.window.print();
-                      } catch (e) {
-                        parent.window.focus();
-                        parent.window.print();
-                      }
-                    }, 400);
-    
-                  }, 900);
-                }, 200);
-              })();
-            </script>
-            """,
-            height=1,
-        )
-    
-    st.caption("Before printing: tick 'Expand all sections' above. In print dialog: Save as PDF + enable Background graphics.")
     st.markdown("---")
-
 
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
@@ -6943,6 +6857,44 @@ st.set_page_config(
     page_icon=str(asset_path("EngiSnap-Logo.png")) if asset_path("EngiSnap-Logo.png").exists() else "🧰",
     layout="wide"
 )
+# --- GLOBAL PRINT FIX (Edge / Streamlit) ---
+st.markdown(
+    """
+    <style>
+    @media print {
+      /* Hide Streamlit chrome */
+      header, footer, #MainMenu { display: none !important; }
+      section[data-testid="stSidebar"] { display: none !important; }
+
+      /* Print full document (Edge fix: remove app viewport clipping) */
+      html, body { height: auto !important; overflow: visible !important; }
+
+      /* Streamlit wrappers */
+      .stApp,
+      [data-testid="stAppViewContainer"],
+      [data-testid="stMain"],
+      section.main,
+      .main,
+      .block-container {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+      }
+
+      /* Kill nested scroll containers that Edge clips */
+      div, section { overflow: visible !important; }
+
+      /* Avoid containment/transform clipping */
+      * { contain: none !important; transform: none !important; }
+
+      /* Page setup */
+      @page { size: A4; margin: 12mm; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # --- CUSTOM GLOBAL CSS ---
 custom_css = """
@@ -7228,6 +7180,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
