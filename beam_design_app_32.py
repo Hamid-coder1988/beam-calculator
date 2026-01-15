@@ -5410,7 +5410,7 @@ def render_report_tab():
 
 
     # full DB section properties
-    with st.expander("3.3 Section properties from DB", expanded=PRINT_MODE):
+    with st.expander("3.3 Section properties from DB", expanded=EXPAND_ALL):
         render_section_properties_readonly(sr_display, key_prefix="rpt_props")
 
     st.markdown("---")
@@ -5488,7 +5488,7 @@ def render_report_tab():
     # ----------------------------------------------------
     # 6. Detailed calculations
     # ----------------------------------------------------
-    with st.expander("Detailed calculations", expanded=PRINT_MODE):
+    with st.expander("Detailed calculations", expanded=EXPAND_ALL):
         report_h3("6. Detailed calculations")
         report_h4("6.1 Verification of cross-section strength (ULS, checks 1–14)")
     
@@ -7196,6 +7196,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
