@@ -5073,6 +5073,7 @@ def report_status_badge(util):
 
 def render_report_tab():
     EXPAND_ALL = st.checkbox("Expand all sections (recommended before printing)", value=False, key="rpt_expand_all")
+    st.markdown('<div id="engi_report_root">', unsafe_allow_html=True)
     sr_display = st.session_state.get("sr_display")
     import math
     # Alias: section properties used throughout the report
@@ -5183,12 +5184,54 @@ def render_report_tab():
     # PDF download (top)
     # ----------------------------------------------------
     st.markdown("### Save report")
-    st.info(
-        "1) Tick **Expand all sections** above.\n\n"
-        "2) Press **Ctrl+P** (or ⌘P on Mac) and choose **Save as PDF**.\n\n"
-        "3) Enable **Background graphics** in the print dialog."
-    )
     
+    if st.button("🖨️ Print / Save as PDF", key="rpt_print_clean"):
+        components.html(
+            """
+            <script>
+            (function () {
+              const doc = window.parent.document;
+              const report = doc.getElementById("engi_report_root");
+    
+              if (!report) {
+                alert("Report container not found (#engi_report_root).");
+                return;
+              }
+    
+              const w = window.open("", "_blank", "noopener,noreferrer,width=1100,height=800");
+              if (!w) {
+                alert("Popup blocked. Allow popups for this site to print.");
+                return;
+              }
+    
+              const css = `
+                <style>
+                  @page { size: A4; margin: 12mm; }
+                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+                  img { max-width: 100%; height: auto; }
+                  table { width: 100%; border-collapse: collapse; }
+                  th, td { padding: 6px 8px; vertical-align: top; }
+                  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                </style>
+              `;
+    
+              w.document.open();
+              w.document.write("<!doctype html><html><head><meta charset='utf-8'>" + css + "</head><body>");
+              w.document.write(report.innerHTML);
+              w.document.write("</body></html>");
+              w.document.close();
+    
+              setTimeout(() => {
+                w.focus();
+                w.print();
+              }, 700);
+            })();
+            </script>
+            """,
+            height=1,
+        )
+    
+    st.caption("Tip: tick 'Expand all sections' above before printing. If nothing opens, allow popups for this site.")
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -6957,7 +7000,7 @@ with header_col2:
         """,
         unsafe_allow_html=True,
     )
-
+st.markdown("</div>", unsafe_allow_html=True)
 
 def render_section_preview_placeholder(title="Cross-section preview", key_prefix="prev"):
     st.markdown("### Cross-section preview")
@@ -7180,6 +7223,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
