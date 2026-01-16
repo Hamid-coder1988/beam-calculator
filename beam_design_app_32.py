@@ -6910,6 +6910,9 @@ st.markdown(
 
       /* Remove top padding + width limit in print */
       div.block-container { padding-top: 0rem !important; max-width: none !important; }
+      /* Hide the "Expand all sections" checkbox row in the PDF */
+     div[data-testid="stCheckbox"] { display: none !important; }
+     div[data-testid="stAlert"], .stCaption { display: none !important; }
     }
     </style>
     """,
@@ -7200,6 +7203,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
