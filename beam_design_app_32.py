@@ -5184,7 +5184,6 @@ def render_report_tab():
     # PDF download (top)
     # ----------------------------------------------------
     st.markdown("### Save report")
-    st.markdown("### Save report")
     
     # Make sure the report is wrapped:
     # st.markdown('<div id="engi_report_root">', unsafe_allow_html=True)
@@ -7220,6 +7219,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
