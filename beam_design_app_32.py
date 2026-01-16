@@ -5184,25 +5184,21 @@ def render_report_tab():
     # PDF download (top)
     # ----------------------------------------------------
     st.markdown("### Save report")
+    st.markdown("### Save report")
     
-    if st.button("🖨️ Print / Save as PDF", key="rpt_print_clean"):
+    # Make sure the report is wrapped:
+    # st.markdown('<div id="engi_report_root">', unsafe_allow_html=True)
+    # ... report content ...
+    # st.markdown("</div>", unsafe_allow_html=True)
+    
+    if st.button("⬇️ Download printable HTML", key="rpt_dl_html"):
         components.html(
             """
             <script>
             (function () {
               const doc = window.parent.document;
               const report = doc.getElementById("engi_report_root");
-    
-              if (!report) {
-                alert("Report container not found (#engi_report_root).");
-                return;
-              }
-    
-              const w = window.open("", "_blank", "noopener,noreferrer,width=1100,height=800");
-              if (!w) {
-                alert("Popup blocked. Allow popups for this site to print.");
-                return;
-              }
+              if (!report) { alert("Report container not found (#engi_report_root)."); return; }
     
               const css = `
                 <style>
@@ -5215,23 +5211,24 @@ def render_report_tab():
                 </style>
               `;
     
-              w.document.open();
-              w.document.write("<!doctype html><html><head><meta charset='utf-8'>" + css + "</head><body>");
-              w.document.write(report.innerHTML);
-              w.document.write("</body></html>");
-              w.document.close();
+              const html = "<!doctype html><html><head><meta charset='utf-8'>" + css + "</head><body>"
+                         + report.innerHTML + "</body></html>";
     
-              setTimeout(() => {
-                w.focus();
-                w.print();
-              }, 700);
+              const blob = new Blob([html], {type: "text/html"});
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = "EngiSnap_Beam_Report.html";
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              setTimeout(() => URL.revokeObjectURL(a.href), 1000);
             })();
             </script>
             """,
             height=1,
         )
     
-    st.caption("Tip: tick 'Expand all sections' above before printing. If nothing opens, allow popups for this site.")
+    st.caption("Download the HTML, open it, then Ctrl+P → Save as PDF (multi-page, no popup needed).")
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -7223,6 +7220,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
