@@ -5184,15 +5184,30 @@ def render_report_tab():
     # PDF download (top)
     # ----------------------------------------------------
     st.markdown("### Save report")
+    if HAS_RL:
+        pdf_buf = build_pdf_report(
+            meta,
+            material,
+            sr_display,
+            inputs,
+            df_rows,
+            overall_ok,
+            governing,
+            extras
+        )
     
-    st.info(
-        "To export this report as PDF:\n\n"
-        "1️⃣ Press **Ctrl + P** (or **Cmd + P** on Mac)\n\n"
-        "2️⃣ Choose **Save as PDF** as the printer\n\n"
-        "3️⃣ Enable **Background graphics** in print settings\n\n"
-        "4️⃣ Click **Save**"
-    )
+        if pdf_buf:
+            st.download_button(
+                "💾 Save as PDF (multi-page)",
+                data=pdf_buf,  # BytesIO is fine
+                file_name="EngiSnap_Beam_Report.pdf",
+                mime="application/pdf",
+                key="rpt_pdf_btn",
+            )
+    else:
+        st.warning("PDF export not available (reportlab not installed).")
     
+    st.caption("Browser printing from Streamlit often captures only the visible page. PDF export is the reliable way.")
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -6866,11 +6881,14 @@ st.markdown(
     """
     <style>
     @media print {
+      /* Hide Streamlit chrome */
       header, footer, #MainMenu { display: none !important; }
       section[data-testid="stSidebar"] { display: none !important; }
 
+      /* Print full document (Edge fix: remove app viewport clipping) */
       html, body { height: auto !important; overflow: visible !important; }
 
+      /* Streamlit wrappers */
       .stApp,
       [data-testid="stAppViewContainer"],
       [data-testid="stMain"],
@@ -6882,40 +6900,20 @@ st.markdown(
         overflow: visible !important;
       }
 
+      /* Kill nested scroll containers that Edge clips */
+      div, section { overflow: visible !important; }
+
+      /* Avoid containment/transform clipping */
+      * { contain: none !important; transform: none !important; }
+
+      /* Page setup */
       @page { size: A4; margin: 12mm; }
-
-      /* One star rule only */
-      * {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        contain: none !important;
-        transform: none !important;
-      }
-
-      /* Reduce big gaps */
-      h1, h2, h3 { margin-top: 8px !important; margin-bottom: 6px !important; }
-      .stMarkdown, .stText, .stCaption, p { margin-top: 0 !important; margin-bottom: 0 !important; }
-
-      /* Avoid heading alone at bottom */
-      h1, h2, h3 { break-after: avoid-page !important; page-break-after: avoid !important; }
-
-      /* Keep things together */
-      table, thead, tbody, tr, td, th,
-      .stExpander, [data-testid="stExpander"],
-      [data-testid="stVerticalBlock"], .element-container, .stContainer,
-      .stExpander details {
-        break-inside: avoid !important;
-        page-break-inside: avoid !important;
-      }
-
-      /* Remove top padding + width limit in print */
-      div.block-container { padding-top: 0rem !important; max-width: none !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
     </style>
     """,
     unsafe_allow_html=True
 )
-
 
 # --- CUSTOM GLOBAL CSS ---
 custom_css = """
@@ -7201,98 +7199,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
