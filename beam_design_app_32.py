@@ -6913,17 +6913,6 @@ st.markdown(
       /* Hide the "Expand all sections" checkbox row in the PDF */
      div[data-testid="stCheckbox"] { display: none !important; }
      div[data-testid="stAlert"], .stCaption { display: none !important; }
-     /* Hide UI controls / helper text */
-    div[data-testid="stCheckbox"] { display: none !important; }     /* Expand all sections */
-    div[data-testid="stAlert"] { display: none !important; }        /* st.info / st.warning boxes */
-    .stCaption { display: none !important; }                        /* captions */
-    button, input, select, textarea { display: none !important; }   /* any controls */
-    
-    /* Hide the tab bar */
-    div[data-testid="stTabs"] { display: none !important; }
-    
-    /* Hide your app header area (logo + title) if you don't want it in PDF */
-    header, footer, #MainMenu { display: none !important; }
     }
     </style>
     """,
@@ -7214,6 +7203,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
