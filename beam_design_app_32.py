@@ -6866,29 +6866,56 @@ st.markdown(
     """
     <style>
     @media print {
-      /* hide Streamlit chrome */
       header, footer, #MainMenu { display: none !important; }
       section[data-testid="stSidebar"] { display: none !important; }
-    
-      /* keep colors */
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    
-      /* reduce huge gaps before titles */
-      h1, h2, h3 { margin-top: 8px !important; margin-bottom: 6px !important; }
-    
-      /* avoid "title alone at bottom" */
-      h1, h2, h3 { break-after: avoid-page !important; page-break-after: avoid !important; }
-    
-      /* don't split tables */
-      table { break-inside: avoid !important; page-break-inside: avoid !important; }
-    
-      /* DO NOT add .pb or change .block-container padding/width here */
-    }
 
+      html, body { height: auto !important; overflow: visible !important; }
+
+      .stApp,
+      [data-testid="stAppViewContainer"],
+      [data-testid="stMain"],
+      section.main,
+      .main,
+      .block-container {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+      }
+
+      @page { size: A4; margin: 12mm; }
+
+      /* One star rule only */
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        contain: none !important;
+        transform: none !important;
+      }
+
+      /* Reduce big gaps */
+      h1, h2, h3 { margin-top: 8px !important; margin-bottom: 6px !important; }
+      .stMarkdown, .stText, .stCaption, p { margin-top: 0 !important; margin-bottom: 0 !important; }
+
+      /* Avoid heading alone at bottom */
+      h1, h2, h3 { break-after: avoid-page !important; page-break-after: avoid !important; }
+
+      /* Keep things together */
+      table, thead, tbody, tr, td, th,
+      .stExpander, [data-testid="stExpander"],
+      [data-testid="stVerticalBlock"], .element-container, .stContainer,
+      .stExpander details {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+
+      /* Remove top padding + width limit in print */
+      div.block-container { padding-top: 0rem !important; max-width: none !important; }
+    }
     </style>
     """,
     unsafe_allow_html=True
 )
+
 
 # --- CUSTOM GLOBAL CSS ---
 custom_css = """
@@ -7174,6 +7201,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
