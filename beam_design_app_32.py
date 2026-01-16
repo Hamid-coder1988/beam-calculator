@@ -5184,30 +5184,15 @@ def render_report_tab():
     # PDF download (top)
     # ----------------------------------------------------
     st.markdown("### Save report")
-    if HAS_RL:
-        pdf_buf = build_pdf_report(
-            meta,
-            material,
-            sr_display,
-            inputs,
-            df_rows,
-            overall_ok,
-            governing,
-            extras
-        )
     
-        if pdf_buf:
-            st.download_button(
-                "💾 Save as PDF (multi-page)",
-                data=pdf_buf,  # BytesIO is fine
-                file_name="EngiSnap_Beam_Report.pdf",
-                mime="application/pdf",
-                key="rpt_pdf_btn",
-            )
-    else:
-        st.warning("PDF export not available (reportlab not installed).")
+    st.info(
+        "To export this report as PDF:\n\n"
+        "1️⃣ Press **Ctrl + P** (or **Cmd + P** on Mac)\n\n"
+        "2️⃣ Choose **Save as PDF** as the printer\n\n"
+        "3️⃣ Enable **Background graphics** in print settings\n\n"
+        "4️⃣ Click **Save**"
+    )
     
-    st.caption("Browser printing from Streamlit often captures only the visible page. PDF export is the reliable way.")
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -7199,6 +7184,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
