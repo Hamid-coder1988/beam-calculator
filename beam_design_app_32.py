@@ -5184,50 +5184,30 @@ def render_report_tab():
     # PDF download (top)
     # ----------------------------------------------------
     st.markdown("### Save report")
-    
-    # Make sure the report is wrapped:
-    # st.markdown('<div id="engi_report_root">', unsafe_allow_html=True)
-    # ... report content ...
-    # st.markdown("</div>", unsafe_allow_html=True)
-    
-    if st.button("⬇️ Download printable HTML", key="rpt_dl_html"):
-        components.html(
-            """
-            <script>
-            (function () {
-              const doc = window.parent.document;
-              const report = doc.getElementById("engi_report_root");
-              if (!report) { alert("Report container not found (#engi_report_root)."); return; }
-    
-              const css = `
-                <style>
-                  @page { size: A4; margin: 12mm; }
-                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-                  img { max-width: 100%; height: auto; }
-                  table { width: 100%; border-collapse: collapse; }
-                  th, td { padding: 6px 8px; vertical-align: top; }
-                  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                </style>
-              `;
-    
-              const html = "<!doctype html><html><head><meta charset='utf-8'>" + css + "</head><body>"
-                         + report.innerHTML + "</body></html>";
-    
-              const blob = new Blob([html], {type: "text/html"});
-              const a = document.createElement("a");
-              a.href = URL.createObjectURL(blob);
-              a.download = "EngiSnap_Beam_Report.html";
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-              setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-            })();
-            </script>
-            """,
-            height=1,
+    if HAS_RL:
+        pdf_buf = build_pdf_report(
+            meta,
+            material,
+            sr_display,
+            inputs,
+            df_rows,
+            overall_ok,
+            governing,
+            extras
         )
     
-    st.caption("Download the HTML, open it, then Ctrl+P → Save as PDF (multi-page, no popup needed).")
+        if pdf_buf:
+            st.download_button(
+                "💾 Save as PDF (multi-page)",
+                data=pdf_buf,  # BytesIO is fine
+                file_name="EngiSnap_Beam_Report.pdf",
+                mime="application/pdf",
+                key="rpt_pdf_btn",
+            )
+    else:
+        st.warning("PDF export not available (reportlab not installed).")
+    
+    st.caption("Browser printing from Streamlit often captures only the visible page. PDF export is the reliable way.")
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -7219,6 +7199,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
