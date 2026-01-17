@@ -5072,7 +5072,9 @@ def report_status_badge(util):
         st.markdown(f"❓ **{util}**", unsafe_allow_html=True)
 
 def render_report_tab():
+    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
     EXPAND_ALL = st.checkbox("Expand all sections (recommended before printing)", value=False, key="rpt_expand_all")
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown('<div id="engi_report_root">', unsafe_allow_html=True)
     sr_display = st.session_state.get("sr_display")
     import math
@@ -5181,34 +5183,13 @@ def render_report_tab():
     delta_max_mm = st.session_state.get("diag_delta_max_mm")
 
     # ----------------------------------------------------
-    # PDF download (top)
+    # Save report (simple)
     # ----------------------------------------------------
+    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
     st.markdown("### Save report")
-    if HAS_RL:
-        pdf_buf = build_pdf_report(
-            meta,
-            material,
-            sr_display,
-            inputs,
-            df_rows,
-            overall_ok,
-            governing,
-            extras
-        )
-    
-        if pdf_buf:
-            st.download_button(
-                "💾 Save as PDF (multi-page)",
-                data=pdf_buf,  # BytesIO is fine
-                file_name="EngiSnap_Beam_Report.pdf",
-                mime="application/pdf",
-                key="rpt_pdf_btn",
-            )
-    else:
-        st.warning("PDF export not available (reportlab not installed).")
-    
-    st.caption("Browser printing from Streamlit often captures only the visible page. PDF export is the reliable way.")
+    st.info("To export: press **Ctrl+P** (or ⌘+P on Mac) → **Save as PDF**. Enable **Background graphics**.")
     st.markdown("---")
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
@@ -6909,6 +6890,9 @@ st.markdown(
       /* Page setup */
       @page { size: A4; margin: 12mm; }
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      /* Hide print controls + tabs in print */
+     .no-print { display: none !important; }
+     div[data-testid="stTabs"] { display: none !important; }
     }
     </style>
     """,
@@ -7199,6 +7183,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
