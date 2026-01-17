@@ -6862,43 +6862,22 @@ st.markdown(
     """
     <style>
     @media print {
-      /* Hide Streamlit chrome */
       header, footer, #MainMenu { display: none !important; }
       section[data-testid="stSidebar"] { display: none !important; }
 
-      /* Print full document (Edge fix: remove app viewport clipping) */
-      html, body { height: auto !important; overflow: visible !important; }
-
-      /* Streamlit wrappers */
-      .stApp,
-      [data-testid="stAppViewContainer"],
-      [data-testid="stMain"],
-      section.main,
-      .main,
-      .block-container {
-        height: auto !important;
-        max-height: none !important;
-        overflow: visible !important;
-      }
-
-      /* Kill nested scroll containers that Edge clips */
-      div, section { overflow: visible !important; }
-
-      /* Avoid containment/transform clipping */
-      * { contain: none !important; transform: none !important; }
-
-      /* Page setup */
       @page { size: A4; margin: 12mm; }
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      /* Hide print controls + tabs in print */
-     .no-print { display: none !important; }
-     div[data-testid="stTabs"] { display: none !important; }
+
+      /* Hide helper UI blocks you wrapped */
+      .no-print { display: none !important; }
+
+      /* Hide ONLY the tab headers (not the content!) */
+      div[data-testid="stTabs"] [role="tablist"] { display: none !important; }
     }
     </style>
     """,
     unsafe_allow_html=True
 )
-
 # --- CUSTOM GLOBAL CSS ---
 custom_css = """
 <style>
@@ -7183,6 +7162,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
