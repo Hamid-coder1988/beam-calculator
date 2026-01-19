@@ -6846,6 +6846,9 @@ def render_report_tab():
 - EngiSnap – Standard steel beam design & selection (this prototype)
 """
     )
+    
+    # Close report root wrapper (important for proper printing)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 # =========================================================
@@ -6858,10 +6861,12 @@ st.set_page_config(
     layout="wide"
 )
 # --- GLOBAL PRINT FIX (Edge / Streamlit) ---
+# --- GLOBAL PRINT FIX (Streamlit tabs + full-page printing) ---
 st.markdown(
     """
     <style>
     @media print {
+
       /* Hide Streamlit chrome */
       header, footer, #MainMenu { display: none !important; }
       section[data-testid="stSidebar"] { display: none !important; }
@@ -6870,18 +6875,60 @@ st.markdown(
       @page { size: A4; margin: 12mm; }
 
       /* Keep colors */
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
 
       /* Hide anything you wrapped as no-print */
       .no-print { display: none !important; }
 
       /* Hide ONLY the tab headers (NOT the tab content) */
       div[data-testid="stTabs"] [role="tablist"] { display: none !important; }
+
+      /* THE IMPORTANT PART:
+         Tabs/containers often have fixed height + overflow that clips printing.
+         Force everything to expand fully for print. */
+      html, body { height: auto !important; overflow: visible !important; }
+
+      div[data-testid="stAppViewContainer"],
+      div[data-testid="stAppViewContainer"] > .main,
+      section.main,
+      div.block-container {
+        height: auto !important;
+        overflow: visible !important;
+        max-height: none !important;
+      }
+
+      /* Streamlit tab panel containers (BaseWeb) */
+      div[data-baseweb="tab-panel"],
+      div[data-baseweb="tab-panel"] > div {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+      }
+
+      /* Some Streamlit wrappers still clip */
+      div[data-testid="stVerticalBlock"],
+      div[data-testid="stVerticalBlock"] > div,
+      div[data-testid="stMarkdownContainer"] {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+      }
+
+      /* Make sure your report wrapper itself never clips */
+      #engi_report_root {
+        height: auto !important;
+        overflow: visible !important;
+        max-height: none !important;
+      }
     }
     </style>
     """,
     unsafe_allow_html=True
 )
+
 # --- CUSTOM GLOBAL CSS ---
 custom_css = """
 <style>
@@ -7166,6 +7213,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
