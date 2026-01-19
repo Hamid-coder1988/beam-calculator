@@ -6862,16 +6862,20 @@ st.markdown(
     """
     <style>
     @media print {
+      /* Hide Streamlit chrome */
       header, footer, #MainMenu { display: none !important; }
       section[data-testid="stSidebar"] { display: none !important; }
 
+      /* Page setup */
       @page { size: A4; margin: 12mm; }
+
+      /* Keep colors */
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
-      /* Hide helper UI blocks you wrapped */
+      /* Hide anything you wrapped as no-print */
       .no-print { display: none !important; }
 
-      /* Hide ONLY the tab headers (not the content!) */
+      /* Hide ONLY the tab headers (NOT the tab content) */
       div[data-testid="stTabs"] [role="tablist"] { display: none !important; }
     }
     </style>
@@ -7162,6 +7166,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
