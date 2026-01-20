@@ -35,6 +35,62 @@ def safe_image(path_like, **kwargs) -> bool:
         pass
     return False
 
+def build_printable_report_html():
+    # You can extend this later: include your CSS and the report body.
+    # For now, grab the report root content via a simple template
+    # (we'll render report content as HTML directly from Python).
+
+    # NOTE: This should reflect your report tab fields, not Streamlit widgets.
+    doc_title = st.session_state.get("doc_title", "Beam check")
+    position = st.session_state.get("pos_loc", "")
+    revision = st.session_state.get("rev", "A")
+    project_name = st.session_state.get("project_name", "")
+    requested_by = st.session_state.get("requested_by", "")
+    run_date = st.session_state.get("run_date", "")
+
+    html = f"""
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EngiSnap Report</title>
+<style>
+  @page {{ size: A4; margin: 12mm; }}
+  body {{ font-family: Arial, sans-serif; color: #111; }}
+  h1 {{ font-size: 20px; margin: 0 0 10px 0; }}
+  h2 {{ font-size: 14px; margin: 18px 0 6px 0; }}
+  .box {{ border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-bottom: 12px; }}
+  .grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }}
+  .field label {{ display:block; font-size: 11px; color:#6b7280; margin-bottom:4px; }}
+  .field div {{ background:#f3f4f6; border-radius:8px; padding:10px; min-height: 18px; }}
+  table {{ width:100%; border-collapse: collapse; }}
+  th, td {{ border:1px solid #d1d5db; padding:6px; font-size: 12px; }}
+  th {{ background:#f3f4f6; text-align:left; }}
+</style>
+</head>
+<body>
+
+<h1>EngiSnap Beam Design Report</h1>
+
+<h2>Project info</h2>
+<div class="box">
+  <div class="grid">
+    <div class="field"><label>Document title</label><div>{doc_title}</div></div>
+    <div class="field"><label>Position / Location (Beam ID)</label><div>{position}</div></div>
+    <div class="field"><label>Revision</label><div>{revision}</div></div>
+    <div class="field"><label>Project name</label><div>{project_name}</div></div>
+    <div class="field"><label>Requested by</label><div>{requested_by}</div></div>
+    <div class="field"><label>Date</label><div>{run_date}</div></div>
+  </div>
+</div>
+
+<!-- Add more sections here later: section properties, loads, checks table, etc. -->
+
+</body>
+</html>
+"""
+    return html
+
 
 # -------------------------
 # Optional Postgres driver
@@ -5293,6 +5349,15 @@ def render_report_tab():
     st.markdown("<div class='no-print'>", unsafe_allow_html=True)
     st.markdown("### Save report")
     st.info("To export: press **Ctrl+P** (or ⌘+P on Mac) → **Save as PDF**. Enable **Background graphics**.")
+    html_print = build_printable_report_html()
+    st.download_button(
+        "Download printable report (HTML)",
+        data=html_print.encode("utf-8"),
+        file_name="EngiSnap_Report_Print.html",
+        mime="text/html",
+    )
+    st.caption("Open the downloaded HTML in your browser, then Ctrl+P → Save as PDF. This is stable.")
+
     
     # ==============================
     # STABLE PRINT BUTTON (Option A)
@@ -7410,6 +7475,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
