@@ -4855,13 +4855,13 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # 1. Project information
     # -----------------------
     story.append(Paragraph("1. Project information", H1))
-    story.append(Paragraph(f"Project name: {project_name}", N))
-    story.append(Paragraph(f"Designer: {requested_by}", N))
-    story.append(Paragraph(f"Date: {run_date}", N))
-    story.append(Paragraph("App: EngiSnap – Beam design (prototype)", N))
+    story.append(Paragraph(f"Project name: {project_name}", BODY))
+    story.append(Paragraph(f"Designer: {requested_by}", BODY))
+    story.append(Paragraph(f"Date: {run_date}", BODY))
+    story.append(Paragraph("App: EngiSnap – Beam design (prototype)", BODY))
     story.append(Spacer(1, 6))
-    story.append(Paragraph("National Annex: (not specified)", N))
-    story.append(Paragraph(f"Notes / comments: {notes}", N))
+    story.append(Paragraph("National Annex: (not specified)", BODY))
+    story.append(Paragraph(f"Notes / comments: {notes}", BODY))
     story.append(Spacer(1, 12))
 
     # -----------------------
@@ -4876,9 +4876,9 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     if ready_case:
         member_type = f"Beam case: {ready_case.get('key','')} — {ready_case.get('label','')}"
 
-    story.append(Paragraph(f"Member type: {member_type}", N))
-    story.append(Paragraph(f"Span length L = {L:.3f} m", N))
-    story.append(Paragraph("Support conditions: simply supported (from ready case)", N))
+    story.append(Paragraph(f"Member type: {member_type}", BODY))
+    story.append(Paragraph(f"Span length L = {L:.3f} m", BODY))
+    story.append(Paragraph("Support conditions: simply supported (from ready case)", BODY))
     story.append(Paragraph(
         f"Effective lengths: L_y = {Leff_y:.3f} m, "
         f"L_z = {Leff_z:.3f} m, "
@@ -4889,16 +4889,16 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
 
     # 2.2 Material
     story.append(Paragraph("2.2 Material", styles["Heading4"]))
-    story.append(Paragraph(f"Steel grade: {material}", N))
-    story.append(Paragraph(f"f_y = {fy:.0f} MPa, f_u ≈ (not specified)", N))
-    story.append(Paragraph("E = 210000 MPa, G = 81000 MPa", N))
-    story.append(Paragraph("Partial factors: γ_M0 = 1.0, γ_M1 = 1.0 (per DB assumption)", N))
+    story.append(Paragraph(f"Steel grade: {material}", BODY))
+    story.append(Paragraph(f"f_y = {fy:.0f} MPa, f_u ≈ (not specified)", BODY))
+    story.append(Paragraph("E = 210000 MPa, G = 81000 MPa", BODY))
+    story.append(Paragraph("Partial factors: γ_M0 = 1.0, γ_M1 = 1.0 (per DB assumption)", BODY))
     story.append(Spacer(1, 6))
 
     # 2.3 Cross-section
     story.append(Paragraph("2.3 Cross-section", styles["Heading4"]))
-    story.append(Paragraph(f"Family: {fam}", N))
-    story.append(Paragraph(f"Size: {name}", N))
+    story.append(Paragraph(f"Family: {fam}", BODY))
+    story.append(Paragraph(f"Size: {name}", BODY))
 
     if sr_display:
         A_mm2 = sr_display.get("A_mm2", 0.0)
@@ -4979,7 +4979,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
 
     # 3.3 Diagrams are in section 6 (later)
     story.append(Paragraph("3.3 Diagrams", styles["Heading4"]))
-    story.append(Paragraph("See section 6: Diagrams & cross-section view.", N))
+    story.append(Paragraph("See section 6: Diagrams & cross-section view.", BODY))
     story.append(Spacer(1, 12))
 
     # -----------------------
@@ -4987,21 +4987,21 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     story.append(Paragraph("4. Serviceability (SLS)", H1))
     story.append(Paragraph("4.1 Maximum deflection", styles["Heading4"]))
-    story.append(Paragraph(f"δ_max = {delta_max_mm:.3f} mm" if delta_max_mm is not None else "δ_max = n/a", N))
+    story.append(Paragraph(f"δ_max = {delta_max_mm:.3f} mm" if delta_max_mm is not None else "δ_max = n/a", BODY))
     if L > 0:
         Lmm = L * 1000.0
         limit_300 = Lmm / 300.0
         limit_600 = Lmm / 600.0
         limit_900 = Lmm / 900.0
-        story.append(Paragraph(f"L/300 = {limit_300:.1f} mm", N))
-        story.append(Paragraph(f"L/600 = {limit_600:.1f} mm", N))
-        story.append(Paragraph(f"L/900 = {limit_900:.1f} mm", N))
+        story.append(Paragraph(f"L/300 = {limit_300:.1f} mm", BODY))
+        story.append(Paragraph(f"L/600 = {limit_600:.1f} mm", BODY))
+        story.append(Paragraph(f"L/900 = {limit_900:.1f} mm", BODY))
     else:
-        story.append(Paragraph("Span length not available → limits not evaluated.", N))
+        story.append(Paragraph("Span length not available → limits not evaluated.", BODY))
     story.append(Spacer(1, 6))
 
     story.append(Paragraph("4.2 SLS pass / fail", styles["Heading4"]))
-    story.append(Paragraph("Deflection check not fully implemented – indicative only.", N))
+    story.append(Paragraph("Deflection check not fully implemented – indicative only.", BODY))
     story.append(Spacer(1, 12))
 
     # -----------------------
@@ -5021,9 +5021,9 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
             f"Web class (compression): {sr_display.get('web_class_compression_db','n/a')}",
             N
         ))
-        story.append(Paragraph("Overall cross-section class: (not explicitly derived)", N))
+        story.append(Paragraph("Overall cross-section class: (not explicitly derived)", BODY))
     else:
-        story.append(Paragraph("No section classification data available.", N))
+        story.append(Paragraph("No section classification data available.", BODY))
     story.append(Spacer(1, 12))
 
     # -----------------------
@@ -5097,7 +5097,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
                     N
                 ))
     else:
-        story.append(Paragraph("Buckling results not available.", N))
+        story.append(Paragraph("Buckling results not available.", BODY))
     story.append(Spacer(1, 12))
 
     # -----------------------
@@ -5133,7 +5133,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     story.append(PageBreak())
     story.append(Paragraph("9. Appendix & references", H1))
-    story.append(Paragraph("This prototype does not print all intermediate formula steps.", N))
+    story.append(Paragraph("This prototype does not print all intermediate formula steps.", BODY))
     story.append(Paragraph(
         "Equations and clause references follow EN 1993-1-1, EN 1990 and EN 1991 series "
         "(see also National Annex).",
@@ -5141,10 +5141,10 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     ))
     story.append(Spacer(1, 6))
     story.append(Paragraph("Key references:", styles["Heading4"]))
-    story.append(Paragraph("1) EN 1993-1-1:2005 + A1:2014 – Eurocode 3: Design of steel structures – Part 1-1.", N))
-    story.append(Paragraph("2) EN 1990:2002 – Eurocode: Basis of structural design.", N))
-    story.append(Paragraph("3) EN 1991 series – Actions on structures.", N))
-    story.append(Paragraph("4) National Annex to EN 1993-1-1 (where applicable).", N))
+    story.append(Paragraph("1) EN 1993-1-1:2005 + A1:2014 – Eurocode 3: Design of steel structures – Part 1-1.", BODY))
+    story.append(Paragraph("2) EN 1990:2002 – Eurocode: Basis of structural design.", BODY))
+    story.append(Paragraph("3) EN 1991 series – Actions on structures.", BODY))
+    story.append(Paragraph("4) National Annex to EN 1993-1-1 (where applicable).", BODY))
 
     doc.build(story, onFirstPage=_draw_header_footer, onLaterPages=_draw_header_footer)
     buffer.seek(0)
@@ -7338,6 +7338,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
