@@ -4724,39 +4724,39 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
         bottomMargin=20 * mm,
     )
     def _draw_header_footer(canvas, doc):
-    canvas.saveState()
-
-    # Header line
-    canvas.setStrokeColorRGB(0.75, 0.75, 0.75)
-    canvas.setLineWidth(0.5)
-    canvas.line(doc.leftMargin, A4[1] - 22*mm, A4[0] - doc.rightMargin, A4[1] - 22*mm)
-
-    # Logo (optional)
-    try:
-        logo_path = asset_path("EngiSnap-Logo.png")
-        if logo_path.exists():
-            canvas.drawImage(
-                str(logo_path),
-                doc.leftMargin,
-                A4[1] - 18*mm,
-                width=28*mm,
-                height=10*mm,
-                preserveAspectRatio=True,
-                mask="auto"
-            )
-    except Exception:
-        pass
-
-    # Report title (right side)
-    canvas.setFont("Helvetica-Bold", 10)
-    canvas.drawRightString(A4[0] - doc.rightMargin, A4[1] - 15*mm, "EngiSnap — Beam Design Report")
-
-    # Footer page number
-    canvas.setFont("Helvetica", 9)
-    canvas.setFillColorRGB(0.35, 0.35, 0.35)
-    canvas.drawRightString(A4[0] - doc.rightMargin, 12*mm, f"Page {doc.page}")
-
-    canvas.restoreState()
+        canvas.saveState()
+    
+        # Header line
+        canvas.setStrokeColorRGB(0.75, 0.75, 0.75)
+        canvas.setLineWidth(0.5)
+        canvas.line(doc.leftMargin, A4[1] - 22*mm, A4[0] - doc.rightMargin, A4[1] - 22*mm)
+    
+        # Logo (optional)
+        try:
+            logo_path = asset_path("EngiSnap-Logo.png")
+            if logo_path.exists():
+                canvas.drawImage(
+                    str(logo_path),
+                    doc.leftMargin,
+                    A4[1] - 18*mm,
+                    width=28*mm,
+                    height=10*mm,
+                    preserveAspectRatio=True,
+                    mask="auto"
+                )
+        except Exception:
+            pass
+    
+        # Report title (right side)
+        canvas.setFont("Helvetica-Bold", 10)
+        canvas.drawRightString(A4[0] - doc.rightMargin, A4[1] - 15*mm, "EngiSnap — Beam Design Report")
+    
+        # Footer page number
+        canvas.setFont("Helvetica", 9)
+        canvas.setFillColorRGB(0.35, 0.35, 0.35)
+        canvas.drawRightString(A4[0] - doc.rightMargin, 12*mm, f"Page {doc.page}")
+    
+        canvas.restoreState()
 
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.enums import TA_LEFT, TA_CENTER
@@ -7338,6 +7338,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
