@@ -5302,19 +5302,46 @@ def render_report_tab():
     components.html(
         """
         <script>
+        function engiGetRoot() {
+          // Try parent document first (Streamlit components often live in an iframe)
+          try {
+            if (window.parent && window.parent.document) {
+              const el = window.parent.document.getElementById("engi_report_root");
+              if (el) return el;
+            }
+          } catch (e) {}
+    
+          // Fallback: current document
+          const el2 = document.getElementById("engi_report_root");
+          if (el2) return el2;
+    
+          return null;
+        }
+    
+        function engiCollectStyles() {
+          let css = "";
+          const docs = [];
+          try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e) {}
+          docs.push(document);
+    
+          // Collect <style> and <link rel="stylesheet"> from available docs
+          docs.forEach(d => {
+            d.querySelectorAll("style, link[rel='stylesheet']").forEach(el => {
+              css += el.outerHTML;
+            });
+          });
+          return css;
+        }
+    
         function engiPrintReport() {
-          const src = document.getElementById("engi_report_root");
+          const src = engiGetRoot();
           if (!src) {
-            alert("Report content not found");
+            alert("Report content not found (engi_report_root). Make sure the report wrapper exists and is not hidden.");
             return;
           }
     
           const html = src.outerHTML;
-    
-          let css = "";
-          document.querySelectorAll("style, link[rel='stylesheet']").forEach(el => {
-            css += el.outerHTML;
-          });
+          const css = engiCollectStyles();
     
           const w = window.open("", "_blank");
           w.document.open();
@@ -5327,6 +5354,8 @@ def render_report_tab():
                   @page { size: A4; margin: 12mm; }
                   html, body { height:auto !important; overflow:visible !important; }
                   .no-print { display:none !important; }
+                  /* Prevent Streamlit width constraints */
+                  .block-container { max-width: none !important; }
                 </style>
               </head>
               <body>
@@ -5336,7 +5365,7 @@ def render_report_tab():
           `);
           w.document.close();
           w.focus();
-          setTimeout(() => w.print(), 400);
+          setTimeout(() => w.print(), 600);
         }
         </script>
     
@@ -5351,11 +5380,9 @@ def render_report_tab():
           Print report (stable)
         </button>
         """,
-        height=70,
+        height=80,
     )
-    
-    st.markdown("---")
-    st.markdown("</div>", unsafe_allow_html=True)
+
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
     # ----------------------------------------------------
@@ -7383,6 +7410,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
