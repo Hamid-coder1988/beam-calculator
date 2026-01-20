@@ -4723,9 +4723,59 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
         topMargin=20 * mm,
         bottomMargin=20 * mm,
     )
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    from reportlab.lib import colors
+    
+    # ---- Better typography (closer to your Report tab vibe) ----
     styles = getSampleStyleSheet()
-    N = styles["Normal"]
-    H = styles["Heading3"]
+    
+    TITLE = ParagraphStyle(
+        "TITLE",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=18,
+        leading=22,
+        alignment=TA_LEFT,
+        spaceAfter=10,
+    )
+    
+    H1 = ParagraphStyle(
+        "H1",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=14,
+        leading=18,
+        spaceBefore=14,
+        spaceAfter=6,
+    )
+    
+    H2 = ParagraphStyle(
+        "H2",
+        parent=styles["Heading3"],
+        fontName="Helvetica-Bold",
+        fontSize=12,
+        leading=15,
+        spaceBefore=10,
+        spaceAfter=4,
+    )
+    
+    BODY = ParagraphStyle(
+        "BODY",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=10.5,
+        leading=13,
+        spaceAfter=2,
+    )
+    
+    SMALL = ParagraphStyle(
+        "SMALL",
+        parent=BODY,
+        fontSize=9.5,
+        leading=12,
+        textColor=colors.HexColor("#444444"),
+    )
 
     story = []
 
@@ -7233,6 +7283,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
