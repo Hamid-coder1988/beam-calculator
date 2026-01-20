@@ -4723,6 +4723,41 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
         topMargin=20 * mm,
         bottomMargin=20 * mm,
     )
+    def _draw_header_footer(canvas, doc):
+    canvas.saveState()
+
+    # Header line
+    canvas.setStrokeColorRGB(0.75, 0.75, 0.75)
+    canvas.setLineWidth(0.5)
+    canvas.line(doc.leftMargin, A4[1] - 22*mm, A4[0] - doc.rightMargin, A4[1] - 22*mm)
+
+    # Logo (optional)
+    try:
+        logo_path = asset_path("EngiSnap-Logo.png")
+        if logo_path.exists():
+            canvas.drawImage(
+                str(logo_path),
+                doc.leftMargin,
+                A4[1] - 18*mm,
+                width=28*mm,
+                height=10*mm,
+                preserveAspectRatio=True,
+                mask="auto"
+            )
+    except Exception:
+        pass
+
+    # Report title (right side)
+    canvas.setFont("Helvetica-Bold", 10)
+    canvas.drawRightString(A4[0] - doc.rightMargin, A4[1] - 15*mm, "EngiSnap — Beam Design Report")
+
+    # Footer page number
+    canvas.setFont("Helvetica", 9)
+    canvas.setFillColorRGB(0.35, 0.35, 0.35)
+    canvas.drawRightString(A4[0] - doc.rightMargin, 12*mm, f"Page {doc.page}")
+
+    canvas.restoreState()
+
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.enums import TA_LEFT, TA_CENTER
     from reportlab.lib import colors
@@ -4832,7 +4867,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     # 2. Beam definition & material
     # -----------------------
-    story.append(Paragraph("2. Beam definition & material", H))
+    story.append(Paragraph("2. Beam definition & material", H1))
 
     # 2.1 Member definition
     story.append(Paragraph("2.1 Member definition", styles["Heading4"]))
@@ -4903,7 +4938,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     # 3. Loading (summary)
     # -----------------------
-    story.append(Paragraph("3. Loading", H))
+    story.append(Paragraph("3. Loading", H1))
 
     story.append(Paragraph("3.1 Load description", styles["Heading4"]))
     if ready_case:
@@ -4950,7 +4985,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     # 4. Serviceability (SLS)
     # -----------------------
-    story.append(Paragraph("4. Serviceability (SLS)", H))
+    story.append(Paragraph("4. Serviceability (SLS)", H1))
     story.append(Paragraph("4.1 Maximum deflection", styles["Heading4"]))
     story.append(Paragraph(f"δ_max = {delta_max_mm:.3f} mm" if delta_max_mm is not None else "δ_max = n/a", N))
     if L > 0:
@@ -4972,7 +5007,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     # 5. Section classification (EC3 §5)
     # -----------------------
-    story.append(Paragraph("5. Section classification (EC3 §5)", H))
+    story.append(Paragraph("5. Section classification (EC3 §5)", H1))
     if sr_display:
         story.append(Paragraph(
             f"Flange class (bending): {sr_display.get('flange_class_db','n/a')}",
@@ -4994,7 +5029,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     # 6. Verification of cross-section strength (ULS)
     # -----------------------
-    story.append(Paragraph("6. Verification of cross-section strength (ULS)", H))
+    story.append(Paragraph("6. Verification of cross-section strength (ULS)", H1))
     story.append(Paragraph(
         "(1) Tension; (2) Compression; (3)-(4) Bending; "
         "(5)-(6) Shear; (7)-(8) Bending + shear; "
@@ -5013,11 +5048,31 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
                 str(row["Utilization"]),
                 str(row["Status"]),
             ])
-        checks_table = Table(data_checks, hAlign="LEFT", repeatRows=1)
+        checks_table = Table(
+            data_checks,
+            colWidths=[70*mm, 35*mm, 35*mm, 20*mm],
+            hAlign="LEFT",
+            repeatRows=1
+        )
         checks_table.setStyle(TableStyle([
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 10),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F2F4F7")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#111827")),
+        
+            ("FONTSIZE", (0, 1), (-1, -1), 9.5),
+            ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#111827")),
+        
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#D0D5DD")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        
+            # Zebra stripes
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#FAFAFA")]),
         ]))
         story.append(checks_table)
     story.append(Spacer(1, 12))
@@ -5025,7 +5080,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     # 7. Verification of member stability (ULS buckling)
     # -----------------------
-    story.append(Paragraph("7. Verification of member stability (ULS buckling)", H))
+    story.append(Paragraph("7. Verification of member stability (ULS buckling)", H1))
     story.append(Paragraph(
         "(15)-(16) Flexural buckling; (17) Torsional / torsional-flexural buckling; "
         "(18) Lateral–torsional buckling; (19)-(22) Buckling interaction.",
@@ -5048,7 +5103,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     # 8. Summary of checks
     # -----------------------
-    story.append(Paragraph("8. Summary of checks", H))
+    story.append(Paragraph("8. Summary of checks", H1))
     data_summary = [
         ["Check group", "Status", "Governing", "Ratio"],
     ]
@@ -5077,7 +5132,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # 9. Appendix (equations / references)
     # -----------------------
     story.append(PageBreak())
-    story.append(Paragraph("9. Appendix & references", H))
+    story.append(Paragraph("9. Appendix & references", H1))
     story.append(Paragraph("This prototype does not print all intermediate formula steps.", N))
     story.append(Paragraph(
         "Equations and clause references follow EN 1993-1-1, EN 1990 and EN 1991 series "
@@ -5091,7 +5146,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     story.append(Paragraph("3) EN 1991 series – Actions on structures.", N))
     story.append(Paragraph("4) National Annex to EN 1993-1-1 (where applicable).", N))
 
-    doc.build(story)
+    doc.build(story, onFirstPage=_draw_header_footer, onLaterPages=_draw_header_footer)
     buffer.seek(0)
     return buffer
     
@@ -7283,6 +7338,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
