@@ -5344,32 +5344,19 @@ def render_report_tab():
     delta_max_mm = st.session_state.get("diag_delta_max_mm")
 
     # ----------------------------------------------------
-    # Save report (simple)
+    # Save report
     # ----------------------------------------------------
     st.markdown("<div class='no-print'>", unsafe_allow_html=True)
+    
     st.markdown("### Save report")
-    st.info("To export: press **Ctrl+P** (or ⌘+P on Mac) → **Save as PDF**. Enable **Background graphics**.")
-    # --- Rock-solid PDF export (multi-page, no browser printing issues) ---
-    if HAS_RL:
-        try:
-            pdf_buf = build_pdf_report(
-                meta, material, sr_display,
-                inputs, df_rows, overall_ok, governing, extras
-            )
-            if pdf_buf is not None:
-                st.download_button(
-                    "Download report (PDF)",
-                    data=pdf_buf.getvalue(),
-                    file_name=f"EngiSnap_Report_{date.today().isoformat()}.pdf",
-                    mime="application/pdf",
-                )
-            else:
-                st.warning("PDF engine not available.")
-        except Exception as e:
-            st.warning(f"PDF build failed: {e}")
-    else:
-        st.warning("ReportLab not installed, PDF export disabled.")
+    st.info(
+        "To export: press **Ctrl+P** (or ⌘+P on Mac) → **Save as PDF**. "
+        "Enable **Background graphics**.\n\n"
+        "⚠️ Tip: check **Expand all sections** before printing."
+    )
+    
     st.markdown("---")
+    
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ----------------------------------------------------
@@ -7398,6 +7385,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
