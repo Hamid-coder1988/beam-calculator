@@ -35,56 +35,157 @@ def safe_image(path_like, **kwargs) -> bool:
         pass
     return False
 
-def build_printable_report_html():
-    # You can extend this later: include your CSS and the report body.
-    # For now, grab the report root content via a simple template
-    # (we'll render report content as HTML directly from Python).
+def build_printable_report_html(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras):
+    """
+    Returns a standalone HTML file (string) that looks close to the Report tab
+    and prints reliably with Ctrl+P.
+    """
 
-    # NOTE: This should reflect your report tab fields, not Streamlit widgets.
-    doc_title = st.session_state.get("doc_title", "Beam check")
-    position = st.session_state.get("pos_loc", "")
-    revision = st.session_state.get("rev", "A")
-    project_name = st.session_state.get("project_name", "")
-    requested_by = st.session_state.get("requested_by", "")
-    run_date = st.session_state.get("run_date", "")
+    # --- safe getters ---
+    def g(d, k, default=""):
+        try:
+            v = d.get(k, default) if isinstance(d, dict) else default
+            return "" if v is None else str(v)
+        except Exception:
+            return str(default)
 
-    html = f"""
-<!doctype html>
+    doc_title = g(meta, "doc_title", g(meta, "document_title", "Beam check"))
+    project_name = g(meta, "project_name", "")
+    position = g(meta, "position", g(meta, "pos_loc", ""))
+    revision = g(meta, "revision", "A")
+    requested_by = g(meta, "requested_by", "")
+    run_date = g(meta, "date", g(meta, "run_date", ""))
+
+    section_name = g(sr_display, "name", "")
+    section_family = g(sr_display, "family", g(sr_display, "type", ""))
+
+    # Build checks rows HTML
+    checks_html = ""
+    if df_rows:
+        for r in df_rows:
+            label = g(r, "label", "")
+            applied = g(r, "applied", g(r, "Ed", ""))
+            resist = g(r, "resistance", g(r, "Rd", ""))
+            util = g(r, "util", "")
+            status = g(r, "status", "")
+            checks_html += f"""
+              <tr>
+                <td>{label}</td>
+                <td class="num">{applied}</td>
+                <td class="num">{resist}</td>
+                <td class="num">{util}</td>
+                <td class="status">{status}</td>
+              </tr>
+            """
+
+    # Governing
+    gov_check, gov_util = governing if isinstance(governing, (list, tuple)) and len(governing) == 2 else ("", "")
+
+    # Minimal CSS that resembles your Report tab “cards/inputs”
+    html = f"""<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>EngiSnap Report</title>
 <style>
   @page {{ size: A4; margin: 12mm; }}
-  body {{ font-family: Arial, sans-serif; color: #111; }}
+  html, body {{ height: auto; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #111827;
+    background: white;
+  }}
   h1 {{ font-size: 20px; margin: 0 0 10px 0; }}
-  h2 {{ font-size: 14px; margin: 18px 0 6px 0; }}
-  .box {{ border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-bottom: 12px; }}
-  .grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }}
-  .field label {{ display:block; font-size: 11px; color:#6b7280; margin-bottom:4px; }}
-  .field div {{ background:#f3f4f6; border-radius:8px; padding:10px; min-height: 18px; }}
-  table {{ width:100%; border-collapse: collapse; }}
-  th, td {{ border:1px solid #d1d5db; padding:6px; font-size: 12px; }}
-  th {{ background:#f3f4f6; text-align:left; }}
+  h2 {{ font-size: 14px; margin: 18px 0 8px 0; }}
+  .muted {{ color: #6b7280; font-size: 12px; }}
+  .card {{
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 12px;
+    margin: 10px 0 12px 0;
+  }}
+  .grid {{
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+  }}
+  .field label {{
+    display:block;
+    font-size: 11px;
+    color:#6b7280;
+    margin-bottom:4px;
+  }}
+  .field .value {{
+    background:#f3f4f6;
+    border-radius:10px;
+    padding:10px;
+    min-height: 18px;
+  }}
+  table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }}
+  th, td {{
+    border: 1px solid #d1d5db;
+    padding: 6px 8px;
+    font-size: 12px;
+    vertical-align: top;
+  }}
+  th {{
+    background: #f3f4f6;
+    text-align: left;
+    font-weight: 600;
+  }}
+  td.num {{ text-align: right; white-space: nowrap; }}
+  td.status {{ white-space: nowrap; }}
+  .page-break {{ page-break-before: always; break-before: page; }}
 </style>
 </head>
 <body>
 
 <h1>EngiSnap Beam Design Report</h1>
+<div class="muted">Material: {material}</div>
 
 <h2>Project info</h2>
-<div class="box">
+<div class="card">
   <div class="grid">
-    <div class="field"><label>Document title</label><div>{doc_title}</div></div>
-    <div class="field"><label>Position / Location (Beam ID)</label><div>{position}</div></div>
-    <div class="field"><label>Revision</label><div>{revision}</div></div>
-    <div class="field"><label>Project name</label><div>{project_name}</div></div>
-    <div class="field"><label>Requested by</label><div>{requested_by}</div></div>
-    <div class="field"><label>Date</label><div>{run_date}</div></div>
+    <div class="field"><label>Document title</label><div class="value">{doc_title}</div></div>
+    <div class="field"><label>Position / Location (Beam ID)</label><div class="value">{position}</div></div>
+    <div class="field"><label>Revision</label><div class="value">{revision}</div></div>
+    <div class="field"><label>Project name</label><div class="value">{project_name}</div></div>
+    <div class="field"><label>Requested by</label><div class="value">{requested_by}</div></div>
+    <div class="field"><label>Date</label><div class="value">{run_date}</div></div>
   </div>
 </div>
 
-<!-- Add more sections here later: section properties, loads, checks table, etc. -->
+<h2>Section</h2>
+<div class="card">
+  <div class="grid">
+    <div class="field"><label>Family</label><div class="value">{section_family}</div></div>
+    <div class="field"><label>Section</label><div class="value">{section_name}</div></div>
+    <div class="field"><label>Material</label><div class="value">{material}</div></div>
+  </div>
+</div>
+
+<h2>Results summary</h2>
+<div class="card">
+  <div class="muted">Governing: {gov_check} &nbsp;&nbsp; Utilisation: {gov_util}</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Check</th>
+        <th>Applied</th>
+        <th>Resistance</th>
+        <th>Utilisation</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {checks_html if checks_html else '<tr><td colspan="5">No results available.</td></tr>'}
+    </tbody>
+  </table>
+</div>
 
 </body>
 </html>
@@ -5344,19 +5445,33 @@ def render_report_tab():
     delta_max_mm = st.session_state.get("diag_delta_max_mm")
 
     # ----------------------------------------------------
-    # Save report
+    # Save report (HTML – stable printing)
     # ----------------------------------------------------
     st.markdown("<div class='no-print'>", unsafe_allow_html=True)
-    
     st.markdown("### Save report")
+    
     st.info(
-        "To export: press **Ctrl+P** (or ⌘+P on Mac) → **Save as PDF**. "
-        "Enable **Background graphics**.\n\n"
-        "⚠️ Tip: check **Expand all sections** before printing."
+        "Stable export method:\n"
+        "1) Download the HTML\n"
+        "2) Open it in your browser\n"
+        "3) Ctrl+P (or ⌘+P) → Save as PDF\n"
+        "Tip: enable **Background graphics**."
     )
     
-    st.markdown("---")
+    try:
+        html_report = build_printable_report_html(
+            meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras
+        )
+        st.download_button(
+            "Download printable report (HTML)",
+            data=html_report.encode("utf-8"),
+            file_name=f"EngiSnap_Report_{date.today().isoformat()}.html",
+            mime="text/html",
+        )
+    except Exception as e:
+        st.warning(f"HTML build failed: {e}")
     
+    st.markdown("---")
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ----------------------------------------------------
@@ -7385,6 +7500,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
