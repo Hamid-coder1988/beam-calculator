@@ -4854,7 +4854,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     # 1. Project information
     # -----------------------
-    story.append(Paragraph("1. Project information", H))
+    story.append(Paragraph("1. Project information", H1))
     story.append(Paragraph(f"Project name: {project_name}", N))
     story.append(Paragraph(f"Designer: {requested_by}", N))
     story.append(Paragraph(f"Date: {run_date}", N))
@@ -7338,6 +7338,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
