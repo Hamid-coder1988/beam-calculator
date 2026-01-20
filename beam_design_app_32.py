@@ -59,15 +59,31 @@ def build_printable_report_html(meta, material, sr_display, inputs, df_rows, ove
     section_name = g(sr_display, "name", "")
     section_family = g(sr_display, "family", g(sr_display, "type", ""))
 
-    # Build checks rows HTML
+    # -------------------------
+    # Build checks rows HTML (supports list-of-dicts OR pandas DataFrame)
+    # -------------------------
     checks_html = ""
-    if df_rows:
-        for r in df_rows:
-            label = g(r, "label", "")
-            applied = g(r, "applied", g(r, "Ed", ""))
-            resist = g(r, "resistance", g(r, "Rd", ""))
-            util = g(r, "util", "")
-            status = g(r, "status", "")
+    
+    rows_iter = []
+    try:
+        # If df_rows is a pandas DataFrame
+        if hasattr(df_rows, "to_dict") and hasattr(df_rows, "empty"):
+            if not df_rows.empty:
+                rows_iter = df_rows.to_dict(orient="records")
+        # If df_rows is a list/tuple of dicts
+        elif isinstance(df_rows, (list, tuple)):
+            rows_iter = list(df_rows)
+    except Exception:
+        rows_iter = []
+    
+    if len(rows_iter) > 0:
+        for r in rows_iter:
+            label = g(r, "label", g(r, "Check", ""))
+            applied = g(r, "applied", g(r, "Applied", g(r, "Ed", "")))
+            resist = g(r, "resistance", g(r, "Resistance", g(r, "Rd", "")))
+            util = g(r, "util", g(r, "Utilisation", g(r, "Utilization", "")))
+            status = g(r, "status", g(r, "Status", ""))
+    
             checks_html += f"""
               <tr>
                 <td>{label}</td>
@@ -77,7 +93,6 @@ def build_printable_report_html(meta, material, sr_display, inputs, df_rows, ove
                 <td class="status">{status}</td>
               </tr>
             """
-
     # Governing
     gov_check, gov_util = governing if isinstance(governing, (list, tuple)) and len(governing) == 2 else ("", "")
 
@@ -7500,6 +7515,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
