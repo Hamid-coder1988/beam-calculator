@@ -4911,15 +4911,15 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
 
         story.append(Paragraph(
             f"A = {A_mm2:.1f} mm²; Iy = {Iy_cm4:.1f} cm⁴; Iz = {Iz_cm4:.1f} cm⁴",
-            N
+            BODY
         ))
         story.append(Paragraph(
             f"Wel,y = {Wel_y_cm3:.1f} cm³; Wel,z = {Wel_z_cm3:.1f} cm³",
-            N
+            BODY
         ))
         story.append(Paragraph(
             f"It ≈ {It_cm4:.1f} cm⁴; Iw ≈ {Iw_cm6:.1f} cm⁶",
-            N
+            BODY
         ))
 
     story.append(Spacer(1, 6))
@@ -7338,6 +7338,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
