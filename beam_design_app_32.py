@@ -5344,96 +5344,34 @@ def render_report_tab():
     delta_max_mm = st.session_state.get("diag_delta_max_mm")
 
     # ----------------------------------------------------
-    # Save report
+    # Save report (simple)
     # ----------------------------------------------------
     st.markdown("<div class='no-print'>", unsafe_allow_html=True)
     st.markdown("### Save report")
     st.info("To export: press **Ctrl+P** (or ⌘+P on Mac) → **Save as PDF**. Enable **Background graphics**.")
-    html_print = build_printable_report_html()
-    st.download_button(
-        "Download printable report (HTML)",
-        data=html_print.encode("utf-8"),
-        file_name="EngiSnap_Report_Print.html",
-        mime="text/html",
-    )
-    st.caption("Open the downloaded HTML in your browser, then Ctrl+P → Save as PDF. This is stable.")
+    # --- Rock-solid PDF export (multi-page, no browser printing issues) ---
+    if HAS_RL:
+        try:
+            pdf_buf = build_pdf_report(
+                meta, material, sr_display,
+                inputs, df_rows, overall_ok, governing, extras
+            )
+            if pdf_buf is not None:
+                st.download_button(
+                    "Download report (PDF)",
+                    data=pdf_buf.getvalue(),
+                    file_name=f"EngiSnap_Report_{date.today().isoformat()}.pdf",
+                    mime="application/pdf",
+                )
+            else:
+                st.warning("PDF engine not available.")
+        except Exception as e:
+            st.warning(f"PDF build failed: {e}")
+    else:
+        st.warning("ReportLab not installed, PDF export disabled.")
+    st.markdown("---")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    
-    # ==============================
-    # STABLE PRINT BUTTON (Option A)
-    # ==============================
-    import streamlit.components.v1 as components
-    
-    components.html(
-        """
-        <script>
-        function engiGetRoot() {
-          // Try parent document first (Streamlit components often live in an iframe)
-          try {
-            if (window.parent && window.parent.document) {
-              const el = window.parent.document.getElementById("engi_report_root");
-              if (el) return el;
-            }
-          } catch (e) {}
-    
-          // Fallback: current document
-          const el2 = document.getElementById("engi_report_root");
-          if (el2) return el2;
-    
-          return null;
-        }
-    
-        function engiCollectStyles() {
-          let css = "";
-          const docs = [];
-          try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e) {}
-          docs.push(document);
-    
-          // Collect <style> and <link rel="stylesheet"> from available docs
-          docs.forEach(d => {
-            d.querySelectorAll("style, link[rel='stylesheet']").forEach(el => {
-              css += el.outerHTML;
-            });
-          });
-          return css;
-        }
-    
-        function engiPrintReport() {
-          const src = engiGetRoot();
-          if (!src) {
-            alert("Report content not found (engi_report_root). Make sure the report wrapper exists and is not hidden.");
-            return;
-          }
-    
-          const html = src.outerHTML;
-          const css = engiCollectStyles();
-    
-          const w = window.open("", "_blank");
-          w.document.open();
-          w.document.write(`
-            <html>
-              <head>
-                <title>EngiSnap Report</title>
-                ${css}
-                <style>
-                  @page { size: A4; margin: 12mm; }
-                  html, body { height:auto !important; overflow:visible !important; }
-                  .no-print { display:none !important; }
-                  /* Prevent Streamlit width constraints */
-                  .block-container { max-width: none !important; }
-                </style>
-              </head>
-              <body>
-                ${html}
-              </body>
-            </html>
-          `);
-          w.document.close();
-          w.focus();
-          setTimeout(() => w.print(), 600);
-        }
-        </script>
-    
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
     # ----------------------------------------------------
@@ -7093,7 +7031,6 @@ def render_report_tab():
     # Close report root wrapper (important for proper printing)
     st.markdown("</div>", unsafe_allow_html=True)
 
-
 # =========================================================
 # APP ENTRY
 # =========================================================
@@ -7461,6 +7398,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
