@@ -5434,20 +5434,6 @@ def render_report_tab():
         }
         </script>
     
-        <button onclick="engiPrintReport()"
-          style="
-            padding: 0.5rem 0.9rem;
-            border-radius: 8px;
-            border: 1px solid #ddd;
-            background: white;
-            cursor: pointer;
-          ">
-          Print report (stable)
-        </button>
-        """,
-        height=80,
-    )
-
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
     # ----------------------------------------------------
@@ -7475,6 +7461,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
