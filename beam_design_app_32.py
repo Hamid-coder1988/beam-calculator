@@ -4811,7 +4811,9 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
         leading=12,
         textColor=colors.HexColor("#444444"),
     )
-
+    # Backward-compatible aliases (your PDF code still uses N and some places use H)
+    N = BODY
+    H = H1
     story = []
 
     # -----------------------
@@ -7338,6 +7340,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
