@@ -4858,11 +4858,9 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
     # -----------------------
     story.append(Paragraph("1. Project information", H1))
     story.append(Paragraph(f"Project name: {project_name}", BODY))
-    story.append(Paragraph(f"Designer: {requested_by}", BODY))
+    story.append(Paragraph(f"Requested by: {requested_by}", BODY))
     story.append(Paragraph(f"Date: {run_date}", BODY))
-    story.append(Paragraph("App: EngiSnap – Beam design (prototype)", BODY))
     story.append(Spacer(1, 6))
-    story.append(Paragraph("National Annex: (not specified)", BODY))
     story.append(Paragraph(f"Notes / comments: {notes}", BODY))
     story.append(Spacer(1, 12))
 
@@ -5290,34 +5288,74 @@ def render_report_tab():
     delta_max_mm = st.session_state.get("diag_delta_max_mm")
 
     # ----------------------------------------------------
-    # Save report (simple)
+    # Save report
     # ----------------------------------------------------
     st.markdown("<div class='no-print'>", unsafe_allow_html=True)
     st.markdown("### Save report")
     st.info("To export: press **Ctrl+P** (or ⌘+P on Mac) → **Save as PDF**. Enable **Background graphics**.")
-    # --- Rock-solid PDF export (multi-page, no browser printing issues) ---
-    if HAS_RL:
-        try:
-            pdf_buf = build_pdf_report(
-                meta, material, sr_display,
-                inputs, df_rows, overall_ok, governing, extras
-            )
-            if pdf_buf is not None:
-                st.download_button(
-                    "Download report (PDF)",
-                    data=pdf_buf.getvalue(),
-                    file_name=f"EngiSnap_Report_{date.today().isoformat()}.pdf",
-                    mime="application/pdf",
-                )
-            else:
-                st.warning("PDF engine not available.")
-        except Exception as e:
-            st.warning(f"PDF build failed: {e}")
-    else:
-        st.warning("ReportLab not installed, PDF export disabled.")
+    
+    # ==============================
+    # STABLE PRINT BUTTON (Option A)
+    # ==============================
+    import streamlit.components.v1 as components
+    
+    components.html(
+        """
+        <script>
+        function engiPrintReport() {
+          const src = document.getElementById("engi_report_root");
+          if (!src) {
+            alert("Report content not found");
+            return;
+          }
+    
+          const html = src.outerHTML;
+    
+          let css = "";
+          document.querySelectorAll("style, link[rel='stylesheet']").forEach(el => {
+            css += el.outerHTML;
+          });
+    
+          const w = window.open("", "_blank");
+          w.document.open();
+          w.document.write(`
+            <html>
+              <head>
+                <title>EngiSnap Report</title>
+                ${css}
+                <style>
+                  @page { size: A4; margin: 12mm; }
+                  html, body { height:auto !important; overflow:visible !important; }
+                  .no-print { display:none !important; }
+                </style>
+              </head>
+              <body>
+                ${html}
+              </body>
+            </html>
+          `);
+          w.document.close();
+          w.focus();
+          setTimeout(() => w.print(), 400);
+        }
+        </script>
+    
+        <button onclick="engiPrintReport()"
+          style="
+            padding: 0.5rem 0.9rem;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+          ">
+          Print report (stable)
+        </button>
+        """,
+        height=70,
+    )
+    
     st.markdown("---")
     st.markdown("</div>", unsafe_allow_html=True)
-
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
     # ----------------------------------------------------
@@ -7018,15 +7056,20 @@ st.markdown(
          Force everything to expand fully for print. */
       html, body { height: auto !important; overflow: visible !important; }
 
-      div[data-testid="stAppViewContainer"],
-      div[data-testid="stAppViewContainer"] > .main,
-      section.main,
-      div.block-container {
-        height: auto !important;
-        overflow: visible !important;
-        max-height: none !important;
-      }
-
+     div[data-testid="stAppViewContainer"],
+     div[data-testid="stAppViewContainer"] > .main,
+     section.main,
+     div.block-container,
+     div[data-testid="stTabs"],
+     div[data-testid="stHorizontalBlock"],
+     div[data-testid="stVerticalBlock"],
+     div.element-container,
+     div.stMarkdown,
+     div[data-testid="stToolbar"] {
+     height: auto !important;
+     max-height: none !important;
+     overflow: visible !important;
+     }
       /* Streamlit tab panel containers (BaseWeb) */
       div[data-baseweb="tab-panel"],
       div[data-baseweb="tab-panel"] > div {
@@ -7340,6 +7383,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
