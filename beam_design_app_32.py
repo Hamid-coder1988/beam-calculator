@@ -37,66 +37,170 @@ def safe_image(path_like, **kwargs) -> bool:
 
 def build_printable_report_html(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras):
     """
-    Returns a standalone HTML file (string) that looks close to the Report tab
-    and prints reliably with Ctrl+P.
+    Standalone HTML report for reliable Ctrl+P printing.
+    Tries to include the same content as the Report tab using available data dicts.
     """
 
-    # --- safe getters ---
     def g(d, k, default=""):
         try:
-            v = d.get(k, default) if isinstance(d, dict) else default
+            if isinstance(d, dict):
+                v = d.get(k, default)
+            else:
+                v = default
             return "" if v is None else str(v)
         except Exception:
             return str(default)
 
-    doc_title = g(meta, "doc_title", g(meta, "document_title", "Beam check"))
-    project_name = g(meta, "project_name", "")
-    position = g(meta, "position", g(meta, "pos_loc", ""))
-    revision = g(meta, "revision", "A")
-    requested_by = g(meta, "requested_by", "")
-    run_date = g(meta, "date", g(meta, "run_date", ""))
+    def fmt(v, nd=3):
+        if v is None:
+            return ""
+        try:
+            x = float(v)
+            return f"{x:.{nd}f}"
+        except Exception:
+            return str(v)
 
-    section_name = g(sr_display, "name", "")
+    def is_df(x):
+        return hasattr(x, "to_dict") and hasattr(x, "empty") and hasattr(x, "columns")
+
+    # --- meta ---
+    doc_title    = g(meta, "doc_title", g(meta, "document_title", "Beam check"))
+    project_name = g(meta, "project_name", "")
+    position     = g(meta, "position", g(meta, "pos_loc", ""))
+    revision     = g(meta, "revision", g(meta, "rev", "A"))
+    requested_by = g(meta, "requested_by", "")
+    run_date     = g(meta, "run_date", g(meta, "date", ""))
+    notes        = g(meta, "notes", g(meta, "comments", ""))
+
+    # --- section ---
+    section_name   = g(sr_display, "name", "")
     section_family = g(sr_display, "family", g(sr_display, "type", ""))
 
-    # -------------------------
-    # Build checks rows HTML (supports list-of-dicts OR pandas DataFrame)
-    # -------------------------
-    checks_html = ""
-    
+    # --- governing ---
+    gov_check, gov_util = ("", "")
+    if isinstance(governing, (list, tuple)) and len(governing) == 2:
+        gov_check, gov_util = governing[0], governing[1]
+
+    # --- results rows (df_rows may be list OR DataFrame) ---
     rows_iter = []
     try:
-        # If df_rows is a pandas DataFrame
-        if hasattr(df_rows, "to_dict") and hasattr(df_rows, "empty"):
+        if is_df(df_rows):
             if not df_rows.empty:
                 rows_iter = df_rows.to_dict(orient="records")
-        # If df_rows is a list/tuple of dicts
         elif isinstance(df_rows, (list, tuple)):
             rows_iter = list(df_rows)
     except Exception:
         rows_iter = []
-    
-    if len(rows_iter) > 0:
-        for r in rows_iter:
-            label = g(r, "label", g(r, "Check", ""))
-            applied = g(r, "applied", g(r, "Applied", g(r, "Ed", "")))
-            resist = g(r, "resistance", g(r, "Resistance", g(r, "Rd", "")))
-            util = g(r, "util", g(r, "Utilisation", g(r, "Utilization", "")))
-            status = g(r, "status", g(r, "Status", ""))
-    
-            checks_html += f"""
-              <tr>
-                <td>{label}</td>
-                <td class="num">{applied}</td>
-                <td class="num">{resist}</td>
-                <td class="num">{util}</td>
-                <td class="status">{status}</td>
-              </tr>
-            """
-    # Governing
-    gov_check, gov_util = governing if isinstance(governing, (list, tuple)) and len(governing) == 2 else ("", "")
 
-    # Minimal CSS that resembles your Report tab “cards/inputs”
+    # Build results HTML with your preferred columns: # / Check / Utilization / Status
+    results_rows_html = ""
+    for i, r in enumerate(rows_iter, start=1):
+        label  = g(r, "label", g(r, "Check", ""))
+        util   = g(r, "util", g(r, "Utilisation", g(r, "Utilization", "")))
+        status = g(r, "status", g(r, "Status", ""))
+
+        # numeric formatting if possible
+        util = fmt(util, 3)
+
+        results_rows_html += f"""
+          <tr>
+            <td class="num">{i}</td>
+            <td>{label}</td>
+            <td class="num">{util}</td>
+            <td class="status">{status}</td>
+          </tr>
+        """
+
+    if not results_rows_html:
+        results_rows_html = '<tr><td colspan="4">No results available.</td></tr>'
+
+    # --- helper: render a "card" grid from dict with selected keys ---
+    def card_grid(title, items, cols=3):
+        # items: list of (label, value)
+        cells = ""
+        for (lab, val) in items:
+            cells += f"""
+              <div class="field">
+                <label>{lab}</label>
+                <div class="value">{val}</div>
+              </div>
+            """
+        return f"""
+          <h2>{title}</h2>
+          <div class="card">
+            <div class="grid" style="grid-template-columns: repeat({cols}, 1fr);">
+              {cells}
+            </div>
+          </div>
+        """
+
+    # --- Inputs summary: show whatever is in inputs dict (top keys only) ---
+    inputs_items = []
+    if isinstance(inputs, dict) and inputs:
+        # pick common keys first if exist; then add a few more
+        preferred = [
+            ("L (mm)", "L"),
+            ("Span (mm)", "span"),
+            ("kz", "kz"),
+            ("ky", "ky"),
+            ("kLT", "kLT"),
+            ("My,Ed", "MyEd"),
+            ("Mz,Ed", "MzEd"),
+            ("Vy,Ed", "VyEd"),
+            ("Vz,Ed", "VzEd"),
+            ("N,Ed", "NEd"),
+        ]
+        used = set()
+        for label, key in preferred:
+            if key in inputs:
+                inputs_items.append((label, fmt(inputs.get(key))))
+                used.add(key)
+
+        # add some extra keys (up to ~12 total) so you see more content without exploding the page
+        for k, v in inputs.items():
+            if k in used:
+                continue
+            if len(inputs_items) >= 12:
+                break
+            inputs_items.append((str(k), fmt(v)))
+
+    # --- Section properties: show common ones if present ---
+    sec_items = []
+    if isinstance(sr_display, dict) and sr_display:
+        preferred_sec = [
+            ("A", "A"),
+            ("Iy", "Iy"),
+            ("Iz", "Iz"),
+            ("Wpl,y", "Wpl_y"),
+            ("Wpl,z", "Wpl_z"),
+            ("Wel,y", "Wel_y"),
+            ("Wel,z", "Wel_z"),
+            ("It", "It"),
+            ("Iw", "Iw"),
+        ]
+        for label, key in preferred_sec:
+            if key in sr_display:
+                sec_items.append((label, fmt(sr_display.get(key))))
+
+    # --- Stability / buckling summary from extras (if available) ---
+    stab_items = []
+    if isinstance(extras, dict) and extras:
+        # These keys depend on your app; we try common ones safely.
+        candidates = [
+            ("Ncr,y", "Ncr_y"),
+            ("Ncr,z", "Ncr_z"),
+            ("Mcr", "Mcr"),
+            ("λ̄y", "lam_y"),
+            ("λ̄z", "lam_z"),
+            ("χy", "chi_y"),
+            ("χz", "chi_z"),
+            ("LT χLT", "chi_LT"),
+        ]
+        for label, key in candidates:
+            if key in extras:
+                stab_items.append((label, fmt(extras.get(key))))
+
+    # --- HTML ---
     html = f"""<!doctype html>
 <html>
 <head>
@@ -104,7 +208,6 @@ def build_printable_report_html(meta, material, sr_display, inputs, df_rows, ove
 <title>EngiSnap Report</title>
 <style>
   @page {{ size: A4; margin: 12mm; }}
-  html, body {{ height: auto; }}
   body {{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     color: #111827;
@@ -121,7 +224,7 @@ def build_printable_report_html(meta, material, sr_display, inputs, df_rows, ove
   }}
   .grid {{
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
   }}
   .field label {{
@@ -135,6 +238,7 @@ def build_printable_report_html(meta, material, sr_display, inputs, df_rows, ove
     border-radius:10px;
     padding:10px;
     min-height: 18px;
+    word-break: break-word;
   }}
   table {{
     width: 100%;
@@ -153,7 +257,7 @@ def build_printable_report_html(meta, material, sr_display, inputs, df_rows, ove
     font-weight: 600;
   }}
   td.num {{ text-align: right; white-space: nowrap; }}
-  td.status {{ white-space: nowrap; }}
+  td.status {{ text-align: center; font-weight: 600; white-space: nowrap; }}
   .page-break {{ page-break-before: always; break-before: page; }}
 </style>
 </head>
@@ -162,45 +266,49 @@ def build_printable_report_html(meta, material, sr_display, inputs, df_rows, ove
 <h1>EngiSnap Beam Design Report</h1>
 <div class="muted">Material: {material}</div>
 
-<h2>Project info</h2>
-<div class="card">
-  <div class="grid">
-    <div class="field"><label>Document title</label><div class="value">{doc_title}</div></div>
-    <div class="field"><label>Position / Location (Beam ID)</label><div class="value">{position}</div></div>
-    <div class="field"><label>Revision</label><div class="value">{revision}</div></div>
-    <div class="field"><label>Project name</label><div class="value">{project_name}</div></div>
-    <div class="field"><label>Requested by</label><div class="value">{requested_by}</div></div>
-    <div class="field"><label>Date</label><div class="value">{run_date}</div></div>
-  </div>
-</div>
+{card_grid("Project info", [
+    ("Document title", doc_title),
+    ("Position / Location (Beam ID)", position),
+    ("Revision", revision),
+    ("Project name", project_name),
+    ("Requested by", requested_by),
+    ("Date", run_date),
+], cols=3)}
 
-<h2>Section</h2>
-<div class="card">
-  <div class="grid">
-    <div class="field"><label>Family</label><div class="value">{section_family}</div></div>
-    <div class="field"><label>Section</label><div class="value">{section_name}</div></div>
-    <div class="field"><label>Material</label><div class="value">{material}</div></div>
-  </div>
-</div>
+{card_grid("Section", [
+    ("Family", section_family),
+    ("Section", section_name),
+    ("Material", material),
+], cols=3)}
+
+{"<div class='page-break'></div>" if inputs_items else ""}
+{card_grid("Inputs summary", inputs_items, cols=3) if inputs_items else ""}
+
+{card_grid("Section properties", sec_items, cols=3) if sec_items else ""}
+
+<div class="page-break"></div>
 
 <h2>Results summary</h2>
 <div class="card">
-  <div class="muted">Governing: {gov_check} &nbsp;&nbsp; Utilisation: {gov_util}</div>
+  <div class="muted">Overall: {"OK" if overall_ok else "NOT OK"} &nbsp;&nbsp; Governing: {gov_check} &nbsp;&nbsp; Utilisation: {fmt(gov_util,3)}</div>
   <table>
     <thead>
       <tr>
+        <th style="width:32px;">#</th>
         <th>Check</th>
-        <th>Applied</th>
-        <th>Resistance</th>
-        <th>Utilisation</th>
-        <th>Status</th>
+        <th style="width:120px;">Utilization</th>
+        <th style="width:90px;">Status</th>
       </tr>
     </thead>
     <tbody>
-      {checks_html if checks_html else '<tr><td colspan="5">No results available.</td></tr>'}
+      {results_rows_html}
     </tbody>
   </table>
 </div>
+
+{card_grid("Stability / buckling summary", stab_items, cols=3) if stab_items else ""}
+
+{card_grid("Notes / comments", [("Notes / comments", notes)], cols=1) if notes else ""}
 
 </body>
 </html>
@@ -7515,6 +7623,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
