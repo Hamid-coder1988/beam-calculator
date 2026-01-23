@@ -5324,15 +5324,11 @@ def render_report_tab():
     # ----------------------------------------------------
     report_h3("2. Material design values (EN 1993-1-1)")
     
-    # use your session-state values (already defined above in render_report_tab)
-    # gamma_M0 = float(st.session_state.get("gamma_M0", 1.00))
-    # gamma_M1 = float(st.session_state.get("gamma_M1", 1.00))
-    
     eps = (235.0 / fy) ** 0.5 if fy and fy > 0 else None
     fy_over_gM0 = (fy / gamma_M0) if (fy and gamma_M0) else None
     fy_over_gM1 = (fy / gamma_M1) if (fy and gamma_M1) else None
     
-    # --- First line ONLY (as requested) ---
+    # ---- Line 1 (PRINTS) ----
     c1, c2, c3 = st.columns(3)
     with c1:
         st.text_input("Steel grade", value=str(material), disabled=True, key="rpt_mat_grade")
@@ -5341,38 +5337,41 @@ def render_report_tab():
     with c3:
         st.text_input("γ_M1", value=f"{gamma_M1:.2f}", disabled=True, key="rpt_mat_gM1")
     
-    # --- Everything else expandable ---
-    with st.expander("More material values", expanded=False):
-        r1, r2, r3 = st.columns(3)
-        with r1:
-            st.text_input("Yield strength f_y [MPa]", value=f"{fy:.1f}", disabled=True, key="rpt_mat_fy")
-        with r2:
-            st.text_input("Ultimate strength f_u [MPa]", value="(not specified)", disabled=True, key="rpt_mat_fu")
-        with r3:
-            st.text_input("Elastic modulus E [MPa]", value="210000", disabled=True, key="rpt_mat_E")
+    # ---- Lines 2–4 (SCREEN ONLY, hidden in print) ----
+    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
     
-        r4, r5, r6 = st.columns(3)
-        with r4:
-            st.text_input(
-                "ε = √(235 / f_y)",
-                value=f"{eps:.3f}" if eps is not None else "n/a",
-                disabled=True,
-                key="rpt_mat_eps",
-            )
-        with r5:
-            st.text_input(
-                "f_y / γ_M0 [MPa]",
-                value=f"{fy_over_gM0:.1f}" if fy_over_gM0 is not None else "n/a",
-                disabled=True,
-                key="rpt_mat_fy_gM0",
-            )
-        with r6:
-            st.text_input(
-                "f_y / γ_M1 [MPa]",
-                value=f"{fy_over_gM1:.1f}" if fy_over_gM1 is not None else "n/a",
-                disabled=True,
-                key="rpt_mat_fy_gM1",
-            )
+    r1, r2, r3 = st.columns(3)
+    with r1:
+        st.text_input("Yield strength f_y [MPa]", value=f"{fy:.1f}", disabled=True, key="rpt_mat_fy")
+    with r2:
+        st.text_input("Ultimate strength f_u [MPa]", value="(not specified)", disabled=True, key="rpt_mat_fu")
+    with r3:
+        st.text_input("Elastic modulus E [MPa]", value="210000", disabled=True, key="rpt_mat_E")
+    
+    r4, r5, r6 = st.columns(3)
+    with r4:
+        st.text_input(
+            "ε = √(235 / f_y)",
+            value=f"{eps:.3f}" if eps is not None else "n/a",
+            disabled=True,
+            key="rpt_mat_eps",
+        )
+    with r5:
+        st.text_input(
+            "f_y / γ_M0 [MPa]",
+            value=f"{fy_over_gM0:.1f}" if fy_over_gM0 is not None else "n/a",
+            disabled=True,
+            key="rpt_mat_fy_gM0",
+        )
+    with r6:
+        st.text_input(
+            "f_y / γ_M1 [MPa]",
+            value=f"{fy_over_gM1:.1f}" if fy_over_gM1 is not None else "n/a",
+            disabled=True,
+            key="rpt_mat_fy_gM1",
+        )
+    
+    st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("---")
 
@@ -7329,6 +7328,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
