@@ -5181,7 +5181,6 @@ def render_report_tab():
     # ----------------------------------------------------
     EXPAND_ALL = False  # always keep sections collapsed by default (also for printing)
     st.markdown("<div class='no-print'>", unsafe_allow_html=True)
-    st.caption("Tip: Use your browser Print (Ctrl+P / ⌘+P). The report is optimized for direct printing.")
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown('<div id="engi_report_root">', unsafe_allow_html=True)
     sr_display = st.session_state.get("sr_display")
@@ -5292,7 +5291,14 @@ def render_report_tab():
 
     # ----------------------------------------------------
     # Save report (HTML – stable printing)
-
+    # ---- Report top controls (screen only) ----
+    st.markdown("<div id='rpt_top_controls' class='no-print'>", unsafe_allow_html=True)
+    
+    # put ALL top widgets here that must not print:
+    # (checkbox/caption/help text/buttons)
+    st.caption("Tip: Use your browser Print (Ctrl+P / ⌘+P). The report is optimized for direct printing.")
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
@@ -5401,9 +5407,7 @@ def render_report_tab():
             value=f"{nu:.2f}",
             disabled=True,
             key="rpt_mat_nu",
-        )
-    
-    st.markdown("</div>", unsafe_allow_html=True)
+        )   
     
     st.markdown("---")
     # ----------------------------------------------------
@@ -7025,7 +7029,12 @@ st.markdown(
       }
 
       /* Hide anything you wrapped as no-print */
-      .no-print { display: none !important; }
+      /* Hide anything you wrapped as no-print */
+      .no-print, .no-print * { display: none !important; }
+    
+      /* also hide Streamlit's debug toolbar if it appears */
+      div[data-testid="stToolbar"] { display: none !important; }
+
 
       /* Hide ONLY the tab headers (NOT the tab content) */
       div[data-testid="stTabs"] [role="tablist"] { display: none !important; }
@@ -7362,6 +7371,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
