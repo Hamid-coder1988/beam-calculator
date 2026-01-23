@@ -7091,7 +7091,7 @@ h3 {font-size: 1.05rem !important; font-weight: 600 !important;}
 
 /* Main container – enough top padding so header isn't clipped */
 div.block-container {
-    padding-top: 1.6rem;
+    padding-top: 0.8rem;
     max-width: 1200px;
 }
 
@@ -7113,9 +7113,6 @@ footer {visibility: hidden;}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
-
-# --- SMALL SPACER SO NOTHING TOUCHES TOP EDGE ---
-st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
 
 # --- HEADER WITH LOGO + TITLE ---
 header_col1, header_col2 = st.columns([1, 4])
@@ -7361,6 +7358,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
