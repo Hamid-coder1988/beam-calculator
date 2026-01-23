@@ -2488,7 +2488,7 @@ def render_sidebar_guidelines():
         st.markdown("## Current setup")
 
         # --- Material & section ---
-        material = st.session_state.get("material", "–")
+        material = st.session_state.get("mat_sel", "–")
         sr = st.session_state.get("sr_display")
         if isinstance(sr, dict):
             sec_txt = f"{sr.get('family', '–')} {sr.get('name', '')}".strip()
@@ -7375,6 +7375,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
