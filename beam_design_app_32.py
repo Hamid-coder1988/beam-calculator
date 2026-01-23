@@ -5204,7 +5204,7 @@ def render_report_tab():
     governing = st.session_state.get("governing", (None, None))
     extras = st.session_state.get("extras") or {}
     meta = st.session_state.get("meta")
-    material = st.session_state.get("material", "S355")
+    material = st.session_state.get("mat_sel", "S355")
     fy, fu = get_material_props(material)
     # Safety factors (use session state defaults)
     gamma_M0 = float(st.session_state.get("gamma_M0", 1.00))
@@ -7341,7 +7341,7 @@ with tab3:
 
 with tab4:
     sr_display = st.session_state.get("sr_display", None)
-    material = st.session_state.get("material", "S355")
+    material = st.session_state.get("mat_sel", "S355")
     fy, fu = get_material_props(material)
 
     # Run button moved here from Loads tab
@@ -7375,6 +7375,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
