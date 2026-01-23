@@ -5489,44 +5489,47 @@ def render_report_tab():
 
     # ----------------------------------------------------
     # 4. Section classification (EN 1993-1-1 §5.5)
+    # (screen only – hidden in print)
     # ----------------------------------------------------
+    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
+    
     report_h3("4. Section classification (EN 1993-1-1 §5.5)")
     
-    with st.expander("Show section classification details", expanded=False):
+    flange_class = sr_display.get("flange_class_db", "n/a")
+    web_class_b = sr_display.get("web_class_bending_db", "n/a")
+    web_class_c = sr_display.get("web_class_compression_db", "n/a")
     
-        flange_class = sr_display.get("flange_class_db", "n/a")
-        web_class_b = sr_display.get("web_class_bending_db", "n/a")
-        web_class_c = sr_display.get("web_class_compression_db", "n/a")
-    
-        cfl, cwe, cwc = st.columns(3)
-        with cfl:
-            st.text_input(
-                "Flange – bending",
-                value=str(flange_class),
-                disabled=True,
-                key="rpt_flange_class",
-            )
-        with cwe:
-            st.text_input(
-                "Web – bending",
-                value=str(web_class_b),
-                disabled=True,
-                key="rpt_web_class_b",
-            )
-        with cwc:
-            st.text_input(
-                "Web – uniform compression",
-                value=str(web_class_c),
-                disabled=True,
-                key="rpt_web_class_c",
-            )
-    
+    cfl, cwe, cwc = st.columns(3)
+    with cfl:
         st.text_input(
-            "Governing cross-section class",
-            value="(not explicitly derived yet)",
+            "Flange – bending",
+            value=str(flange_class),
             disabled=True,
-            key="rpt_cs_class",
+            key="rpt_flange_class",
         )
+    with cwe:
+        st.text_input(
+            "Web – bending",
+            value=str(web_class_b),
+            disabled=True,
+            key="rpt_web_class_b",
+        )
+    with cwc:
+        st.text_input(
+            "Web – uniform compression",
+            value=str(web_class_c),
+            disabled=True,
+            key="rpt_web_class_c",
+        )
+    
+    st.text_input(
+        "Governing cross-section class",
+        value="(not explicitly derived yet)",
+        disabled=True,
+        key="rpt_cs_class",
+    )
+    
+    st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("---")
 
@@ -7359,6 +7362,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
