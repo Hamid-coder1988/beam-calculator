@@ -5556,6 +5556,7 @@ def render_report_tab():
         st.text_input("Mz_Ed [kNm]", f"{inputs.get('Mz_kNm',0.0):.3f}", disabled=True)
     with r2c3:
         st.empty()   # clean layout (no empty grey box)
+    st.markdown("---")
 
     # ----------------------------------------------------
     # Result summary (same tables as in Results tab)
@@ -7360,6 +7361,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
