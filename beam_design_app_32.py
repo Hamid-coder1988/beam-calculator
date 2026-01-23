@@ -13,6 +13,21 @@ import io
 import streamlit.components.v1 as components
 from pathlib import Path
 
+# ----------------------------------------------------
+# Material properties (EN 10025-2) – simplified table values
+# NOTE: In reality, fy depends on thickness. Here we use the table values you showed.
+# ----------------------------------------------------
+MATERIAL_PROPS = {
+    "S235": {"fy": 235.0, "fu": 360.0},
+    "S275": {"fy": 275.0, "fu": 430.0},
+    "S355": {"fy": 355.0, "fu": 490.0},
+    "S450": {"fy": 440.0, "fu": 550.0},  # per your table screenshot
+}
+
+def get_material_props(grade: str):
+    d = MATERIAL_PROPS.get(str(grade), MATERIAL_PROPS["S355"])
+    return float(d["fy"]), float(d["fu"])
+
 # -------------------------
 # Asset path helpers
 # -------------------------
@@ -34,20 +49,6 @@ def safe_image(path_like, **kwargs) -> bool:
     except Exception:
         pass
     return False
-# ----------------------------------------------------
-# Material properties (EN 10025-2) – simplified table values
-# NOTE: In reality, fy depends on thickness. Here we use the table values you showed.
-# ----------------------------------------------------
-MATERIAL_PROPS = {
-    "S235": {"fy": 235.0, "fu": 360.0},
-    "S275": {"fy": 275.0, "fu": 430.0},
-    "S355": {"fy": 355.0, "fu": 490.0},
-    "S450": {"fy": 440.0, "fu": 550.0},  # per your table screenshot
-}
-
-def get_material_props(grade: str):
-    d = MATERIAL_PROPS.get(str(grade), MATERIAL_PROPS["S355"])
-    return float(d["fy"]), float(d["fu"])
 
 # -------------------------
 # Optional Postgres driver
@@ -7375,6 +7376,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
