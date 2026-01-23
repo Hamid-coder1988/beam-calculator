@@ -5288,33 +5288,7 @@ def render_report_tab():
 
     # ----------------------------------------------------
     # Save report (HTML – stable printing)
-    # ----------------------------------------------------
-    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
-    st.markdown("### Save report")
-    
-    st.info(
-        "Stable export method:\n"
-        "1) Download the HTML\n"
-        "2) Open it in your browser\n"
-        "3) Ctrl+P (or ⌘+P) → Save as PDF\n"
-        "Tip: enable **Background graphics**."
-    )
-    
-    try:
-        html_report = build_printable_report_html(
-            meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras
-        )
-        st.download_button(
-            "Download printable report (HTML)",
-            data=html_report.encode("utf-8"),
-            file_name=f"EngiSnap_Report_{date.today().isoformat()}.html",
-            mime="text/html",
-        )
-    except Exception as e:
-        st.warning(f"HTML build failed: {e}")
-    
-    st.markdown("---")
-    st.markdown("</div>", unsafe_allow_html=True)
+
 
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
@@ -7351,6 +7325,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
