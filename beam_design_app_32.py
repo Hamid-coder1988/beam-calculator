@@ -35,6 +35,287 @@ def safe_image(path_like, **kwargs) -> bool:
         pass
     return False
 
+def build_printable_report_html(meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras):
+    """
+    Standalone HTML report for reliable Ctrl+P printing.
+    Tries to include the same content as the Report tab using available data dicts.
+    """
+
+    def g(d, k, default=""):
+        try:
+            if isinstance(d, dict):
+                v = d.get(k, default)
+            else:
+                v = default
+            return "" if v is None else str(v)
+        except Exception:
+            return str(default)
+
+    def fmt(v, nd=3):
+        if v is None:
+            return ""
+        try:
+            x = float(v)
+            return f"{x:.{nd}f}"
+        except Exception:
+            return str(v)
+
+    def is_df(x):
+        return hasattr(x, "to_dict") and hasattr(x, "empty") and hasattr(x, "columns")
+
+    # --- meta ---
+    doc_title    = g(meta, "doc_title", g(meta, "document_title", "Beam check"))
+    project_name = g(meta, "project_name", "")
+    position     = g(meta, "position", g(meta, "pos_loc", ""))
+    revision     = g(meta, "revision", g(meta, "rev", "A"))
+    requested_by = g(meta, "requested_by", "")
+    run_date     = g(meta, "run_date", g(meta, "date", ""))
+    notes        = g(meta, "notes", g(meta, "comments", ""))
+
+    # --- section ---
+    section_name   = g(sr_display, "name", "")
+    section_family = g(sr_display, "family", g(sr_display, "type", ""))
+
+    # --- governing ---
+    gov_check, gov_util = ("", "")
+    if isinstance(governing, (list, tuple)) and len(governing) == 2:
+        gov_check, gov_util = governing[0], governing[1]
+
+    # --- results rows (df_rows may be list OR DataFrame) ---
+    rows_iter = []
+    try:
+        if is_df(df_rows):
+            if not df_rows.empty:
+                rows_iter = df_rows.to_dict(orient="records")
+        elif isinstance(df_rows, (list, tuple)):
+            rows_iter = list(df_rows)
+    except Exception:
+        rows_iter = []
+
+    # Build results HTML with your preferred columns: # / Check / Utilization / Status
+    results_rows_html = ""
+    for i, r in enumerate(rows_iter, start=1):
+        label  = g(r, "label", g(r, "Check", ""))
+        util   = g(r, "util", g(r, "Utilisation", g(r, "Utilization", "")))
+        status = g(r, "status", g(r, "Status", ""))
+
+        # numeric formatting if possible
+        util = fmt(util, 3)
+
+        results_rows_html += f"""
+          <tr>
+            <td class="num">{i}</td>
+            <td>{label}</td>
+            <td class="num">{util}</td>
+            <td class="status">{status}</td>
+          </tr>
+        """
+
+    if not results_rows_html:
+        results_rows_html = '<tr><td colspan="4">No results available.</td></tr>'
+
+    # --- helper: render a "card" grid from dict with selected keys ---
+    def card_grid(title, items, cols=3):
+        # items: list of (label, value)
+        cells = ""
+        for (lab, val) in items:
+            cells += f"""
+              <div class="field">
+                <label>{lab}</label>
+                <div class="value">{val}</div>
+              </div>
+            """
+        return f"""
+          <h2>{title}</h2>
+          <div class="card">
+            <div class="grid" style="grid-template-columns: repeat({cols}, 1fr);">
+              {cells}
+            </div>
+          </div>
+        """
+
+    # --- Inputs summary: show whatever is in inputs dict (top keys only) ---
+    inputs_items = []
+    if isinstance(inputs, dict) and inputs:
+        # pick common keys first if exist; then add a few more
+        preferred = [
+            ("L (mm)", "L"),
+            ("Span (mm)", "span"),
+            ("kz", "kz"),
+            ("ky", "ky"),
+            ("kLT", "kLT"),
+            ("My,Ed", "MyEd"),
+            ("Mz,Ed", "MzEd"),
+            ("Vy,Ed", "VyEd"),
+            ("Vz,Ed", "VzEd"),
+            ("N,Ed", "NEd"),
+        ]
+        used = set()
+        for label, key in preferred:
+            if key in inputs:
+                inputs_items.append((label, fmt(inputs.get(key))))
+                used.add(key)
+
+        # add some extra keys (up to ~12 total) so you see more content without exploding the page
+        for k, v in inputs.items():
+            if k in used:
+                continue
+            if len(inputs_items) >= 12:
+                break
+            inputs_items.append((str(k), fmt(v)))
+
+    # --- Section properties: show common ones if present ---
+    sec_items = []
+    if isinstance(sr_display, dict) and sr_display:
+        preferred_sec = [
+            ("A", "A"),
+            ("Iy", "Iy"),
+            ("Iz", "Iz"),
+            ("Wpl,y", "Wpl_y"),
+            ("Wpl,z", "Wpl_z"),
+            ("Wel,y", "Wel_y"),
+            ("Wel,z", "Wel_z"),
+            ("It", "It"),
+            ("Iw", "Iw"),
+        ]
+        for label, key in preferred_sec:
+            if key in sr_display:
+                sec_items.append((label, fmt(sr_display.get(key))))
+
+    # --- Stability / buckling summary from extras (if available) ---
+    stab_items = []
+    if isinstance(extras, dict) and extras:
+        # These keys depend on your app; we try common ones safely.
+        candidates = [
+            ("Ncr,y", "Ncr_y"),
+            ("Ncr,z", "Ncr_z"),
+            ("Mcr", "Mcr"),
+            ("λ̄y", "lam_y"),
+            ("λ̄z", "lam_z"),
+            ("χy", "chi_y"),
+            ("χz", "chi_z"),
+            ("LT χLT", "chi_LT"),
+        ]
+        for label, key in candidates:
+            if key in extras:
+                stab_items.append((label, fmt(extras.get(key))))
+
+    # --- HTML ---
+    html = f"""<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EngiSnap Report</title>
+<style>
+  @page {{ size: A4; margin: 12mm; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #111827;
+    background: white;
+  }}
+  h1 {{ font-size: 20px; margin: 0 0 10px 0; }}
+  h2 {{ font-size: 14px; margin: 18px 0 8px 0; }}
+  .muted {{ color: #6b7280; font-size: 12px; }}
+  .card {{
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 12px;
+    margin: 10px 0 12px 0;
+  }}
+  .grid {{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }}
+  .field label {{
+    display:block;
+    font-size: 11px;
+    color:#6b7280;
+    margin-bottom:4px;
+  }}
+  .field .value {{
+    background:#f3f4f6;
+    border-radius:10px;
+    padding:10px;
+    min-height: 18px;
+    word-break: break-word;
+  }}
+  table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }}
+  th, td {{
+    border: 1px solid #d1d5db;
+    padding: 6px 8px;
+    font-size: 12px;
+    vertical-align: top;
+  }}
+  th {{
+    background: #f3f4f6;
+    text-align: left;
+    font-weight: 600;
+  }}
+  td.num {{ text-align: right; white-space: nowrap; }}
+  td.status {{ text-align: center; font-weight: 600; white-space: nowrap; }}
+  .page-break {{ page-break-before: always; break-before: page; }}
+</style>
+</head>
+<body>
+
+<h1>EngiSnap Beam Design Report</h1>
+<div class="muted">Material: {material}</div>
+
+{card_grid("Project info", [
+    ("Document title", doc_title),
+    ("Position / Location (Beam ID)", position),
+    ("Revision", revision),
+    ("Project name", project_name),
+    ("Requested by", requested_by),
+    ("Date", run_date),
+], cols=3)}
+
+{card_grid("Section", [
+    ("Family", section_family),
+    ("Section", section_name),
+    ("Material", material),
+], cols=3)}
+
+{"<div class='page-break'></div>" if inputs_items else ""}
+{card_grid("Inputs summary", inputs_items, cols=3) if inputs_items else ""}
+
+{card_grid("Section properties", sec_items, cols=3) if sec_items else ""}
+
+<div class="page-break"></div>
+
+<h2>Results summary</h2>
+<div class="card">
+  <div class="muted">Overall: {"OK" if overall_ok else "NOT OK"} &nbsp;&nbsp; Governing: {gov_check} &nbsp;&nbsp; Utilisation: {fmt(gov_util,3)}</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:32px;">#</th>
+        <th>Check</th>
+        <th style="width:120px;">Utilization</th>
+        <th style="width:90px;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {results_rows_html}
+    </tbody>
+  </table>
+</div>
+
+{card_grid("Stability / buckling summary", stab_items, cols=3) if stab_items else ""}
+
+{card_grid("Notes / comments", [("Notes / comments", notes)], cols=1) if notes else ""}
+
+</body>
+</html>
+"""
+    return html
+
+
 # -------------------------
 # Optional Postgres driver
 # -------------------------
@@ -5286,6 +5567,35 @@ def render_report_tab():
     x_Mmax = st.session_state.get("diag_x_Mmax_m")
     delta_max_mm = st.session_state.get("diag_delta_max_mm")
 
+    # ----------------------------------------------------
+    # Save report (HTML – stable printing)
+    # ----------------------------------------------------
+    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
+    st.markdown("### Save report")
+    
+    st.info(
+        "Stable export method:\n"
+        "1) Download the HTML\n"
+        "2) Open it in your browser\n"
+        "3) Ctrl+P (or ⌘+P) → Save as PDF\n"
+        "Tip: enable **Background graphics**."
+    )
+    
+    try:
+        html_report = build_printable_report_html(
+            meta, material, sr_display, inputs, df_rows, overall_ok, governing, extras
+        )
+        st.download_button(
+            "Download printable report (HTML)",
+            data=html_report.encode("utf-8"),
+            file_name=f"EngiSnap_Report_{date.today().isoformat()}.html",
+            mime="text/html",
+        )
+    except Exception as e:
+        st.warning(f"HTML build failed: {e}")
+    
+    st.markdown("---")
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
@@ -5314,55 +5624,66 @@ def render_report_tab():
 
     # ----------------------------------------------------
     # 2. Material design values (EN 1993-1-1)
-    #   - Print: only 1 line (grade, γM0, γM1)
-    #   - Screen: expander shows the rest
     # ----------------------------------------------------
     report_h3("2. Material design values (EN 1993-1-1)")
-    
-    # --- PRINT/SIMPLE LINE (always visible) ---
-    p1, p2, p3 = st.columns(3)
-    with p1:
-        st.text_input("Steel grade", value=str(material), disabled=True, key="rpt_mat_grade_simple")
-    with p2:
-        st.text_input("γ_M0", value=f"{gamma_M0:.2f}", disabled=True, key="rpt_gm0_simple")
-    with p3:
-        st.text_input("γ_M1", value=f"{gamma_M1:.2f}", disabled=True, key="rpt_gm1_simple")
-    
-    # --- DETAILS (screen only; hidden in print) ---
-    st.markdown("<div class='print-hide'>", unsafe_allow_html=True)
-    with st.expander("More material values", expanded=False):
-        eps = (235.0 / fy) ** 0.5 if (fy and fy > 0) else None
-        fy_over_gM0 = (fy / gamma_M0) if (fy and gamma_M0) else None
-        fy_over_gM1 = (fy / gamma_M1) if (fy and gamma_M1) else None
-        G = 81000  # MPa (your UI already uses this)
-    
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            st.text_input("Yield strength f_y [MPa]", value=f"{fy:.1f}", disabled=True, key="rpt_mat_fy")
-            st.text_input("ε = √(235 / f_y)", value=(f"{eps:.3f}" if eps else "n/a"), disabled=True, key="rpt_mat_eps")
-        with m2:
-            st.text_input("Elastic modulus E [MPa]", value="210000", disabled=True, key="rpt_mat_E")
-            st.text_input("Shear modulus G [MPa]", value=str(G), disabled=True, key="rpt_mat_G")
-        with m3:
-            st.text_input("Ultimate strength f_u [MPa]", value="(not specified)", disabled=True, key="rpt_mat_fu")
-            st.text_input("f_y / γ_M0 [MPa]", value=(f"{fy_over_gM0:.1f}" if fy_over_gM0 else "n/a"), disabled=True, key="rpt_fy_gm0")
-            st.text_input("f_y / γ_M1 [MPa]", value=(f"{fy_over_gM1:.1f}" if fy_over_gM1 else "n/a"), disabled=True, key="rpt_fy_gm1")
-    
-        # If you want these in details too (they exist in your report already):
-        sigma_allow = extras.get("sigma_allow_MPa")
-        sigma_eq = extras.get("sigma_eq_MPa")
-    
-        if (sigma_allow is not None) or (sigma_eq is not None):
-            st.markdown("---")
-            s1, s2 = st.columns(2)
-            with s1:
-                st.text_input("Indicative σ_allow [MPa]", value=(f"{float(sigma_allow):.3f}" if sigma_allow is not None else "n/a"),
-                              disabled=True, key="rpt_sigma_allow")
-            with s2:
-                st.text_input("Equivalent σ_eq [MPa]", value=(f"{float(sigma_eq):.3f}" if sigma_eq is not None else "n/a"),
-                              disabled=True, key="rpt_sigma_eq")
-    
-    st.markdown("</div>", unsafe_allow_html=True)
+
+    eps = (235.0 / fy) ** 0.5 if fy > 0 else None
+    fy_over_gM0 = fy / 1.0 if fy is not None else None
+    fy_over_gM1 = fy / 1.0 if fy is not None else None
+
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.text_input("Steel grade", value=material, disabled=True, key="rpt_mat_grade")
+        st.text_input("Yield strength f_y [MPa]", value=f"{fy:.1f}", disabled=True, key="rpt_mat_fy")
+    with m2:
+        st.text_input("Ultimate strength f_u [MPa]", value="(not specified)", disabled=True, key="rpt_mat_fu")
+        st.text_input("Elastic modulus E [MPa]", value="210000", disabled=True, key="rpt_mat_E")
+    with m3:
+        st.text_input("γ_M0", value="1.00", disabled=True, key="rpt_mat_gM0")
+        st.text_input("γ_M1", value="1.00", disabled=True, key="rpt_mat_gM1")
+
+    m4, m5, m6 = st.columns(3)
+    with m4:
+        st.text_input(
+            "ε = √(235 / f_y)",
+            value=f"{eps:.3f}" if eps is not None else "n/a",
+            disabled=True,
+            key="rpt_mat_eps",
+        )
+    with m5:
+        st.text_input(
+            "f_y / γ_M0 [MPa]",
+            value=f"{fy_over_gM0:.1f}" if fy_over_gM0 is not None else "n/a",
+            disabled=True,
+            key="rpt_mat_fy_gM0",
+        )
+    with m6:
+        st.text_input(
+            "f_y / γ_M1 [MPa]",
+            value=f"{fy_over_gM1:.1f}" if fy_over_gM1 is not None else "n/a",
+            disabled=True,
+            key="rpt_mat_fy_gM1",
+        )
+
+    m7, m8, m9 = st.columns(3)
+    with m7:
+        st.text_input("Shear modulus G [MPa]", value="81000", disabled=True, key="rpt_mat_G")
+    with m8:
+        st.text_input(
+            "Indicative σ_allow [MPa]",
+            value=f"{sigma_allow:.3f}" if sigma_allow is not None else "n/a",
+            disabled=True,
+            key="rpt_mat_sigma_allow",
+        )
+    with m9:
+        st.text_input(
+            "Equivalent σ_eq [MPa]",
+            value=f"{sigma_eq:.3f}" if sigma_eq is not None else "n/a",
+            disabled=True,
+            key="rpt_mat_sigma_eq",
+        )
+
+    st.markdown("---")
 
     # ----------------------------------------------------
     # 3. Member & section data
@@ -5424,10 +5745,7 @@ def render_report_tab():
             )
     
         # Selected section summary — already nice (6 boxes per 2 rows)
-        st.markdown("<div class='print-hide'>", unsafe_allow_html=True)
         render_section_summary_like_props(material, sr_display, key_prefix="rpt_sum")
-        st.markdown("</div>", unsafe_allow_html=True)
-
 
     with cs2:
         img_path = get_section_image(fam)
@@ -6940,94 +7258,80 @@ def render_report_tab():
 
 # =========================================================
 # APP ENTRY
-# --- GLOBAL PRINT + SCREEN CSS (single source of truth) ---
+# =========================================================
+# --- PAGE CONFIG ---
+st.set_page_config(
+    page_title="EngiSnap Beam Design Eurocode Checker",
+    page_icon=str(asset_path("EngiSnap-Logo.png")) if asset_path("EngiSnap-Logo.png").exists() else "🧰",
+    layout="wide"
+)
+# --- GLOBAL PRINT FIX (Edge / Streamlit) ---
+# --- GLOBAL PRINT FIX (Streamlit tabs + full-page printing) ---
 st.markdown(
     """
     <style>
-    /* =========================
-       SCREEN defaults
-       ========================= */
-    .print-hide { display: block; }   /* visible on screen */
-
-    /* =========================
-       PRINT: compact, simple, A3
-       ========================= */
     @media print {
 
-      @page { size: A3; margin: 6mm; }
+      /* Hide Streamlit chrome */
+      header, footer, #MainMenu { display: none !important; }
+      section[data-testid="stSidebar"] { display: none !important; }
 
+      /* Page setup */
+      @page { size: A4; margin: 12mm; }
+
+      /* Keep colors */
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      /* Hide anything you wrapped as no-print */
+      .no-print { display: none !important; }
+
+      /* Hide ONLY the tab headers (NOT the tab content) */
+      div[data-testid="stTabs"] [role="tablist"] { display: none !important; }
+
+      /* THE IMPORTANT PART:
+         Tabs/containers often have fixed height + overflow that clips printing.
+         Force everything to expand fully for print. */
       html, body { height: auto !important; overflow: visible !important; }
 
-      /* Hide Streamlit chrome */
-      header, footer, #MainMenu,
-      section[data-testid="stSidebar"],
-      div[data-testid="stToolbar"] {
-        display: none !important;
-      }
-
-      /* Hide tab headers only */
-      div[data-testid="stTabs"] [role="tablist"] {
-        display: none !important;
-      }
-
-      /* Prevent scroll clipping (the #1 cause of "only first page") */
-      div[data-testid="stAppViewContainer"],
-      div[data-testid="stAppViewContainer"] > .main,
-      section.main,
-      div.block-container,
-      div[data-testid="stVerticalBlock"],
-      div[data-testid="stHorizontalBlock"],
-      div[data-testid="stMarkdownContainer"],
+     div[data-testid="stAppViewContainer"],
+     div[data-testid="stAppViewContainer"] > .main,
+     section.main,
+     div.block-container,
+     div[data-testid="stTabs"],
+     div[data-testid="stHorizontalBlock"],
+     div[data-testid="stVerticalBlock"],
+     div.element-container,
+     div.stMarkdown,
+     div[data-testid="stToolbar"] {
+     height: auto !important;
+     max-height: none !important;
+     overflow: visible !important;
+     }
+      /* Streamlit tab panel containers (BaseWeb) */
       div[data-baseweb="tab-panel"],
-      div[role="tabpanel"] {
+      div[data-baseweb="tab-panel"] > div {
         height: auto !important;
         max-height: none !important;
         overflow: visible !important;
       }
 
-      /* Print = SIMPLE version: hide extra content you wrap */
-      .print-hide { display: none !important; }
-
-      /* Hide expander bodies (keep titles) */
-      div[data-testid="stExpander"] div[role="region"] {
-        display: none !important;
+      /* Some Streamlit wrappers still clip */
+      div[data-testid="stVerticalBlock"],
+      div[data-testid="stVerticalBlock"] > div,
+      div[data-testid="stMarkdownContainer"] {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
       }
 
-      /* Remove help/caption/info/warn boxes in print */
-      small, .stCaption, .stAlert, .stWarning, .stInfo {
-        display: none !important;
-      }
-
-      /* Compact typography */
-      h1 { font-size: 18px !important; margin: 6px 0 4px 0 !important; }
-      h2 { font-size: 15px !important; margin: 6px 0 4px 0 !important; }
-      h3 { font-size: 13px !important; margin: 4px 0 2px 0 !important; }
-
-      /* Compact inputs (less vertical space) */
-      label {
-        display: inline-block !important;
-        font-size: 11px !important;
-        margin-bottom: 2px !important;
-        white-space: nowrap;
-      }
-      input, textarea {
-        padding: 2px 6px !important;
-        min-height: auto !important;
-        font-size: 11px !important;
-      }
-      .stTextInput, .stNumberInput, .stSelectbox {
-        margin-bottom: 4px !important;
-      }
-
-      /* Compact tables */
-      table { page-break-inside: avoid; font-size: 12px !important; }
-      th, td { padding: 4px 6px !important; }
-      tr { page-break-inside: avoid; }
-
-      /* Keep background colors */
-      * {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
+      /* Make sure your report wrapper itself never clips */
+      #engi_report_root {
+        height: auto !important;
+        overflow: visible !important;
+        max-height: none !important;
       }
     }
     </style>
@@ -7035,6 +7339,42 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# --- CUSTOM GLOBAL CSS ---
+custom_css = """
+<style>
+html, body, [class*="css"]  {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Headings */
+h1 {font-size: 1.6rem !important; font-weight: 650 !important;}
+h2 {font-size: 1.25rem !important; font-weight: 600 !important;}
+h3 {font-size: 1.05rem !important; font-weight: 600 !important;}
+
+/* Main container – enough top padding so header isn't clipped */
+div.block-container {
+    padding-top: 1.6rem;
+    max-width: 1200px;
+}
+
+/* Expander look */
+.stExpander {
+    border-radius: 8px !important;
+    border: 1px solid #e0e0e0 !important;
+}
+
+/* Labels a bit smaller & bolder */
+.stNumberInput > label {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Hide Streamlit default menu & footer */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+</style>
+"""
+st.markdown(custom_css, unsafe_allow_html=True)
 
 # --- SMALL SPACER SO NOTHING TOUCHES TOP EDGE ---
 st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
@@ -7283,8 +7623,6 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
-
-
 
 
 
