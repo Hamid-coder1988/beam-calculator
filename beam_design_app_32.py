@@ -5406,7 +5406,6 @@ def render_report_tab():
     st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("---")
-
     # ----------------------------------------------------
     # 3. Member & section data
     # ----------------------------------------------------
@@ -7360,6 +7359,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
