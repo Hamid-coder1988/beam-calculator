@@ -4844,7 +4844,7 @@ def build_pdf_report(meta, material, sr_display, inputs, df_rows, overall_ok, go
 
     fam = sr_display.get("family", "") if sr_display else ""
     name = sr_display.get("name", "") if sr_display else ""
-    fy = material_to_fy(material)
+    fy, fu = get_material_props(material)
     gov_check, gov_util = governing if governing else (None, None)
     status_txt = "OK" if overall_ok else "NOT OK"
 
@@ -5205,8 +5205,7 @@ def render_report_tab():
     extras = st.session_state.get("extras") or {}
     meta = st.session_state.get("meta")
     material = st.session_state.get("material", "S355")
-    fy = material_to_fy(material)
-    fu = material_to_fu(material)
+    fy, fu = get_material_props(material)
     # Safety factors (use session state defaults)
     gamma_M0 = float(st.session_state.get("gamma_M0", 1.00))
     gamma_M1 = float(st.session_state.get("gamma_M1", 1.00))
@@ -5248,7 +5247,7 @@ def render_report_tab():
 
     fam = sr_display.get("family", "")
     name = sr_display.get("name", "")
-    fy = material_to_fy(material)
+    fy, fu = get_material_props(material)
     gov_check, gov_util = governing
     status_txt = "OK" if overall_ok else "NOT OK"
 
@@ -5600,7 +5599,7 @@ def render_report_tab():
     
         # Get section area and material
         A_mm2 = float(sr_display.get("A_mm2", 0.0))  # from DB
-        fy = material_to_fy(material)
+        fy, fu = get_material_props(material)
     
         # Design axial force N (tension positive)
         N_kN = float(inputs.get("N_kN", 0.0))
@@ -7343,7 +7342,7 @@ with tab3:
 with tab4:
     sr_display = st.session_state.get("sr_display", None)
     material = st.session_state.get("material", "S355")
-    fy = material_to_fy(material)
+    fy, fu = get_material_props(material)
 
     # Run button moved here from Loads tab
     run_col, _ = st.columns([1, 3])
@@ -7376,6 +7375,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
