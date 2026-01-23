@@ -5290,17 +5290,6 @@ def render_report_tab():
     delta_max_mm = st.session_state.get("diag_delta_max_mm")
 
     # ----------------------------------------------------
-    # Save report (HTML – stable printing)
-    # ---- Report top controls (screen only) ----
-    st.markdown("<div id='rpt_top_controls' class='no-print'>", unsafe_allow_html=True)
-    
-    # put ALL top widgets here that must not print:
-    # (checkbox/caption/help text/buttons)
-    st.caption("Tip: Use your browser Print (Ctrl+P / ⌘+P). The report is optimized for direct printing.")
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # ----------------------------------------------------
     # 1. Project data (from Project tab)
     # ----------------------------------------------------
     c1, c2, c3 = st.columns([1, 1, 1])
@@ -7372,6 +7361,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
