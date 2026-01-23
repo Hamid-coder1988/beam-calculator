@@ -5626,63 +5626,57 @@ def render_report_tab():
     # 2. Material design values (EN 1993-1-1)
     # ----------------------------------------------------
     report_h3("2. Material design values (EN 1993-1-1)")
-
-    eps = (235.0 / fy) ** 0.5 if fy > 0 else None
-    fy_over_gM0 = fy / 1.0 if fy is not None else None
-    fy_over_gM1 = fy / 1.0 if fy is not None else None
-
-    m1, m2, m3 = st.columns(3)
-    with m1:
-        st.text_input("Steel grade", value=material, disabled=True, key="rpt_mat_grade")
-        st.text_input("Yield strength f_y [MPa]", value=f"{fy:.1f}", disabled=True, key="rpt_mat_fy")
-    with m2:
-        st.text_input("Ultimate strength f_u [MPa]", value="(not specified)", disabled=True, key="rpt_mat_fu")
-        st.text_input("Elastic modulus E [MPa]", value="210000", disabled=True, key="rpt_mat_E")
-    with m3:
-        st.text_input("γ_M0", value="1.00", disabled=True, key="rpt_mat_gM0")
-        st.text_input("γ_M1", value="1.00", disabled=True, key="rpt_mat_gM1")
-
-    m4, m5, m6 = st.columns(3)
-    with m4:
-        st.text_input(
-            "ε = √(235 / f_y)",
-            value=f"{eps:.3f}" if eps is not None else "n/a",
-            disabled=True,
-            key="rpt_mat_eps",
-        )
-    with m5:
-        st.text_input(
-            "f_y / γ_M0 [MPa]",
-            value=f"{fy_over_gM0:.1f}" if fy_over_gM0 is not None else "n/a",
-            disabled=True,
-            key="rpt_mat_fy_gM0",
-        )
-    with m6:
-        st.text_input(
-            "f_y / γ_M1 [MPa]",
-            value=f"{fy_over_gM1:.1f}" if fy_over_gM1 is not None else "n/a",
-            disabled=True,
-            key="rpt_mat_fy_gM1",
-        )
-
-    m7, m8, m9 = st.columns(3)
-    with m7:
-        st.text_input("Shear modulus G [MPa]", value="81000", disabled=True, key="rpt_mat_G")
-    with m8:
-        st.text_input(
-            "Indicative σ_allow [MPa]",
-            value=f"{sigma_allow:.3f}" if sigma_allow is not None else "n/a",
-            disabled=True,
-            key="rpt_mat_sigma_allow",
-        )
-    with m9:
-        st.text_input(
-            "Equivalent σ_eq [MPa]",
-            value=f"{sigma_eq:.3f}" if sigma_eq is not None else "n/a",
-            disabled=True,
-            key="rpt_mat_sigma_eq",
-        )
-
+    
+    # use your session-state values (already defined above in render_report_tab)
+    # gamma_M0 = float(st.session_state.get("gamma_M0", 1.00))
+    # gamma_M1 = float(st.session_state.get("gamma_M1", 1.00))
+    
+    eps = (235.0 / fy) ** 0.5 if fy and fy > 0 else None
+    fy_over_gM0 = (fy / gamma_M0) if (fy and gamma_M0) else None
+    fy_over_gM1 = (fy / gamma_M1) if (fy and gamma_M1) else None
+    
+    # --- First line ONLY (as requested) ---
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.text_input("Steel grade", value=str(material), disabled=True, key="rpt_mat_grade")
+    with c2:
+        st.text_input("γ_M0", value=f"{gamma_M0:.2f}", disabled=True, key="rpt_mat_gM0")
+    with c3:
+        st.text_input("γ_M1", value=f"{gamma_M1:.2f}", disabled=True, key="rpt_mat_gM1")
+    
+    # --- Everything else expandable ---
+    with st.expander("More material values", expanded=False):
+        r1, r2, r3 = st.columns(3)
+        with r1:
+            st.text_input("Yield strength f_y [MPa]", value=f"{fy:.1f}", disabled=True, key="rpt_mat_fy")
+        with r2:
+            st.text_input("Ultimate strength f_u [MPa]", value="(not specified)", disabled=True, key="rpt_mat_fu")
+        with r3:
+            st.text_input("Elastic modulus E [MPa]", value="210000", disabled=True, key="rpt_mat_E")
+    
+        r4, r5, r6 = st.columns(3)
+        with r4:
+            st.text_input(
+                "ε = √(235 / f_y)",
+                value=f"{eps:.3f}" if eps is not None else "n/a",
+                disabled=True,
+                key="rpt_mat_eps",
+            )
+        with r5:
+            st.text_input(
+                "f_y / γ_M0 [MPa]",
+                value=f"{fy_over_gM0:.1f}" if fy_over_gM0 is not None else "n/a",
+                disabled=True,
+                key="rpt_mat_fy_gM0",
+            )
+        with r6:
+            st.text_input(
+                "f_y / γ_M1 [MPa]",
+                value=f"{fy_over_gM1:.1f}" if fy_over_gM1 is not None else "n/a",
+                disabled=True,
+                key="rpt_mat_fy_gM1",
+            )
+    
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -5745,7 +5739,6 @@ def render_report_tab():
             )
     
         # Selected section summary — already nice (6 boxes per 2 rows)
-        render_section_summary_like_props(material, sr_display, key_prefix="rpt_sum")
 
     with cs2:
         img_path = get_section_image(fam)
@@ -5771,27 +5764,43 @@ def render_report_tab():
     # 4. Section classification (EN 1993-1-1 §5.5)
     # ----------------------------------------------------
     report_h3("4. Section classification (EN 1993-1-1 §5.5)")
-
-    flange_class = sr_display.get("flange_class_db", "n/a")
-    web_class_b = sr_display.get("web_class_bending_db", "n/a")
-    web_class_c = sr_display.get("web_class_compression_db", "n/a")
-
-    # Simple 4-row "table" using columns
-    cfl, cwe, cwc = st.columns(3)
-    with cfl:
-        st.text_input("Flange – bending", value=str(flange_class), disabled=True, key="rpt_flange_class")
-    with cwe:
-        st.text_input("Web – bending", value=str(web_class_b), disabled=True, key="rpt_web_class_b")
-    with cwc:
-        st.text_input("Web – uniform compression", value=str(web_class_c), disabled=True, key="rpt_web_class_c")
-
-    st.text_input(
-        "Governing cross-section class",
-        value="(not explicitly derived yet)",
-        disabled=True,
-        key="rpt_cs_class",
-    )
-
+    
+    with st.expander("Show section classification details", expanded=False):
+    
+        flange_class = sr_display.get("flange_class_db", "n/a")
+        web_class_b = sr_display.get("web_class_bending_db", "n/a")
+        web_class_c = sr_display.get("web_class_compression_db", "n/a")
+    
+        cfl, cwe, cwc = st.columns(3)
+        with cfl:
+            st.text_input(
+                "Flange – bending",
+                value=str(flange_class),
+                disabled=True,
+                key="rpt_flange_class",
+            )
+        with cwe:
+            st.text_input(
+                "Web – bending",
+                value=str(web_class_b),
+                disabled=True,
+                key="rpt_web_class_b",
+            )
+        with cwc:
+            st.text_input(
+                "Web – uniform compression",
+                value=str(web_class_c),
+                disabled=True,
+                key="rpt_web_class_c",
+            )
+    
+        st.text_input(
+            "Governing cross-section class",
+            value="(not explicitly derived yet)",
+            disabled=True,
+            key="rpt_cs_class",
+        )
+    
     st.markdown("---")
 
     # ----------------------------------------------------
@@ -7623,6 +7632,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
