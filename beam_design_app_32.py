@@ -5176,8 +5176,12 @@ def report_status_badge(util):
         st.markdown(f"❓ **{util}**", unsafe_allow_html=True)
 
 def render_report_tab():
+    # ----------------------------------------------------
+    # Print helpers (screen only)
+    # ----------------------------------------------------
+    EXPAND_ALL = False  # always keep sections collapsed by default (also for printing)
     st.markdown("<div class='no-print'>", unsafe_allow_html=True)
-    EXPAND_ALL = st.checkbox("Expand all sections (recommended before printing)", value=False, key="rpt_expand_all")
+    st.caption("Tip: Use your browser Print (Ctrl+P / ⌘+P). The report is optimized for direct printing.")
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown('<div id="engi_report_root">', unsafe_allow_html=True)
     sr_display = st.session_state.get("sr_display")
@@ -7325,6 +7329,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
