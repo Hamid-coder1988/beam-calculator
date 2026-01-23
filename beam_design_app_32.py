@@ -5292,6 +5292,8 @@ def render_report_tab():
     # ----------------------------------------------------
     # 1. Project data (from Project tab)
     # ----------------------------------------------------
+    report_h3("1. Project info")
+    
     c1, c2, c3 = st.columns([1, 1, 1])
     
     with c1:
@@ -7358,6 +7360,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
