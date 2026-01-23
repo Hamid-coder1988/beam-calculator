@@ -5470,6 +5470,7 @@ def render_report_tab():
             )
     
         # Selected section summary — already nice (6 boxes per 2 rows)
+        render_section_summary_like_props(material, sr_display, key_prefix="rpt_sum")
 
     with cs2:
         img_path = get_section_image(fam)
@@ -7371,6 +7372,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
