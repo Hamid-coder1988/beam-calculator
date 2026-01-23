@@ -34,6 +34,20 @@ def safe_image(path_like, **kwargs) -> bool:
     except Exception:
         pass
     return False
+# ----------------------------------------------------
+# Material properties (EN 10025-2) – simplified table values
+# NOTE: In reality, fy depends on thickness. Here we use the table values you showed.
+# ----------------------------------------------------
+MATERIAL_PROPS = {
+    "S235": {"fy": 235.0, "fu": 360.0},
+    "S275": {"fy": 275.0, "fu": 430.0},
+    "S355": {"fy": 355.0, "fu": 490.0},
+    "S450": {"fy": 440.0, "fu": 550.0},  # per your table screenshot
+}
+
+def get_material_props(grade: str):
+    d = MATERIAL_PROPS.get(str(grade), MATERIAL_PROPS["S355"])
+    return float(d["fy"]), float(d["fu"])
 
 # -------------------------
 # Optional Postgres driver
@@ -394,10 +408,6 @@ def pick(d, *keys, default=None):
 # =========================================================
 # GENERAL HELPERS
 # =========================================================
-def material_to_fy(mat: str) -> float:
-    return {"S235": 235.0, "S275": 275.0, "S355": 355.0}.get(mat, 355.0)
-
-
 def supports_torsion_and_warping(family: str) -> bool:
     if not family:
         return False
@@ -2566,7 +2576,7 @@ def render_section_selection():
     c1, c2, c3 = st.columns([1, 1, 1])
 
     with c1:
-        material = st.selectbox("Material", ["S235", "S275", "S355"], index=2, key="mat_sel")
+        material = st.selectbox("Material", ["S235", "S275", "S355", "S450"], index=2, key="mat_sel")
         st.session_state["material"] = material  # keep consistent with report tab
 
     with c2:
@@ -5194,6 +5204,8 @@ def render_report_tab():
     extras = st.session_state.get("extras") or {}
     meta = st.session_state.get("meta")
     material = st.session_state.get("material", "S355")
+    fy = material_to_fy(material)
+    fu = material_to_fu(material)
     # Safety factors (use session state defaults)
     gamma_M0 = float(st.session_state.get("gamma_M0", 1.00))
     gamma_M1 = float(st.session_state.get("gamma_M1", 1.00))
@@ -5326,6 +5338,7 @@ def render_report_tab():
     E = 210000.0  # MPa
     nu = 0.30
     G = E / (2.0 * (1.0 + nu))  # shear modulus [MPa]
+    fy, fu = get_material_props(material)
     
     # ---- Line 1 (PRINTS) ----
     c1, c2, c3 = st.columns(3)
@@ -5365,10 +5378,11 @@ def render_report_tab():
     with r2:
         st.text_input(
             "Ultimate strength f_u [MPa]",
-            value="(not specified)",
+            value=f"{fu:.1f}",
             disabled=True,
             key="rpt_mat_fu",
         )
+        
     with r3:
         st.text_input(
             "Elastic modulus E [MPa]",
@@ -7361,6 +7375,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
