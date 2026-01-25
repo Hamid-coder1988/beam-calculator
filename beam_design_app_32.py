@@ -2488,7 +2488,7 @@ def render_sidebar_guidelines():
         st.markdown("## Current setup")
 
         # --- Material & section ---
-        material = st.session_state.get("mat_sel", "–")
+        material = st.session_state.get("material", st.session_state.get("mat_sel", "–"))
         sr = st.session_state.get("sr_display")
         if isinstance(sr, dict):
             sec_txt = f"{sr.get('family', '–')} {sr.get('name', '')}".strip()
@@ -2579,6 +2579,16 @@ def render_section_selection():
     with c1:
         material = st.selectbox("Material", ["S235", "S275", "S355", "S450"], index=2, key="mat_sel")
         st.session_state["material"] = material  # keep consistent with report tab
+        # If material changed -> invalidate previous results so Report/Results can't show old run
+        prev_mat = st.session_state.get("_prev_material_for_results", None)
+        if prev_mat is None:
+            st.session_state["_prev_material_for_results"] = material
+        elif prev_mat != material:
+            st.session_state["_prev_material_for_results"] = material
+        
+            # Clear computed results (they depend on fy)
+            for k in ["run_clicked", "df_rows", "overall_ok", "governing", "extras"]:
+                st.session_state.pop(k, None)
 
     with c2:
         family = st.selectbox(
@@ -5204,7 +5214,7 @@ def render_report_tab():
     governing = st.session_state.get("governing", (None, None))
     extras = st.session_state.get("extras") or {}
     meta = st.session_state.get("meta")
-    material = st.session_state.get("mat_sel", "S355")
+    material = st.session_state.get("material", st.session_state.get("mat_sel", "S355"))
     fy, fu = get_material_props(material)
     # Safety factors (use session state defaults)
     gamma_M0 = float(st.session_state.get("gamma_M0", 1.00))
@@ -7341,7 +7351,7 @@ with tab3:
 
 with tab4:
     sr_display = st.session_state.get("sr_display", None)
-    material = st.session_state.get("mat_sel", "S355")
+    material = st.session_state.get("material", st.session_state.get("mat_sel", "S355"))
     fy, fu = get_material_props(material)
 
     # Run button moved here from Loads tab
@@ -7375,6 +7385,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
