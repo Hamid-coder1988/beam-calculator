@@ -5193,43 +5193,27 @@ def render_report_tab():
     web_class_b  = cls.get("web_bending", "n/a")
     web_class_c  = cls.get("web_uniform_comp", "n/a")
     gov_class    = cls.get("governing", "n/a")
+    # --- Force refresh of disabled widgets (Streamlit caches by key) ---
+    st.session_state["rpt_flange_class_b"] = str(flange_class)
+    st.session_state["rpt_web_class_b"]    = str(web_class_b)
+    st.session_state["rpt_web_class_c"]    = str(web_class_c)
+    st.session_state["rpt_cs_class"]       = str(gov_class)
+    
     cfc, cwb, cwc, cgc = st.columns(4)
+    
     with cfc:
-        st.text_input(
-            "Flange – bending",
-            value=str(flange_class),
-            disabled=True,
-            key="rpt_flange_class_b",
-        )
+        st.text_input("Flange – bending", disabled=True, key="rpt_flange_class_b")
     
     with cwb:
-        st.text_input(
-            "Web – bending",
-            value=str(web_class_b),
-            disabled=True,
-            key="rpt_web_class_b",
-        )
+        st.text_input("Web – bending", disabled=True, key="rpt_web_class_b")
     
     with cwc:
-        st.text_input(
-            "Web – uniform compression",
-            value=str(web_class_c),
-            disabled=True,
-            key="rpt_web_class_c",
-        )
+        st.text_input("Web – uniform compression", disabled=True, key="rpt_web_class_c")
     
     with cgc:
-        st.text_input(
-            "Governing cross-section class",
-            value=str(gov_class),
-            disabled=True,
-            key="rpt_cs_class",
-        )
+        st.text_input("Governing cross-section class", disabled=True, key="rpt_cs_class")
 
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    st.markdown("---")
-
+  
     # ----------------------------------------------------
     # 5. Applied actions & internal forces (ULS)
     # ----------------------------------------------------
@@ -7064,6 +7048,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
