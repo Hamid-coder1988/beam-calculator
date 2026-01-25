@@ -287,17 +287,28 @@ def report_h4(title):
     )
 
 
-def report_status_badge(status: str, show_icon: bool = True):
-    """Uniform OK / NOT OK line for the Report tab."""
-    s = (status or "").strip()
-    is_ok = s.upper().startswith("OK") or s.upper() in {"PASS", "SAFE", "SATISFIED"}
-    # Treat "EXCEEDS" and anything containing "NOT" as NOT OK
-    if "EXCEED" in s.upper() or "NOT" in s.upper() or "FAIL" in s.upper():
-        is_ok = False
+def report_status_badge(status, show_icon: bool = True):
+    import math
+
+    # Case 1: numeric utilization (e.g. 0.83)
+    if isinstance(status, (int, float)):
+        if not math.isfinite(float(status)):
+            label = "n/a"
+            is_ok = False
+        else:
+            is_ok = float(status) <= 1.0
+            label = "OK" if is_ok else "NOT OK"
+
+    # Case 2: string status ("OK", "NOT OK", "EXCEEDS", ...)
+    else:
+        s = str(status or "").strip().upper()
+        is_ok = s.startswith("OK") or s in {"PASS", "SAFE", "SATISFIED"}
+        if "EXCEED" in s or "NOT" in s or "FAIL" in s:
+            is_ok = False
+        label = "OK" if is_ok else "NOT OK"
 
     icon = "✅" if is_ok else "❌"
     color = "#1b8f2a" if is_ok else "#c62828"
-    label = "OK" if is_ok else "NOT OK"
     if not show_icon:
         icon = ""
 
@@ -307,6 +318,7 @@ def report_status_badge(status: str, show_icon: bool = True):
         </div>""",
         unsafe_allow_html=True,
     )
+
 
 # =========================================================
 # GLOBAL SAFETY FACTORS (EN 1993)
@@ -7048,6 +7060,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
