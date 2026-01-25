@@ -27,6 +27,146 @@ MATERIAL_PROPS = {
 def get_material_props(grade: str):
     d = MATERIAL_PROPS.get(str(grade), MATERIAL_PROPS["S355"])
     return float(d["fy"]), float(d["fu"])
+# =========================================================
+# EC3 Section class (material-dependent) — based on ε = sqrt(235/fy)
+# Implements the limits from the tables you attached:
+# - Internal parts (Table 7.3): bending and uniform compression
+# - Outstand flanges (Table 7.4): pure compression (used here for flange in bending)
+# Governing class = max(Flange–bending, Web–bending, Web–uniform compression)
+# =========================================================
+
+def ec3_epsilon(fy_MPa: float) -> float:
+    fy = max(float(fy_MPa), 1e-9)
+    return math.sqrt(235.0 / fy)
+
+def _class_from_limits(ratio_ct: float, lim1: float, lim2: float, lim3: float) -> int:
+    """
+    Return 1..4 based on c/t ratio and class limits:
+      Class 1: c/t <= lim1
+      Class 2: c/t <= lim2
+      Class 3: c/t <= lim3
+      else Class 4
+    """
+    r = float(ratio_ct)
+    if r <= lim1: return 1
+    if r <= lim2: return 2
+    if r <= lim3: return 3
+    return 4
+
+def ec3_internal_part_class_bending(ct: float, fy_MPa: float) -> int:
+    """
+    Internal compression part subject to bending (Table 7.3):
+      Class 1: c/t <= 72ε
+      Class 2: c/t <= 83ε
+      Class 3: c/t <= 121ε
+    """
+    eps = ec3_epsilon(fy_MPa)
+    return _class_from_limits(ct, 72.0*eps, 83.0*eps, 121.0*eps)
+
+def ec3_internal_part_class_uniform_comp(ct: float, fy_MPa: float) -> int:
+    """
+    Internal compression part subject to uniform compression (Table 7.3):
+      Class 1: c/t <= 28ε
+      Class 2: c/t <= 34ε
+      Class 3: c/t <= 38ε
+    """
+    eps = ec3_epsilon(fy_MPa)
+    return _class_from_limits(ct, 28.0*eps, 34.0*eps, 38.0*eps)
+
+def ec3_outstand_flange_class_uniform_comp(ct: float, fy_MPa: float) -> int:
+    """
+    Outstand flange (Table 7.4, pure compression column):
+      Class 1: c/t <= 9ε
+      Class 2: c/t <= 10ε
+      Class 3: c/t <= 14ε
+    Used here as flange class under bending (compression flange).
+    """
+    eps = ec3_epsilon(fy_MPa)
+    return _class_from_limits(ct, 9.0*eps, 10.0*eps, 14.0*eps)
+
+def calc_section_classes_ec3(sr_display: dict, fy_MPa: float) -> dict:
+    """
+    Returns:
+      {
+        "flange_bending": int or None,
+        "web_bending": int or None,
+        "web_uniform_comp": int or None,
+        "governing": int or None,
+        "notes": str
+      }
+
+    Also writes:
+      sr_display["class"] = governing (so your bending modulus switch works)
+      sr_display["class_map_calc"] = the dict above (for report/results)
+    """
+    fam = str(sr_display.get("family", sr_display.get("Type", "")) or "").upper()
+
+    # geometry (mm)
+    h  = float(sr_display.get("h_mm", 0.0) or 0.0)
+    b  = float(sr_display.get("b_mm", 0.0) or 0.0)
+    tw = float(sr_display.get("tw_mm", 0.0) or 0.0)
+    tf = float(sr_display.get("tf_mm", 0.0) or 0.0)
+
+    # some DBs store RHS/SHS with tw=tf, but if not, use a conservative thickness:
+    t_box = min([x for x in [tw, tf] if x > 0.0], default=0.0)
+
+    res = {
+        "flange_bending": None,
+        "web_bending": None,
+        "web_uniform_comp": None,
+        "governing": None,
+        "notes": ""
+    }
+
+    # ---- I / H sections (outstand flange + internal web) ----
+    if any(k in fam for k in ["IPE", "HEA", "HEB", "HEM", "IPN", "I ", "H "]):
+        if b > 0 and tw > 0 and tf > 0 and h > 0:
+            # flange outstand: c = (b - tw)/2 ; t = tf
+            c_f = max((b - tw) / 2.0, 0.0)
+            ct_f = c_f / tf if tf > 0 else 1e9
+            flange_cls = ec3_outstand_flange_class_uniform_comp(ct_f, fy_MPa)
+
+            # web internal: c = h - 2*tf ; t = tw
+            c_w = max(h - 2.0 * tf, 0.0)
+            ct_w = c_w / tw if tw > 0 else 1e9
+            web_b = ec3_internal_part_class_bending(ct_w, fy_MPa)
+            web_c = ec3_internal_part_class_uniform_comp(ct_w, fy_MPa)
+
+            res["flange_bending"] = flange_cls
+            res["web_bending"] = web_b
+            res["web_uniform_comp"] = web_c
+            res["governing"] = max(flange_cls, web_b, web_c)
+            res["notes"] = f"I/H: c_f=(b-tw)/2, c_w=(h-2tf)"
+
+    # ---- RHS / SHS (internal parts only) ----
+    elif any(k in fam for k in ["RHS", "SHS", "BOX", "RECT", "SQUARE"]):
+        if h > 0 and b > 0 and t_box > 0:
+            # per your sketch: internal c = side - 3t
+            c_h = max(h - 3.0 * t_box, 0.0)
+            c_b = max(b - 3.0 * t_box, 0.0)
+            ct_h = c_h / t_box
+            ct_b = c_b / t_box
+
+            # treat "flange" as the b-side, "web" as the h-side (consistent)
+            flange_cls = ec3_internal_part_class_bending(ct_b, fy_MPa)
+            web_b = ec3_internal_part_class_bending(ct_h, fy_MPa)
+            web_c = ec3_internal_part_class_uniform_comp(ct_h, fy_MPa)
+
+            res["flange_bending"] = flange_cls
+            res["web_bending"] = web_b
+            res["web_uniform_comp"] = web_c
+            res["governing"] = max(flange_cls, web_b, web_c)
+            res["notes"] = "RHS/SHS: c_h=h-3t, c_b=b-3t"
+
+    # ---- Otherwise (CHS etc.) ----
+    else:
+        res["notes"] = "No EC3 Table 7.3/7.4 mapping implemented for this family (use DB class or add CHS rules)."
+
+    # Write back so compute_checks uses it:
+    if res["governing"] is not None:
+        sr_display["class"] = int(res["governing"])   # IMPORTANT: your compute_checks reads use_props.get("class",1)
+    sr_display["class_map_calc"] = res
+    return res
 
 # -------------------------
 # Asset path helpers
@@ -5515,25 +5655,35 @@ def render_report_tab():
     
     report_h3("4. Section classification (EN 1993-1-1 §5.5)")
     
-    flange_class = sr_display.get("flange_class_db", "n/a")
-    web_class_b = sr_display.get("web_class_bending_db", "n/a")
-    web_class_c = sr_display.get("web_class_compression_db", "n/a")
+    # --- EC3 calculated classes (material-dependent) ---
+    material = st.session_state.get("mat_sel", "S355")
+    fy, fu = get_material_props(material)
     
-    cfl, cwe, cwc = st.columns(3)
-    with cfl:
+    cls = sr_display.get("class_map_calc")
+    if not isinstance(cls, dict) or cls.get("governing") is None:
+        cls = calc_section_classes_ec3(sr_display, fy)
+    
+    flange_class = cls.get("flange_bending", "n/a")
+    web_class_b  = cls.get("web_bending", "n/a")
+    web_class_c  = cls.get("web_uniform_comp", "n/a")
+    gov_class    = cls.get("governing", "n/a")
+    cfc, cwb, cwc, cgc = st.columns(4)
+    with cfc:
         st.text_input(
             "Flange – bending",
             value=str(flange_class),
             disabled=True,
-            key="rpt_flange_class",
+            key="rpt_flange_class_b",
         )
-    with cwe:
+    
+    with cwb:
         st.text_input(
             "Web – bending",
             value=str(web_class_b),
             disabled=True,
             key="rpt_web_class_b",
         )
+    
     with cwc:
         st.text_input(
             "Web – uniform compression",
@@ -5542,13 +5692,14 @@ def render_report_tab():
             key="rpt_web_class_c",
         )
     
-    st.text_input(
-        "Governing cross-section class",
-        value="(not explicitly derived yet)",
-        disabled=True,
-        key="rpt_cs_class",
-    )
-    
+    with cgc:
+        st.text_input(
+            "Governing cross-section class",
+            value=str(gov_class),
+            disabled=True,
+            key="rpt_cs_class",
+        )
+
     st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("---")
@@ -7373,6 +7524,8 @@ with tab4:
         torsion_supported = supports_torsion_and_warping(sr_display.get("family", ""))
 
         try:
+            # --- EC3 class calculation (material-dependent) ---
+            calc_section_classes_ec3(sr_display, fy)    
             df_rows, overall_ok, governing, extras = compute_checks(sr_display, fy, inputs, torsion_supported)
             st.session_state["df_rows"] = df_rows
             st.session_state["overall_ok"] = overall_ok
@@ -7385,6 +7538,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
