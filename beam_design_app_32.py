@@ -24,6 +24,30 @@ MATERIAL_PROPS = {
     "S450": {"fy": 440.0, "fu": 550.0},  # per your table screenshot
 }
 
+def _pick(sr: dict, keys, default=None):
+    """Return the first existing, non-empty key from sr_display."""
+    for k in keys:
+        if k in sr and sr.get(k) not in (None, "", "n/a"):
+            return sr.get(k)
+    return default
+
+def _to_float(x, default=0.0):
+    try:
+        return float(x)
+    except Exception:
+        return float(default)
+
+def _ec3_eps(fy):
+    import math
+    return math.sqrt(235.0 / max(float(fy), 1e-9))
+
+def _class_from_limits(ct, L1, L2, L3):
+    if ct <= L1: return 1
+    if ct <= L2: return 2
+    if ct <= L3: return 3
+    return 4
+
+
 def get_material_props(grade: str):
     d = MATERIAL_PROPS.get(str(grade), MATERIAL_PROPS["S355"])
     return float(d["fy"]), float(d["fu"])
@@ -5204,6 +5228,108 @@ def render_report_tab():
     flange_class = cls.get("flange_bending", "n/a")
     web_class_b  = cls.get("web_bending", "n/a")
     web_class_c  = cls.get("web_uniform_comp", "n/a")
+    with st.expander("DEBUG — EC3 Section class inputs (temporary)", expanded=True):
+    sr = sr_display or {}
+    fam = str(sr.get("family", sr.get("Type", "")) or "")
+    fy_local, _ = get_material_props(material)
+    eps = _ec3_eps(fy_local)
+
+    st.write("Family:", fam)
+    st.write("Material:", material, "fy [MPa]:", fy_local, "ε:", round(eps, 4))
+
+    # ---- Show raw geometry keys that might exist ----
+    candidates = [
+        "h_mm","b_mm","tw_mm","tf_mm","t_mm","h","b","tw","tf","t","d_mm","D_mm","d","D"
+    ]
+    raw_rows = []
+    for k in candidates:
+        if k in sr:
+            raw_rows.append([k, sr.get(k)])
+    if raw_rows:
+        st.table(pd.DataFrame(raw_rows, columns=["sr_display key", "value"]))
+    else:
+        st.warning("No geometry keys found in sr_display from the candidate list.")
+
+    # ---- Read geometry robustly (THIS is often the bug) ----
+    h  = _to_float(_pick(sr, ["h_mm","h","H","d_mm","d"], 0.0))
+    b  = _to_float(_pick(sr, ["b_mm","b","B"], 0.0))
+    tw = _to_float(_pick(sr, ["tw_mm","tw","t_w"], 0.0))
+    tf = _to_float(_pick(sr, ["tf_mm","tf","t_f"], 0.0))
+
+    # For RHS/SHS, you often have only one thickness key:
+    t1 = _to_float(_pick(sr, ["t_mm","t","thk_mm","thickness_mm"], 0.0))
+    # choose a conservative thickness available:
+    t_box = min([x for x in [t1, tw, tf] if x and x > 0.0], default=0.0)
+
+    st.write("USED geometry [mm]:", {"h": h, "b": b, "tw": tw, "tf": tf, "t_box": t_box})
+
+    # ---- Compute c, t and EC3 limits ----
+    dbg = []
+
+    # Internal part limits (Table 7.3)
+    Lb1, Lb2, Lb3 = 72*eps, 83*eps, 121*eps     # bending
+    Lc1, Lc2, Lc3 = 28*eps, 34*eps, 38*eps       # uniform compression
+
+    st.write("Table 7.3 limits:")
+    st.write({"bending": (Lb1, Lb2, Lb3), "uniform compression": (Lc1, Lc2, Lc3)})
+
+    famU = fam.upper()
+
+    # I/H: flange outstand + internal web
+    if any(k in famU for k in ["IPE","HEA","HEB","HEM","IPN","I ", "H "]):
+        # flange outstand: c = (b - tw)/2 ; t = tf
+        c_f = max((b - tw)/2.0, 0.0)
+        t_f = tf
+        ct_f = c_f/t_f if t_f > 0 else 1e9
+        # Outstand (Table 7.4 pure compression limits) used as compression flange in bending:
+        Lof1, Lof2, Lof3 = 9*eps, 10*eps, 14*eps
+        flange_cls = _class_from_limits(ct_f, Lof1, Lof2, Lof3)
+        dbg.append(["Flange (outstand)", c_f, t_f, ct_f, (Lof1, Lof2, Lof3), flange_cls, "Table 7.4 (pure comp)"])
+
+        # web internal: c = h - 2tf ; t = tw
+        c_w = max(h - 2.0*tf, 0.0)
+        t_w = tw
+        ct_w = c_w/t_w if t_w > 0 else 1e9
+        web_b_cls = _class_from_limits(ct_w, Lb1, Lb2, Lb3)
+        web_c_cls = _class_from_limits(ct_w, Lc1, Lc2, Lc3)
+        dbg.append(["Web (internal) bending", c_w, t_w, ct_w, (Lb1, Lb2, Lb3), web_b_cls, "Table 7.3 bending"])
+        dbg.append(["Web (internal) uniform comp", c_w, t_w, ct_w, (Lc1, Lc2, Lc3), web_c_cls, "Table 7.3 comp"])
+
+        gov = max(flange_cls, web_b_cls, web_c_cls)
+
+    # RHS/SHS internal: per sketch c = h-3t, c = b-3t
+    elif any(k in famU for k in ["RHS","SHS","BOX","RECT","SQUARE"]):
+        t = t_box
+        c_h = max(h - 3.0*t, 0.0)
+        c_b = max(b - 3.0*t, 0.0)
+        ct_h = c_h/t if t > 0 else 1e9
+        ct_b = c_b/t if t > 0 else 1e9
+
+        # internal bending
+        cls_b_side = _class_from_limits(ct_b, Lb1, Lb2, Lb3)
+        cls_h_side = _class_from_limits(ct_h, Lb1, Lb2, Lb3)
+        # internal uniform compression (take “web” as the h-side)
+        cls_h_comp = _class_from_limits(ct_h, Lc1, Lc2, Lc3)
+
+        dbg.append(["Internal b-side bending", c_b, t, ct_b, (Lb1, Lb2, Lb3), cls_b_side, "Table 7.3 bending"])
+        dbg.append(["Internal h-side bending", c_h, t, ct_h, (Lb1, Lb2, Lb3), cls_h_side, "Table 7.3 bending"])
+        dbg.append(["Internal h-side uniform comp", c_h, t, ct_h, (Lc1, Lc2, Lc3), cls_h_comp, "Table 7.3 comp"])
+
+        gov = max(cls_b_side, cls_h_side, cls_h_comp)
+
+    else:
+        gov = None
+        st.warning("DEBUG: Family not mapped (CHS etc.). No Table 7.3/7.4 debug computed.")
+
+    if dbg:
+        df_dbg = pd.DataFrame(
+            dbg,
+            columns=["Part", "c [mm]", "t [mm]", "c/t", "limits (C1,C2,C3)", "class", "source"]
+        )
+        st.dataframe(df_dbg, use_container_width=True)
+
+    st.write("GOVERNING (debug) =", gov)
+
     gov_class    = cls.get("governing", "n/a")
     # --- Force refresh of disabled widgets (Streamlit caches by key) ---
     st.session_state["rpt_flange_class_b"] = str(flange_class)
@@ -7060,6 +7186,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
