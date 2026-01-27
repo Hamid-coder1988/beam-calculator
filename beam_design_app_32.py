@@ -5349,12 +5349,12 @@ def render_report_tab():
     web_class    = cls.get("web_bend_comp", "n/a")   # NEW key
     gov_class    = cls.get("governing", "n/a")
 
-    # Force refresh of disabled widgets (Streamlit caches by key)
-    st.session_state["rpt_flange_class_b"] = str(flange_class)
-    st.session_state["rpt_web_class_b"]    = str(web_class_b)
-    st.session_state["rpt_web_class_bc"]   = str(web_class_bc)   # NEW
-    st.session_state["rpt_web_class_c"]    = str(web_class_c)
-    st.session_state["rpt_cs_class"]       = str(gov_class)
+    # you should already have these 3 from cls:
+    # flange_class, web_class, gov_class
+    
+    st.session_state["rpt_flange_class_comp"] = str(flange_class)
+    st.session_state["rpt_web_class_bc"]      = str(web_class)
+    st.session_state["rpt_cs_class"]          = str(gov_class)
     
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -5363,8 +5363,7 @@ def render_report_tab():
         st.text_input("Web – bending + compression", disabled=True, key="rpt_web_class_bc")
     with c3:
         st.text_input("Governing cross-section class", disabled=True, key="rpt_cs_class")
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+    True)
     
     # ----------------------------------------------------
     # 5. Applied actions & internal forces (ULS)
@@ -7200,6 +7199,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
