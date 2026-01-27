@@ -42,161 +42,151 @@ def get_material_props(grade: str):
     return float(d["fy"]), float(d["fu"])
 # =========================================================
 # EC3 Section class (material-dependent) — based on ε = sqrt(235/fy)
-# Implements the limits from the tables you attached:
-# - Internal parts (Table 7.3): bending and uniform compression
-# - Outstand flanges (Table 7.4): pure compression (used here for flange in bending)
-# Governing class = max(Flange–bending, Web–bending, Web–uniform compression)
+#
+# OUTPUT (ONLY 3 classes):
+#   - flange_comp      : flange class in pure compression
+#   - web_bend_comp    : web class in bending + axial compression (Table 7.3, uses αc + ψ)
+#   - governing        : max(flange_comp, web_bend_comp)
+#
+# IMPLEMENTATION NOTES:
+# - Web bending+axial uses Table 7.3:
+#     Class 1 & 2 limits via αc
+#     Class 3 limit via ψ
+# - ψ is computed from extreme-fibre stresses due to N + My:
+#     σ = N/A ± My/Wel,y
+# - N is assumed POSITIVE in compression (Eurocode convention).
+#   If your app uses compression negative, flip N once where marked.
 # =========================================================
+
+import math
 
 def ec3_epsilon(fy_MPa: float) -> float:
     fy = max(float(fy_MPa), 1e-9)
     return math.sqrt(235.0 / fy)
 
-def _class_from_limits(ratio_ct: float, lim1: float, lim2: float, lim3: float) -> int:
-    """
-    Return 1..4 based on c/t ratio and class limits:
-      Class 1: c/t <= lim1
-      Class 2: c/t <= lim2
-      Class 3: c/t <= lim3
-      else Class 4
-    """
-    r = float(ratio_ct)
+def _class_from_limits(ct: float, lim1: float, lim2: float, lim3: float) -> int:
+    r = float(ct)
     if r <= lim1: return 1
     if r <= lim2: return 2
     if r <= lim3: return 3
     return 4
 
-def ec3_internal_part_class_bending(ct: float, fy_MPa: float) -> int:
-    """
-    Internal compression part subject to bending (Table 7.3):
-      Class 1: c/t <= 72ε
-      Class 2: c/t <= 83ε
-      Class 3: c/t <= 121ε
-    """
-    eps = ec3_epsilon(fy_MPa)
-    return _class_from_limits(ct, 72.0*eps, 83.0*eps, 121.0*eps)
 
+# ------------------------
+# Table 7.4 — outstand flange in PURE compression
+# ------------------------
+def ec3_outstand_flange_class_pure_comp(ct: float, fy_MPa: float) -> int:
+    eps = ec3_epsilon(fy_MPa)
+    return _class_from_limits(ct, 9.0*eps, 10.0*eps, 14.0*eps)
+
+
+# ------------------------
+# Table 7.3 — internal part in PURE uniform compression
+# (used for rectangular flange in pure compression)
+# ------------------------
 def ec3_internal_part_class_uniform_comp(ct: float, fy_MPa: float) -> int:
-    """
-    Internal compression part subject to uniform compression (Table 7.3):
-      Class 1: c/t <= 28ε
-      Class 2: c/t <= 34ε
-      Class 3: c/t <= 38ε
-    """
     eps = ec3_epsilon(fy_MPa)
     return _class_from_limits(ct, 28.0*eps, 34.0*eps, 38.0*eps)
 
-def ec3_outstand_flange_class_uniform_comp(ct: float, fy_MPa: float) -> int:
-    """
-    Outstand flange (Table 7.4, pure compression column):
-      Class 1: c/t <= 9ε
-      Class 2: c/t <= 10ε
-      Class 3: c/t <= 14ε
-    Used here as flange class under bending (compression flange).
-    """
-    eps = ec3_epsilon(fy_MPa)
-    return _class_from_limits(ct, 9.0*eps, 10.0*eps, 14.0*eps)
-def ec3_alpha_c_I_equal_flanges(NEd: float, tw: float, fy: float) -> float:
-    """
-    For I/H sections with equal flanges (EC3 Table 7.3 note):
-      if NEd >=  c*tw*fy  -> alpha_c = 1.0
-      if NEd <= -c*tw*fy  -> alpha_c = 0.0
-      else alpha_c = 0.5 * (1 + NEd/(c*tw*fy))
 
-    Here we use 'c' = (web clear depth) = h - 2*tf.
-    In this function we only compute the algebra; caller must use correct c.
-    """
-    # Caller must pass c*tw*fy as denom; to keep function simple, do it outside.
-    raise NotImplementedError("Use ec3_alpha_c_from_denom() instead")
-
-
-def ec3_alpha_c_from_denom(NEd: float, denom: float) -> float:
-    """
-    denom = c * tw * fy  (units: N if c, tw in mm and fy in N/mm²)
-    """
-    if denom <= 0:
+# ------------------------
+# αc from Table 7.3 note form (general algebra)
+# denom = c * tw * fy  (N)
+# ------------------------
+def ec3_alpha_c_from_denom(NEd_N: float, denom_N: float) -> float:
+    if denom_N <= 0.0:
         return 0.5
-    if NEd >= denom:
+    if NEd_N >= denom_N:
         return 1.0
-    if NEd <= -denom:
+    if NEd_N <= -denom_N:
         return 0.0
-    return 0.5 * (1.0 + (NEd / denom))
+    return 0.5 * (1.0 + (NEd_N / denom_N))
 
 
-def ec3_internal_part_class_bending_axial_alpha_c(ct: float, fy: float, alpha_c: float) -> int:
-    """
-    EC3 Table 7.3 — Internal compression part subject to bending and axial force
-    using alpha_c formulation (Class 1 & 2 shown in your screenshot).
-
-    Class 1 limits:
-      if alpha_c > 0.5:  c/t <= 126ε / (5.5*alpha_c - 1)
-      if alpha_c <=0.5:  c/t <= 36ε / alpha_c
-
-    Class 2 limits:
-      if alpha_c > 0.5:  c/t <= 188ε / (6.53*alpha_c - 1)
-      if alpha_c <=0.5:  c/t <= 41.5ε / alpha_c
-
-    Class 3 (per same table column) depends on ψ; we’ll handle separately.
-    If you don’t compute ψ yet, we conservatively use the uniform compression Class 3 limit 38ε.
-    """
-    eps = ec3_epsilon(fy)
-    a = max(float(alpha_c), 1e-9)
-
-    # Class 1 limit
-    if a > 0.5:
-        lim1 = (126.0 * eps) / max(5.5 * a - 1.0, 1e-9)
-        lim2 = (188.0 * eps) / max(6.53 * a - 1.0, 1e-9)
-    else:
-        lim1 = (36.0 * eps) / a
-        lim2 = (41.5 * eps) / a
-
-    # Class 3: if you haven't implemented ψ yet, use 38ε as a temporary conservative boundary
-    lim3 = 38.0 * eps
-
-    return _class_from_limits(ct, lim1, lim2, lim3)
-
-
-def ec3_internal_part_class_bending_axial_psi(ct: float, fy: float, psi: float) -> int:
-    """
-    EC3 Table 7.3 — Class 3 limit for bending+axial uses ψ:
-
-      when ψ > -1: c/t <= 38ε / (0.608 + 0.343ψ + 0.049ψ²)
-      when ψ <= -1: c/t <= 60.5ε(1-ψ)
-
-    We still keep Class 1/2 from alpha_c method (above), but this gives you the proper Class 3.
-    """
-    eps = ec3_epsilon(fy)
+# ------------------------
+# Table 7.3 — Class 3 limit for bending + axial force uses ψ
+# returns LIMIT (not a class)
+# ------------------------
+def ec3_internal_part_class3_limit_bending_axial_psi(fy_MPa: float, psi: float) -> float:
+    eps = ec3_epsilon(fy_MPa)
     psi = float(psi)
 
     if psi > -1.0:
         denom = 0.608 + 0.343 * psi + 0.049 * psi * psi
-        lim3 = (38.0 * eps) / max(denom, 1e-9)
+        return (38.0 * eps) / max(denom, 1e-9)
     else:
-        lim3 = 60.5 * eps * (1.0 - psi)
+        # ψ <= -1
+        return 60.5 * eps * (1.0 - psi)
 
-    return lim3
 
-def calc_section_classes_ec3(sr_display: dict,
-                             fy_MPa: float,
-                             NEd_kN: float = 0.0,
-                             My_Ed_kNm: float = 0.0,
-                             Mz_Ed_kNm: float = 0.0) -> dict:
-    """
-    Returns:
-      {
-        "flange_bending": int or None,
-        "web_bending": int or None,
-        "web_bending_comp": int or None,   # NEW
-        "web_uniform_comp": int or None,
-        "governing": int or None,
-        "alpha_c": float or None,          # NEW
-        "notes": str
-      }
+# ------------------------
+# Table 7.3 — web class in bending + axial force
+# - Class 1 & 2 via αc
+# - Class 3 via ψ
+# ------------------------
+def ec3_internal_part_class_bending_axial(ct: float, fy_MPa: float, alpha_c: float, psi: float) -> int:
+    eps = ec3_epsilon(fy_MPa)
+    a = max(float(alpha_c), 1e-9)
 
-    Also writes:
-      sr_display["class"] = governing
-      sr_display["class_map_calc"] = dict above
-    """
+    # Class 1 limits
+    if a > 0.5:
+        lim1 = (126.0 * eps) / max(5.5 * a - 1.0, 1e-9)
+    else:
+        lim1 = (36.0 * eps) / a
+
+    # Class 2 limits
+    if a > 0.5:
+        lim2 = (188.0 * eps) / max(6.53 * a - 1.0, 1e-9)
+    else:
+        lim2 = (41.5 * eps) / a
+
+    # Class 3 limit via ψ
+    lim3 = ec3_internal_part_class3_limit_bending_axial_psi(fy_MPa, psi)
+
+    return _class_from_limits(ct, lim1, lim2, lim3)
+
+
+# ------------------------
+# ψ from N + My using extreme fibre stresses
+# σ = N/A ± My/Wel,y
+# compression positive convention
+# ------------------------
+def ec3_psi_from_N_My(NEd_kN: float, My_Ed_kNm: float, A_mm2: float, Wel_y_cm3: float) -> float | None:
+    if A_mm2 <= 0.0 or Wel_y_cm3 <= 0.0:
+        return None
+
+    # Units
+    NEd_N = float(NEd_kN) * 1e3
+    NEd_N = -NEd_N   # YOUR APP: compression is negative -> EC3 needs compression positive
+    My_Nmm = float(My_Ed_kNm) * 1e6
+    Wel_y_mm3 = float(Wel_y_cm3) * 1e3
+
+    # If your app uses compression NEGATIVE, uncomment next line:
+    NEd_N *= -1.0
+
+    sigma_N = NEd_N / A_mm2
+    sigma_M = My_Nmm / Wel_y_mm3
+
+    s_top = sigma_N + sigma_M
+    s_bot = sigma_N - sigma_M
+
+    # compression positive: take the more compressed as σ1
+    s1 = max(s_top, s_bot)
+    s2 = min(s_top, s_bot)
+
+    if abs(s1) <= 1e-9:
+        return None
+
+    psi = s2 / s1
+    # clamp for stability
+    psi = max(-1.0, min(1.0, float(psi)))
+    return psi
+
+
+def calc_section_classes_ec3(sr_display: dict, fy_MPa: float,
+                            NEd_kN: float = 0.0,
+                            My_Ed_kNm: float = 0.0) -> dict:
+
     fam = str(sr_display.get("family", sr_display.get("Type", "")) or "").upper()
 
     # geometry (mm)
@@ -205,84 +195,117 @@ def calc_section_classes_ec3(sr_display: dict,
     tw = float(sr_display.get("tw_mm", 0.0) or 0.0)
     tf = float(sr_display.get("tf_mm", 0.0) or 0.0)
 
-    # RHS/SHS: you said your DB has separate tw/tf already → keep conservative min thickness
-    t_box = min([x for x in [tw, tf] if x > 0.0], default=0.0)
+    # props for ψ
+    A_mm2 = float(sr_display.get("A_mm2", 0.0) or 0.0)
+    Wel_y_cm3 = float(sr_display.get("Wel_y_cm3", 0.0) or 0.0)
 
     res = {
-        "flange_bending": None,
-        "web_bending": None,
-        "web_bending_comp": None,   # NEW
-        "web_uniform_comp": None,
+        "flange_comp": None,
+        "web_bend_comp": None,
         "governing": None,
-        "alpha_c": None,            # NEW
+        # optional debug (keep if you want)
+        "alpha_c": None,
+        "psi": None,
+        "ct_flange": None,
+        "ct_web": None,
         "notes": ""
     }
 
-    # Convert actions for logic
-    NEd_comp_N = max(-float(NEd_kN), 0.0) * 1e3  # your app: N<0 compression
-    has_bending = (abs(float(My_Ed_kNm)) + abs(float(Mz_Ed_kNm))) > 1e-9
+    # --------------------------
+    # I/H sections
+    # --------------------------
+    is_IH = any(k in fam for k in ["IPE", "HEA", "HEB", "HEM", "IPN", "I ", "H "])
+    if is_IH:
+        if not (h > 0 and b > 0 and tw > 0 and tf > 0):
+            res["notes"] = "Missing geometry for I/H (need h,b,tw,tf)."
+            sr_display["class_map_calc"] = res
+            return res
 
-    # ---- I / H sections (outstand flange + internal web) ----
-    if any(k in fam for k in ["IPE", "HEA", "HEB", "HEM", "IPN", "I ", "H "]):
-        if b > 0 and tw > 0 and tf > 0 and h > 0:
+        # flange outstand: c = (b - tw)/2 ; t = tf
+        c_f = max((b - tw) / 2.0, 0.0)
+        ct_f = c_f / tf if tf > 0 else 1e9
 
-            # flange outstand: c = (b - tw)/2 ; t = tf  (Table 7.4 pure compression column)
-            c_f = max((b - tw) / 2.0, 0.0)
-            ct_f = c_f / tf if tf > 0 else 1e9
-            flange_cls = ec3_outstand_flange_class_uniform_comp(ct_f, fy_MPa)
+        # web internal: c = h - 2tf ; t = tw
+        c_w = max(h - 2.0 * tf, 0.0)
+        ct_w = c_w / tw if tw > 0 else 1e9
 
-            # web internal: c = h - 2*tf ; t = tw  (Table 7.3)
-            c_w = max(h - 2.0 * tf, 0.0)
-            ct_w = c_w / tw if tw > 0 else 1e9
+        # ψ from N + My
+        psi = ec3_psi_from_N_My(NEd_kN, My_Ed_kNm, A_mm2, Wel_y_cm3)
+        if psi is None:
+            psi = 1.0  # safe fallback
 
-            web_b  = ec3_internal_part_class_bending(ct_w, fy_MPa)        # bending
-            web_uc = ec3_internal_part_class_uniform_comp(ct_w, fy_MPa)   # uniform compression (pure)
+        # αc from Table 7.3 note
+        # denom = c * tw * fy   (N)
+        NEd_N = float(NEd_kN) * 1e3
+        # If your app uses compression NEGATIVE, uncomment next line:
+        NEd_N *= -1.0
+        denom = c_w * tw * float(fy_MPa)
+        alpha_c = ec3_alpha_c_from_denom(NEd_N, denom)
 
-            # NEW: bending + axial compression (alpha_c method from your Eurocode screenshot)
-            denom = c_w * tw * float(fy_MPa)  # N
-            alpha_c = ec3_alpha_c_from_denom(NEd_comp_N, denom)
+        flange_cls = ec3_outstand_flange_class_pure_comp(ct_f, fy_MPa)
+        web_cls    = ec3_internal_part_class_bending_axial(ct_w, fy_MPa, alpha_c, psi)
 
-            if NEd_comp_N > 0.0 and has_bending:
-                web_bc = ec3_internal_part_class_bending_axial_alpha_c(ct_w, fy_MPa, alpha_c)
-            else:
-                web_bc = web_b
+        res["flange_comp"] = flange_cls
+        res["web_bend_comp"] = web_cls
+        res["governing"] = max(flange_cls, web_cls)
 
-            res["flange_bending"] = flange_cls
-            res["web_bending"] = web_b
-            res["web_bending_comp"] = web_bc
-            res["web_uniform_comp"] = web_uc
-            res["alpha_c"] = alpha_c
+        res["alpha_c"] = alpha_c
+        res["psi"] = psi
+        res["ct_flange"] = ct_f
+        res["ct_web"] = ct_w
+        res["notes"] = "I/H: flange Table 7.4 pure comp; web Table 7.3 bending+axial (αc+ψ)."
 
-            # Governing = highest of flange bending, web bending+comp, and web pure compression (you wanted to keep showing it)
-            res["governing"] = max(flange_cls, web_bc, web_uc)
-            res["notes"] = "I/H: flange outstand (Table 7.4); web internal (Table 7.3)"
-
-    # ---- RHS / SHS (internal parts only) ----
+    # --------------------------
+    # RHS / SHS / rectangular box
+    # --------------------------
     elif any(k in fam for k in ["RHS", "SHS", "BOX", "RECT", "SQUARE"]):
-        if h > 0 and b > 0 and t_box > 0:
+        if not (h > 0 and b > 0 and tw > 0 and tf > 0):
+            res["notes"] = "Missing geometry for RHS/SHS (need h,b,tw,tf)."
+            sr_display["class_map_calc"] = res
+            return res
 
-            # per your sketch: internal c = side - 3t
-            c_h = max(h - 3.0 * t_box, 0.0)
-            c_b = max(b - 3.0 * t_box, 0.0)
-            ct_h = c_h / t_box
-            ct_b = c_b / t_box
+        # conservative flat widths for non-uniform thickness box:
+        # web (vertical wall): clear depth between corners
+        c_w = max(h - 2.0*tf - tw, 0.0)
+        ct_w = c_w / tw if tw > 0 else 1e9
 
-            # treat "flange" as b-side, "web" as h-side
-            flange_cls = ec3_internal_part_class_bending(ct_b, fy_MPa)
-            web_b = ec3_internal_part_class_bending(ct_h, fy_MPa)
-            web_uc = ec3_internal_part_class_uniform_comp(ct_h, fy_MPa)
+        # flange (horizontal wall): clear width between corners
+        c_f = max(b - 2.0*tw - tf, 0.0)
+        ct_f = c_f / tf if tf > 0 else 1e9
 
-            res["flange_bending"] = flange_cls
-            res["web_bending"] = web_b
-            res["web_bending_comp"] = web_b   # for RHS/SHS keep same for now (you didn’t ask to extend alpha_c here)
-            res["web_uniform_comp"] = web_uc
-            res["governing"] = max(flange_cls, web_b, web_uc)
-            res["notes"] = "RHS/SHS: internal parts Table 7.3 (bending + uniform comp)"
+        # flange pure compression: internal part uniform compression (Table 7.3)
+        flange_cls = ec3_internal_part_class_uniform_comp(ct_f, fy_MPa)
+
+        # ψ from N + My (same stress-based approach)
+        psi = ec3_psi_from_N_My(NEd_kN, My_Ed_kNm, A_mm2, Wel_y_cm3)
+        if psi is None:
+            psi = 1.0
+
+        # αc approximation using same normalized force idea
+        NEd_N = float(NEd_kN) * 1e3
+        # If your app uses compression NEGATIVE, uncomment next line:
+        NEd_N *= -1.0
+        denom = c_w * tw * float(fy_MPa)
+        alpha_c = ec3_alpha_c_from_denom(NEd_N, denom)
+
+        web_cls = ec3_internal_part_class_bending_axial(ct_w, fy_MPa, alpha_c, psi)
+
+        res["flange_comp"] = flange_cls
+        res["web_bend_comp"] = web_cls
+        res["governing"] = max(flange_cls, web_cls)
+
+        res["alpha_c"] = alpha_c
+        res["psi"] = psi
+        res["ct_flange"] = ct_f
+        res["ct_web"] = ct_w
+        res["notes"] = "RHS/SHS: flange Table 7.3 uniform comp; web Table 7.3 bending+axial (αc+ψ)."
 
     else:
-        res["notes"] = "No EC3 Table 7.3/7.4 mapping implemented for this family (CHS etc.)."
+        res["notes"] = "No mapping for this family (CHS/angles etc.)."
+        sr_display["class_map_calc"] = res
+        return res
 
-    # Write back so compute_checks / report uses it
+    # writeback for the rest of your app (Wpl/Wel switch)
     if res["governing"] is not None:
         sr_display["class"] = int(res["governing"])
     sr_display["class_map_calc"] = res
@@ -5319,16 +5342,13 @@ def render_report_tab():
     cls = calc_section_classes_ec3(
         sr_display, fy,
         NEd_kN=inputs.get("N_kN", 0.0),
-        My_Ed_kNm=inputs.get("My_kNm", 0.0),
-        Mz_Ed_kNm=inputs.get("Mz_kNm", 0.0),
+        My_Ed_kNm=inputs.get("My_kNm", 0.0),   # you said My controls the web case
     )
-   
-    flange_class = cls.get("flange_bending", "n/a")
-    web_class_b  = cls.get("web_bending", "n/a")
-    web_class_c  = cls.get("web_uniform_comp", "n/a")
-    web_class_bc = cls.get("web_bending_comp", "n/a")
-    gov_class    = cls.get("governing", "n/a")
     
+    flange_class = cls.get("flange_comp", "n/a")     # NEW key
+    web_class    = cls.get("web_bend_comp", "n/a")   # NEW key
+    gov_class    = cls.get("governing", "n/a")
+
     # Force refresh of disabled widgets (Streamlit caches by key)
     st.session_state["rpt_flange_class_b"] = str(flange_class)
     st.session_state["rpt_web_class_b"]    = str(web_class_b)
@@ -5336,19 +5356,15 @@ def render_report_tab():
     st.session_state["rpt_web_class_c"]    = str(web_class_c)
     st.session_state["rpt_cs_class"]       = str(gov_class)
     
-    cfc, cwb, cwbc, cwc, cgc = st.columns(5)
-    with cfc:
-        st.text_input("Flange – bending", disabled=True, key="rpt_flange_class_b")
-    with cwb:
-        st.text_input("Web – bending", disabled=True, key="rpt_web_class_b")
-    with cwc:
-        st.text_input("Web – uniform compression", disabled=True, key="rpt_web_class_c")
-    with cwbc:
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.text_input("Flange – pure compression", disabled=True, key="rpt_flange_class_comp")
+    with c2:
         st.text_input("Web – bending + compression", disabled=True, key="rpt_web_class_bc")
-    with cgc:
+    with c3:
         st.text_input("Governing cross-section class", disabled=True, key="rpt_cs_class")
-    
-    st.markdown("</div>", unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
     
     # ----------------------------------------------------
     # 5. Applied actions & internal forces (ULS)
@@ -7184,6 +7200,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
