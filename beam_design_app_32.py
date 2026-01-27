@@ -5363,7 +5363,6 @@ def render_report_tab():
         st.text_input("Web – bending + compression", disabled=True, key="rpt_web_class_bc")
     with c3:
         st.text_input("Governing cross-section class", disabled=True, key="rpt_cs_class")
-    True)
     
     # ----------------------------------------------------
     # 5. Applied actions & internal forces (ULS)
@@ -7199,6 +7198,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
