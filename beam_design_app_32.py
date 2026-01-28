@@ -7054,29 +7054,39 @@ with tab2:
         )
         # no need to write back to session_state; Streamlit does that via the key
 
-    # --- 2) Effective lengths for instability ---
-        # --- 2) Instability length ratios (relative to span L) ---
+    # --- 2) Instability length ratios (relative to span L) ---
     with st.expander("Instability length ratios (relative to span L)", expanded=False):
         c1, c2, c3, c4 = st.columns(4)
-
+    
         with c1:
             Lcr_y_over_L = st.number_input(
-                "Lcr,y / L  (flexural y-y)",
+                "Lcr,y / L  (flexural y–y)",
                 min_value=0.1,
                 value=float(st.session_state.get("Lcr_y_over_L", 1.0)),
                 step=0.05,
                 key="Lcr_y_over_L",
+                help=(
+                    "Effective buckling length about y–y: Lcr,y = Ky · L.\n"
+                    "Pinned–pinned ≈ 1.0; fixed–fixed ≈ 0.5–0.65; "
+                    "fixed–pinned ≈ 0.7–0.8; cantilever ≈ 2.0."
+                ),
             )
-
+    
         with c2:
             Lcr_z_over_L = st.number_input(
-                "Lcr,z / L  (flexural z-z)",
+                "Lcr,z / L  (flexural z–z)",
                 min_value=0.1,
                 value=float(st.session_state.get("Lcr_z_over_L", 1.0)),
                 step=0.05,
                 key="Lcr_z_over_L",
+                help=(
+                    "Effective buckling length about z–z: Lcr,z = Kz · L.\n"
+                    "Use distance between brace points in z–z direction as a ratio to L.\n"
+                    "Typical: 1.0 / 0.5–0.65 / 0.7–0.8 / 2.0 "
+                    "(pinned–pinned / fixed–fixed / fixed–pinned / cantilever)."
+                ),
             )
-
+    
         with c3:
             L_LT_over_L = st.number_input(
                 "L_LT / L  (lateral–torsional)",
@@ -7084,8 +7094,14 @@ with tab2:
                 value=float(st.session_state.get("L_LT_over_L", 1.0)),
                 step=0.05,
                 key="L_LT_over_L",
+                help=(
+                    "Lateral–torsional buckling length: Lcr,LT = KLT · L.\n"
+                    "Relevant for OPEN sections only.\n"
+                    "No intermediate lateral restraint ≈ 1.0; "
+                    "with restraints, use unbraced length / L."
+                ),
             )
-
+    
         with c4:
             L_TF_over_L = st.number_input(
                 "L_TF / L  (torsional / flexural–torsional)",
@@ -7093,6 +7109,12 @@ with tab2:
                 value=float(st.session_state.get("L_TF_over_L", 1.0)),
                 step=0.05,
                 key="L_TF_over_L",
+                help=(
+                    "Torsional / flexural–torsional buckling length: Lcr,T = KT · L.\n"
+                    "Relevant for OPEN sections only.\n"
+                    "Use 1.0 if restraint against torsion/warping is uncertain; "
+                    "≈ 0.7 may be used with significant restraint."
+                ),
             )
 
     # --- 3) Determine section family for torsion (if already chosen in Section tab) ---
@@ -7205,6 +7227,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
