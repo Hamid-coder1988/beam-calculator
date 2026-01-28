@@ -1062,21 +1062,19 @@ def ssb_c5_diagram(L_mm, w, P, M1, M2, E=None, I=None, n=1001):
 
     x = np.linspace(0.0, L, n)
     xP = L / 2.0
-
-    # Reactions from equilibrium:
-    # SumV: R1 + R2 = wL + P
-    # SumM about left: R2*L = wL*(L/2) + P*(L/2) + M1 + M2  (sign convention as before)
-    # Keep the SAME sign convention you used earlier: end moments directly add to bending diagram.
-    R2 = (w * L * (L / 2.0) + P * (L / 2.0) + M1 + M2) / L
-    R1 = (w * L + P) - R2
-
     H = (x >= xP).astype(float)
 
-    V = R1 - w * x - P * H
-    M = R1 * x - w * x**2 / 2.0 - P * (x - xP) * H
+    # --- Correct reactions for variable end moments (per your screenshots) ---
+    # R1 = wL/2 + P/2 + (M1 - M2)/L
+    # R2 = wL/2 + P/2 - (M1 - M2)/L
+    R1 = (w * L) / 2.0 + P / 2.0 + (M1 - M2) / L
+    R2 = (w * L) / 2.0 + P / 2.0 - (M1 - M2) / L
 
-    # add end moments linearly (same as your older approach)
-    M = M + M1 * (1.0 - x / L) + M2 * (x / L)
+    # Shear
+    V = R1 - w * x - P * H
+
+    # Bending moment (IMPORTANT: include -M1 constant; DO NOT add linear end-moment ramp)
+    M = R1 * x - w * x**2 / 2.0 - P * (x - xP) * H - M1
 
     delta = None
     if E and I and I > 0:
@@ -1089,6 +1087,7 @@ def ssb_c5_diagram(L_mm, w, P, M1, M2, E=None, I=None, n=1001):
         delta = y
 
     return x, V, M, delta
+
 
 
 def dummy_case_func(*args, **kwargs):
@@ -7233,6 +7232,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
