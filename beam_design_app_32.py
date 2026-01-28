@@ -4562,7 +4562,7 @@ def render_results(df_rows, overall_ok, governing,
 
     st.markdown("---")
     st.caption("See **Report** tab for full formulas & Eurocode clause references.")
-    st.caption("See **Diagrams** / ready cases tab for shear, moment and deflection graphs.")
+    st.caption("See **Diagrams** / ready cases tab for shear and moment graphs.")
 
 
 # =========================================================
@@ -7233,6 +7233,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
