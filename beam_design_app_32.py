@@ -4014,63 +4014,86 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         })
 
     # (17) Torsional / torsional-flexural buckling (approx, doubly symmetric)
-    i_y_m = math.sqrt(I_y_m4 / A_m2) if (A_m2 > 0 and I_y_m4 > 0) else 0.0
-    i_z_m = math.sqrt(I_z_m4 / A_m2) if (A_m2 > 0 and I_z_m4 > 0) else 0.0
-    i0_m = math.sqrt(i_y_m**2 + i_z_m**2)
-
-    K_T = float(inputs.get("K_T", 1.0))
-    Leff_T = K_T * L
-
-    Ncr_T = None
-    chi_T = None
-    Nb_Rd_T_N = None
-    util_T = None
-    status_T = "n/a"
-    alpha_T = alpha_z
-    buck_map["alpha_T"] = alpha_T
-
-    if i0_m > 0 and J_m4 > 0 and Iw_m6 > 0 and Leff_T > 0:
-        Ncr_T = (1.0 / (i0_m**2)) * (G * J_m4 + (math.pi**2) * E * Iw_m6 / (Leff_T**2))
-        lambda_T = math.sqrt(NRk_N / Ncr_T) if Ncr_T > 0 else float("inf")
-        phi_T = phi_aux(lambda_T, alpha_T)
-        chi_T = chi_reduction(lambda_T, alpha_T)
-        Nb_Rd_T_N = chi_T * NRk_N / gamma_M1
-        util_T = abs(N_N) / Nb_Rd_T_N if Nb_Rd_T_N and Nb_Rd_T_N > 0 else float("inf")
-        status_T = "OK" if util_T <= 1.0 else "EXCEEDS"
-
+    # EN 1993-1-1 §6.3.1.4(1): relevant for OPEN sections; for closed (RHS/SHS/CHS) -> N/A (OK)
+    family = str(use_props.get("family", "") or "").upper()
+    is_closed_section = any(tag in family for tag in ("RHS", "SHS", "CHS"))
+    
+    if is_closed_section:
         rows.append({
             "Check": "Torsional / torsional-flexural buckling",
-            "Applied": f"{abs(N_N)/1e3:.3f} kN",
-            "Resistance": f"{Nb_Rd_T_N/1e3:.3f} kN",
-            "Utilization": f"{util_T:.3f}",
-            "Status": status_T,
+            "Utilization": f"{0.0:.3f}",
+            "Status": "OK",
         })
-
-    buck_map["i0_m"] = i0_m
-    buck_map["Ncr_T"] = Ncr_T
-    buck_map["lambda_T"] = lambda_T if "lambda_T" in locals() else None
-    buck_map["phi_T"] = phi_T if "phi_T" in locals() else None
-    buck_map["chi_T"] = chi_T
-    buck_map["Nb_Rd_T"] = Nb_Rd_T_N
-    buck_map["util_T"] = util_T
-    buck_map["status_T"] = status_T
-
+    
+        buck_map["i0_m"] = None
+        buck_map["Ncr_T"] = None
+        buck_map["lambda_T"] = None
+        buck_map["phi_T"] = None
+        buck_map["chi_T"] = None
+        buck_map["Nb_Rd_T"] = None
+        buck_map["util_T"] = 0.0
+        buck_map["status_T"] = "OK"
+    
+    else:
+        # ---- KEEP YOUR OPEN-SECTION CALCULATION EXACTLY AS-IS (ONLY INDENTED) ----
+        i_y_m = math.sqrt(I_y_m4 / A_m2) if (A_m2 > 0 and I_y_m4 > 0) else 0.0
+        i_z_m = math.sqrt(I_z_m4 / A_m2) if (A_m2 > 0 and I_z_m4 > 0) else 0.0
+        i0_m = math.sqrt(i_y_m**2 + i_z_m**2)
+    
+        K_T = float(inputs.get("K_T", 1.0))
+        Leff_T = K_T * L
+    
+        Ncr_T = None
+        chi_T = None
+        Nb_Rd_T_N = None
+        util_T = None
+        status_T = "n/a"
+        alpha_T = alpha_z
+        buck_map["alpha_T"] = alpha_T
+    
+        if i0_m > 0 and J_m4 > 0 and Iw_m6 > 0 and Leff_T > 0:
+            Ncr_T = (1.0 / (i0_m**2)) * (G * J_m4 + (math.pi**2) * E * Iw_m6 / (Leff_T**2))
+            lambda_T = math.sqrt(NRk_N / Ncr_T) if Ncr_T > 0 else float("inf")
+            phi_T = phi_aux(lambda_T, alpha_T)
+            chi_T = chi_reduction(lambda_T, alpha_T)
+            Nb_Rd_T_N = chi_T * NRk_N / gamma_M1
+            util_T = abs(N_N) / Nb_Rd_T_N if Nb_Rd_T_N and Nb_Rd_T_N > 0 else float("inf")
+            status_T = "OK" if util_T <= 1.0 else "EXCEEDS"
+    
+            rows.append({
+                "Check": "Torsional / torsional-flexural buckling",
+                "Applied": f"{abs(N_N)/1e3:.3f} kN",
+                "Resistance": f"{Nb_Rd_T_N/1e3:.3f} kN",
+                "Utilization": f"{util_T:.3f}",
+                "Status": status_T,
+            })
+    
+        buck_map["i0_m"] = i0_m
+        buck_map["Ncr_T"] = Ncr_T
+        buck_map["lambda_T"] = lambda_T if "lambda_T" in locals() else None
+        buck_map["phi_T"] = phi_T if "phi_T" in locals() else None
+        buck_map["chi_T"] = chi_T
+        buck_map["Nb_Rd_T"] = Nb_Rd_T_N
+        buck_map["util_T"] = util_T
+        buck_map["status_T"] = status_T
+    
+    # IMPORTANT: (18) MUST START HERE, OUTSIDE THE else:
     # (18) Lateral-torsional buckling (uniform moment, zg=0, k=kw=1; NCCI-style)
     K_LT = float(inputs.get("K_LT", 1.0))
     Leff_LT = K_LT * L
-
+    
     Mcr = None
     lambda_LT = None
     chi_LT = None
     Mb_Rd_Nm = None
     util_LT = None
     status_LT = "n/a"
-
+    
     if Leff_LT > 0 and I_z_m4 > 0 and J_m4 > 0 and Iw_m6 > 0 and Wy_m3 > 0:
         term = (Iw_m6 / I_z_m4) + (Leff_LT**2) * G * J_m4 / ((math.pi**2) * E * I_z_m4)
         Mcr = (math.pi**2) * E * I_z_m4 / (Leff_LT**2) * math.sqrt(max(term, 0.0))
         lambda_LT = math.sqrt((Wy_m3 * fy * 1e6) / Mcr) if Mcr > 0 else float("inf")
-
+    
         lambda_LT0 = 0.40
         beta = 0.75
         phi_LT = 0.5 * (1.0 + alpha_LT * (lambda_LT - lambda_LT0) + beta * lambda_LT**2)
@@ -4080,11 +4103,11 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             (1.0 / (lambda_LT**2)) if lambda_LT > 0 else 1.0,
             (1.0 / (phi_LT + math.sqrt(sqrt_term))) if (phi_LT + math.sqrt(sqrt_term)) > 0 else 0.0,
         )
-
+    
         Mb_Rd_Nm = chi_LT * Wy_m3 * fy * 1e6 / gamma_M1
         util_LT = abs(My_Ed_kNm * 1e3) / Mb_Rd_Nm if Mb_Rd_Nm and Mb_Rd_Nm > 0 else float("inf")
         status_LT = "OK" if util_LT <= 1.0 else "EXCEEDS"
-
+    
         rows.append({
             "Check": "Lateral-torsional buckling",
             "Applied": f"{abs(My_Ed_kNm):.3f} kNm",
@@ -4092,7 +4115,7 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             "Utilization": f"{util_LT:.3f}",
             "Status": status_LT,
         })
-
+    
     buck_map["Leff_LT"] = Leff_LT
     buck_map["Mcr"] = Mcr
     buck_map["lambda_LT"] = lambda_LT
@@ -4102,6 +4125,8 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     buck_map["status_LT"] = status_LT
     buck_map["curve_LT"] = curve_LT
     buck_map["alpha_LT"] = alpha_LT
+
+
 
     # (19),(20) Buckling interaction for bending + axial compression — EN 1993-1-1 Annex B (Method 2)
     psi_y = 1.0
@@ -6526,91 +6551,106 @@ def render_report_tab():
             "Note: the buckling resistance obtained is applicable for compression members with end fastener holes neglected, "
             "consistent with the assumptions used for member stability checks."
         )
-    
+
         # ----------------------------
         # (17) Torsional & torsional-flexural buckling
         # ----------------------------
         report_h4("(17) Torsional and torsional-flexural buckling – EN 1993-1-1 §6.3.1.4")
-    
-        st.markdown(
-            "Torsional and torsional-flexural buckling are treated in **EN 1993-1-1 §6.3.1.4**. "
-            "For typical rolled **I/H sections** these checks are often not governing compared to flexural buckling, "
-            "but they are reported here for completeness."
-        )
-    
-        # --- Geometry: polar radius of gyration i0 (mm) ---
-        i0_mm = (i0_m * 1e3) if (i0_m is not None) else 0.0
-        st.latex(
-            rf"""
-            \begin{{aligned}}
-            i_0 &= \sqrt{{i_y^2 + i_z^2 + y_0^2 + z_0^2}} \\[4pt]
-                &= \sqrt{{({iy_mm:.1f})^2 + ({iz_mm:.1f})^2 + 0^2 + 0^2}} \\
-                &= {i0_mm:.1f}\,\text{{mm}}
-            \end{{aligned}}
-            """
-        )
-        # --- Effective torsional buckling length ---
-        L_mm = float(L) * 1000.0
-        LcrT_mm = float(K_T) * L_mm
-        _eq_line("Effective torsional buckling length:", r"L_{cr,T}=K_T\,L")
-        _eq_line("&nbsp;", rf"={K_T:.3f}\cdot {L_mm:.0f}={LcrT_mm:.0f}\,\mathrm{{mm}}")
-    
-        # --- Elastic critical force for torsional buckling ---
-        E_MPa = 210000.0
-        G_MPa = 80769.0
-        if i0_mm > 0 and It_mm4 > 0 and Iw_mm6 > 0 and LcrT_mm > 0:
-            NcrT_disp_kN = ((1.0 / (i0_mm**2)) * (G_MPa * It_mm4 + (math.pi**2) * E_MPa * Iw_mm6 / (LcrT_mm**2))) / 1000.0
+        
+        family = str(sr_display.get("family", "") or "").upper()
+        is_closed_section = any(tag in family for tag in ("RHS", "SHS", "CHS"))
+        
+        if is_closed_section:
+            st.markdown(
+                "According to **EN 1993-1-1 §6.3.1.4(1)**, torsional and torsional-flexural buckling checks are relevant "
+                "for members with **open cross-sections**. "
+                f"The selected section is a **closed hollow section ({family})**, therefore this check is **not applicable**. "
+                "Member stability is covered by **flexural buckling about y–y and z–z** (EN 1993-1-1 §6.3.1)."
+            )
+            report_status_badge(0.0)  # green OK tick
+        
         else:
-            NcrT_disp_kN = 0.0
-    
-        _eq_line(
-            "Elastic critical force:",
-            r"N_{cr,T}=\frac{1}{i_0^2}\left(G I_T+\frac{\pi^2 E I_w}{L_{cr,T}^2}\right)"
-        )
-    
-        _eq_line(
-            "&nbsp;",
-            rf"={NcrT_disp_kN:.1f}\,\mathrm{{kN}}"
-        )
-    
-        st.markdown(
-            "For **doubly symmetric** sections (shear centre at the centroid: $y_0=z_0=0$), "
-            "the torsional-flexural critical load is commonly taken equal to the torsional one: "
-            "$N_{cr,TF}=N_{cr,T}$ (see EN 1993-1-1 §6.3.1.4)."
-        )
-    
-        # --- (17) Pull values from compute_checks (same pattern as section 16) ---
-        # --- Non-dimensional slenderness (torsional / torsional-flexural) ---
-        NcrT_val = float(Ncr_T or 0.0)
+            # ---- KEEP EVERYTHING BELOW EXACTLY AS YOU HAVE IT (NO CHANGES) ----
+            st.markdown(
+                "Torsional and torsional-flexural buckling are treated in **EN 1993-1-1 §6.3.1.4**. "
+                "For typical rolled **I/H sections** these checks are often not governing compared to flexural buckling, "
+                "but they are reported here for completeness."
+            )
         
-        # Your report sometimes has Ncr_T in kN, sometimes in N (depends what you pass in).
-        # Make it N for lambda calculation:
-        NcrT_N = NcrT_val * 1e3 if (0.0 < NcrT_val < 1e5) else NcrT_val
+            # --- Geometry: polar radius of gyration i0 (mm) ---
+            i0_mm = (i0_m * 1e3) if (i0_m is not None) else 0.0
+            st.latex(
+                rf"""
+                \begin{{aligned}}
+                i_0 &= \sqrt{{i_y^2 + i_z^2 + y_0^2 + z_0^2}} \\[4pt]
+                    &= \sqrt{{({iy_mm:.1f})^2 + ({iz_mm:.1f})^2 + 0^2 + 0^2}} \\
+                    &= {i0_mm:.1f}\,\text{{mm}}
+                \end{{aligned}}
+                """
+            )
+            # --- Effective torsional buckling length ---
+            L_mm = float(L) * 1000.0
+            LcrT_mm = float(K_T) * L_mm
+            _eq_line("Effective torsional buckling length:", r"L_{cr,T}=K_T\,L")
+            _eq_line("&nbsp;", rf"={K_T:.3f}\cdot {L_mm:.0f}={LcrT_mm:.0f}\,\mathrm{{mm}}")
         
-        alpha_T = float(buck_map.get("alpha_T") or buck_map.get("alpha_z") or 0.34)  # consistent with checks
-        lam_T = math.sqrt((A_mm2 * fy) / NcrT_N) if NcrT_N > 0 else 0.0
+            # --- Elastic critical force for torsional buckling ---
+            E_MPa = 210000.0
+            G_MPa = 80769.0
+            if i0_mm > 0 and It_mm4 > 0 and Iw_mm6 > 0 and LcrT_mm > 0:
+                NcrT_disp_kN = ((1.0 / (i0_mm**2)) * (G_MPa * It_mm4 + (math.pi**2) * E_MPa * Iw_mm6 / (LcrT_mm**2))) / 1000.0
+            else:
+                NcrT_disp_kN = 0.0
+        
+            _eq_line(
+                "Elastic critical force:",
+                r"N_{cr,T}=\frac{1}{i_0^2}\left(G I_T+\frac{\pi^2 E I_w}{L_{cr,T}^2}\right)"
+            )
+        
+            _eq_line(
+                "&nbsp;",
+                rf"={NcrT_disp_kN:.1f}\,\mathrm{{kN}}"
+            )
+        
+            st.markdown(
+                "For **doubly symmetric** sections (shear centre at the centroid: $y_0=z_0=0$), "
+                "the torsional-flexural critical load is commonly taken equal to the torsional one: "
+                "$N_{cr,TF}=N_{cr,T}$ (see EN 1993-1-1 §6.3.1.4)."
+            )
+        
+            # --- (17) Pull values from compute_checks (same pattern as section 16) ---
+            # --- Non-dimensional slenderness (torsional / torsional-flexural) ---
+            NcrT_val = float(Ncr_T or 0.0)
+        
+            # Your report sometimes has Ncr_T in kN, sometimes in N (depends what you pass in).
+            # Make it N for lambda calculation:
+            NcrT_N = NcrT_val * 1e3 if (0.0 < NcrT_val < 1e5) else NcrT_val
+        
+            alpha_T = float(buck_map.get("alpha_T") or buck_map.get("alpha_z") or 0.34)  # consistent with checks
+            lam_T = math.sqrt((A_mm2 * fy) / NcrT_N) if NcrT_N > 0 else 0.0
+        
+            phi_T = float(buck_map.get("phi_T") or 0.0)
+            chi_T_disp = float(buck_map.get("chi_T") or 0.0)
+        
+            NbRdT_disp_kN = float((buck_map.get("Nb_Rd_T") or 0.0) / 1000.0)
+            utilT_disp = float(buck_map.get("util_T") or 0.0)
+        
+            _eq_line("Non-dimensional slenderness:", r"\bar{\lambda}_T=\sqrt{\frac{A f_y}{N_{cr,T}}}")
+            _eq_line("&nbsp;", rf"=\sqrt{{\frac{{{A_mm2:,.0f}\cdot {fy:.0f}}}{{{NcrT_disp_kN:.1f}\times 10^3}}}}={lam_T:.3f}")
+        
+            _eq_line("Auxiliary factor:", r"\Phi_T=\frac{1}{2}\left[1+\alpha_T(\bar{\lambda}_T-0.2)+\bar{\lambda}_T^2\right]")
+            _eq_line("&nbsp;", rf"=\frac{{1}}{{2}}\left[1+{alpha_T:.2f}({lam_T:.3f}-0.2)+{lam_T:.3f}^2\right]={phi_T:.3f}")
+        
+            _eq_line("Reduction factor:", r"\chi_T=\min\left(1,\frac{1}{\Phi_T+\sqrt{\Phi_T^2-\bar{\lambda}_T^2}}\right)")
+            _eq_line("&nbsp;", rf"={chi_T_disp:.3f}")
+        
+            _eq_line("Design buckling resistance:", r"N_{b,Rd,T}=\chi_T\,\frac{A f_y}{\gamma_{M1}}")
+            _eq_line("&nbsp;", rf"={chi_T_disp:.3f}\cdot\frac{{{A_mm2:,.0f}\cdot {fy:.0f}}}{{{gamma_M1:.2f}}}={NbRdT_disp_kN:.1f}\,\mathrm{{kN}}")
+        
+            _eq_line("Utilization:", r"u_T=\frac{N_{Ed}}{N_{b,Rd,T}}")
+            _eq_line("&nbsp;", rf"=\frac{{{abs(NEd_kN):.1f}}}{{{NbRdT_disp_kN:.1f}}}={utilT_disp:.3f}")
+            report_status_badge(utilT_disp)
 
-        phi_T = float(buck_map.get("phi_T") or 0.0)
-        chi_T_disp = float(buck_map.get("chi_T") or 0.0)
-        
-        NbRdT_disp_kN = float((buck_map.get("Nb_Rd_T") or 0.0) / 1000.0)
-        utilT_disp = float(buck_map.get("util_T") or 0.0)
-    
-        _eq_line("Non-dimensional slenderness:", r"\bar{\lambda}_T=\sqrt{\frac{A f_y}{N_{cr,T}}}")
-        _eq_line("&nbsp;", rf"=\sqrt{{\frac{{{A_mm2:,.0f}\cdot {fy:.0f}}}{{{NcrT_disp_kN:.1f}\times 10^3}}}}={lam_T:.3f}")
-    
-        _eq_line("Auxiliary factor:", r"\Phi_T=\frac{1}{2}\left[1+\alpha_T(\bar{\lambda}_T-0.2)+\bar{\lambda}_T^2\right]")
-        _eq_line("&nbsp;", rf"=\frac{{1}}{{2}}\left[1+{alpha_T:.2f}({lam_T:.3f}-0.2)+{lam_T:.3f}^2\right]={phi_T:.3f}")
-    
-        _eq_line("Reduction factor:", r"\chi_T=\min\left(1,\frac{1}{\Phi_T+\sqrt{\Phi_T^2-\bar{\lambda}_T^2}}\right)")
-        _eq_line("&nbsp;", rf"={chi_T_disp:.3f}")
-    
-        _eq_line("Design buckling resistance:", r"N_{b,Rd,T}=\chi_T\,\frac{A f_y}{\gamma_{M1}}")
-        _eq_line("&nbsp;", rf"={chi_T_disp:.3f}\cdot\frac{{{A_mm2:,.0f}\cdot {fy:.0f}}}{{{gamma_M1:.2f}}}={NbRdT_disp_kN:.1f}\,\mathrm{{kN}}")
-    
-        _eq_line("Utilization:", r"u_T=\frac{N_{Ed}}{N_{b,Rd,T}}")
-        _eq_line("&nbsp;", rf"=\frac{{{abs(NEd_kN):.1f}}}{{{NbRdT_disp_kN:.1f}}}={utilT_disp:.3f}")
-        report_status_badge(utilT_disp)
     
         # ----------------------------
         # (18) Lateral-torsional buckling
@@ -7208,6 +7248,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
