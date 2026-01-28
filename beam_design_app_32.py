@@ -2344,17 +2344,17 @@ READY_CATALOG = {
 
         # Category 3: 1 case
         "Beams Fixed at both ends (1 case)": make_cases(
-            "FB", 1, {"L_mm": 6000.0, "w": 10.0, "a": 2.0, "F": 20.0}
+            "FB", 1, {"L_mm": 6000.0, "w": 10.0, "a": 3000.0, "F": 20.0}
         ),
 
         # Category 4: 1 case
         "Cantilever Beams (1 case)": make_cases(
-            "C", 1, {"L_mm": 3000.0, "w": 10.0, "a": 1.5, "F": 20.0, "M": 0.0}
+            "C", 1, {"L_mm": 3000.0, "w": 10.0, "a": 3000.0, "F": 20.0, "M": 0.0}
         ),
 
         # Category 5: 4 cases
         "Beams with Overhang (4 cases)": make_cases(
-            "OH", 4, {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}
+            "OH", 4, {"L_mm": 6000.0, "a": 3000.0, "w1": 10.0, "w2": 10.0}
         ),
 
         # Category 6: 3 cases (patched below)
@@ -2364,12 +2364,12 @@ READY_CATALOG = {
 
         # Category 7: 1 case
         "Continuous Beams — Three Spans / Four Supports (1 case)": make_cases(
-            "CS3", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "w": 10.0}
+            "CS3", 1, {"L1": 2000.0, "L2": 2000.0, "L3": 2000.0, "w": 10.0}
         ),
 
         # Category 8: 1 case
         "Continuous Beams — Four Spans / Five Supports (1 case)": make_cases(
-            "CS4", 1, {"L1": 4.0, "L2": 4.0, "L3": 4.0, "L4": 4.0, "w": 10.0}
+            "CS4", 1, {"L1": 2000.0, "L2": 2000.0, "L3": 2000.0, "L4": 2000.0, "w": 10.0}
         ),
     }
 }
@@ -2459,14 +2459,14 @@ _cases = READY_CATALOG["Beam"][_cat]
 
 # Case 1: UDL full span
 _cases[0]["label"] = "SSB - C1 (UDL full span)"
-_cases[0]["inputs"] = {"L_mm": 6000.0, "w": 10.0}
+_cases[0]["inputs"] = {"L_mm": 6000, "w": 10.0}
 _cases[0]["func"] = ss_udl_case
 _cases[0]["diagram_func"] = ss_udl_diagram
 _cases[0]["delta_max_func"] = ss_udl_deflection_max
 
 # Case 2: Central point load
 _cases[1]["label"] = "SSB - C2 (Central point load)"
-_cases[1]["inputs"] = {"L_mm": 6000.0, "F": 20.0}
+_cases[1]["inputs"] = {"L_mm": 6000, "F": 20.0}
 _cases[1]["func"] = ss_central_point_case
 _cases[1]["diagram_func"] = ss_central_point_diagram
 _cases[1]["delta_max_func"] = ss_central_point_deflection_max
@@ -2474,27 +2474,27 @@ _cases[1]["delta_max_func"] = ss_central_point_deflection_max
 # Case 3: Two point loads + partial UDL
 _cases[2]["label"] = "SSB - C3 (F1+F2 + partial UDL)"
 _cases[2]["inputs"] = {
-    "L_mm": 6000.0,
+    "L_mm": 6000,
     "F1": 20.0,
-    "a1": 1500.0,  # mm from LEFT support
+    "a1": 1500,  # mm from LEFT support
     "F2": 25.0,
-    "a2": 1000.0,  # mm from RIGHT support
+    "a2": 1000,  # mm from RIGHT support
     "w": 8.0,
-    "a": 2000.0,   # mm from LEFT to start of partial UDL
-    "b": 1500.0,   # mm length of partial UDL
+    "a": 2000,   # mm from LEFT to start of partial UDL
+    "b": 1500,   # mm length of partial UDL
 }
 _cases[2]["func"] = ssb_c3_case
 _cases[2]["diagram_func"] = ssb_c3_diagram
 
 # Case 4: Two partial UDLs (your existing SSB-C4 but in mm)
 _cases[3]["label"] = "SSB - C4 (Two partial UDLs)"
-_cases[3]["inputs"] = {"L_mm": 6000.0, "a": 1500.0, "b": 1000.0, "c": 1500.0, "w1": 10.0, "w2": 6.0}
+_cases[3]["inputs"] = {"L_mm": 6000, "a": 1500, "b": 1000, "c": 1500, "w1": 10.0, "w2": 6.0}
 _cases[3]["func"] = ssb_c4_case
 _cases[3]["diagram_func"] = ssb_c4_diagram
 
 # Case 5: UDL + mid-point load + end moments (now L_mm)
 _cases[4]["label"] = "SSB - C5"
-_cases[4]["inputs"] = {"L_mm": 6000.0, "w": 10.0, "P": 20.0, "M1": 50.0, "M2": 20.0}
+_cases[4]["inputs"] = {"L_mm": 6000, "w": 10.0, "P": 20.0, "M1": 50.0, "M2": 20.0}
 _cases[4]["func"] = ssb_c5_case
 _cases[4]["diagram_func"] = ssb_c5_diagram
 
@@ -2502,9 +2502,9 @@ _cases[4]["diagram_func"] = ssb_c5_diagram
 # ---- Patch "Beams Fixed at one end (1 case)" to be FEB-C1 (propped cantilever: UDL + point load) ----
 READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["label"] = "FEB - C1"
 READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["inputs"] = {
-    "L_mm": 6000.0,
+    "L_mm": 6000,
     "w": 10.0,
-    "a": 3000.0,
+    "a": 3000,
     "F": 20.0
 }
 READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["func"] = feb_c1_case
@@ -2522,18 +2522,18 @@ READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["delta_max_func"] = cant_c
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["label"] = "OH - C1"
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["func"] = oh_c1_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["diagram_func"] = oh_c1_diagram
-READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["inputs"] = {"L_mm": 6000.0, "a": 3000, "w1": 10.0, "w2": 10.0}
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["inputs"] = {"L_mm": 6000, "a": 3000, "w1": 10.0, "w2": 10.0}
 
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["label"] = "OH - C2"
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["func"] = oh_c2_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["diagram_func"] = oh_c2_diagram
-READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["inputs"] = {"L_mm": 6000.0, "a": 3000, "F": 20.0}
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["inputs"] = {"L_mm": 6000, "a": 3000, "F": 20.0}
 
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["label"] = "OH - C3"
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["func"] = oh_c3_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["diagram_func"] = oh_c3_diagram
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["inputs"] = {
-    "L_mm": 6000.0,
+    "L_mm": 6000,
     "a": 3000,
     "F": 20.0
 }
@@ -7229,6 +7229,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
