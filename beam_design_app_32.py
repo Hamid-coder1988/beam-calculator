@@ -3734,11 +3734,16 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             alpha_z_6209 = alpha
 
         if (MN_y_Rd_6209 is not None) and (MN_z_Rd_6209 is not None) and (MN_y_Rd_6209 > 0) and (MN_z_Rd_6209 > 0):
-            uMy = abs(My_Ed_kNm) / MN_y_Rd_6209
-            uMz = abs(Mz_Ed_kNm) / MN_z_Rd_6209
-            u_6209_9  = (uMy ** alpha_y_6209)
-            u_6209_10 = (uMz ** alpha_z_6209)
+            uMy = abs(My_Ed_kNm) / MN_y_Rd_6209   # this is uy in your Report tab
+            uMz = abs(Mz_Ed_kNm) / MN_z_Rd_6209   # this is uz in your Report tab
+        
+            # (9) and (10): show the axis utilizations (NOT raised to alpha)
+            u_6209_9  = uMy
+            u_6209_10 = uMz
+        
+            # (11): show the interaction (Eq. 8.56 form)
             u_6209_11 = (uMy ** alpha_y_6209) + (uMz ** alpha_z_6209)
+
 
     # ------------------------------------------------------------
     # (12)–(14) Bending, shear and axial force — EN 1993-1-1 §6.2.10
@@ -7198,6 +7203,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
