@@ -753,6 +753,20 @@ import numpy as np
 def _mm_to_m(x_mm: float) -> float:
     return float(x_mm) / 1000.0
 
+def dummy_case_func(*args, **kwargs):
+    return (0.0, 0.0, 0.0, 0.0, 0.0)
+
+def make_cases(prefix, n, default_inputs):
+    cases = []
+    for i in range(1, n + 1):
+        cases.append({
+            "key": f"{prefix}-{i:02d}",
+            "label": f"Case {i}",
+            "img_path": None,  # placeholder
+            "inputs": default_inputs.copy(),
+            "func": dummy_case_func,
+        })
+    return cases    
 
 # ----------------------------
 # CASE 1: SSB-C1 (UDL full span)
@@ -7215,6 +7229,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
