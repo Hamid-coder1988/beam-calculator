@@ -2749,8 +2749,14 @@ def render_ready_cases_panel():
             else:
                 st.session_state["Vy_in"] = float(V_case)
                 st.session_state["Vz_in"] = 0.0
+                
+            st.success(
+                "Ready case applied to Loads. "
+                "Note: the shown N, V and M are envelope maxima and may occur at different positions along the beam "
+                "(e.g. Vmax at supports, Mmax at midspan). "
+                "Edit the forces if you need a consistent load set at one location."
+            )
 
-            st.success("Ready case applied to Loads — you can edit the forces.")
 
         # --- Step 6: Show diagrams (always uses current bending_axis) ---
         render_beam_diagrams_panel()
@@ -7227,6 +7233,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
