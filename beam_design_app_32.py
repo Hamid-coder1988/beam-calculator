@@ -4078,42 +4078,34 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         buck_map["status_T"] = status_T
 
     # (18) Lateral-torsional buckling (uniform moment, zg=0, k=kw=1; NCCI-style)
-    # EN 1993-1-1 §6.3.2: LTB is relevant for OPEN sections; for closed (RHS/SHS/CHS) -> N/A (OK)
+    # EN 1993-1-1 §6.3.2: LTB relevant for OPEN sections; for closed (RHS/SHS/CHS) -> N/A (OK)
+    
+    # ---- ALWAYS define locals first (prevents "not associated with a value") ----
+    K_LT = float(inputs.get("K_LT", 1.0))
+    Leff_LT = K_LT * L
+    
+    Mcr = None
+    lambda_LT = None
+    chi_LT = None
+    Mb_Rd_Nm = None
+    util_LT = None
+    status_LT = "n/a"
+    
     family = str(use_props.get("family", "") or "").upper()
     is_closed_section = any(tag in family for tag in ("RHS", "SHS", "CHS"))
     
     if is_closed_section:
+        util_LT = 0.0
+        status_LT = "OK"
+    
         rows.append({
             "Check": "Lateral-torsional buckling",
-            "Utilization": f"{0.0:.3f}",
-            "Status": "OK",
+            "Utilization": f"{util_LT:.3f}",
+            "Status": status_LT,
         })
     
-        # Ensure report tab won't crash when reading buck_map
-        K_LT = float(inputs.get("K_LT", 1.0))
-        Leff_LT = K_LT * L
-        buck_map["Leff_LT"] = Leff_LT
-        buck_map["Mcr"] = None
-        buck_map["lambda_LT"] = None
-        buck_map["chi_LT"] = None
-        buck_map["Mb_Rd"] = None
-        buck_map["util_LT"] = 0.0
-        buck_map["status_LT"] = "OK"
-        buck_map["curve_LT"] = curve_LT
-        buck_map["alpha_LT"] = alpha_LT
-    
     else:
-        # ---- KEEP YOUR OPEN-SECTION CALCULATION EXACTLY AS-IS (ONLY INDENTED) ----
-        K_LT = float(inputs.get("K_LT", 1.0))
-        Leff_LT = K_LT * L
-    
-        Mcr = None
-        lambda_LT = None
-        chi_LT = None
-        Mb_Rd_Nm = None
-        util_LT = None
-        status_LT = "n/a"
-    
+        # ---- KEEP YOUR OPEN-SECTION CALCULATION EXACTLY AS-IS (NO CHANGES INSIDE) ----
         if Leff_LT > 0 and I_z_m4 > 0 and J_m4 > 0 and Iw_m6 > 0 and Wy_m3 > 0:
             term = (Iw_m6 / I_z_m4) + (Leff_LT**2) * G * J_m4 / ((math.pi**2) * E * I_z_m4)
             Mcr = (math.pi**2) * E * I_z_m4 / (Leff_LT**2) * math.sqrt(max(term, 0.0))
@@ -4141,16 +4133,16 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
                 "Status": status_LT,
             })
     
-        buck_map["Leff_LT"] = Leff_LT
-        buck_map["Mcr"] = Mcr
-        buck_map["lambda_LT"] = lambda_LT
-        buck_map["chi_LT"] = chi_LT
-        buck_map["Mb_Rd"] = Mb_Rd_Nm
-        buck_map["util_LT"] = util_LT
-        buck_map["status_LT"] = status_LT
-        buck_map["curve_LT"] = curve_LT
-        buck_map["alpha_LT"] = alpha_LT
-
+    # keep these EXACT keys as your original code expects
+    buck_map["Leff_LT"] = Leff_LT
+    buck_map["Mcr"] = Mcr
+    buck_map["lambda_LT"] = lambda_LT
+    buck_map["chi_LT"] = chi_LT
+    buck_map["Mb_Rd"] = Mb_Rd_Nm
+    buck_map["util_LT"] = util_LT
+    buck_map["status_LT"] = status_LT
+    buck_map["curve_LT"] = curve_LT
+    buck_map["alpha_LT"] = alpha_LT
 
     # (19),(20) Buckling interaction for bending + axial compression — EN 1993-1-1 Annex B (Method 2)
     psi_y = 1.0
@@ -7285,6 +7277,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
