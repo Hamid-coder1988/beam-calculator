@@ -7052,7 +7052,11 @@ def _render_section_selection_member(member_prefix: str, title: str):
                 key=f"{member_prefix}size_sel",
             )
             if selected_name and selected_name != "-- choose --":
-                selected_row = fetch_section_row(family, selected_name, detected_table)
+                selected_row = get_section_row_db(
+                    family, selected_name,
+                    None if (detected_table in (None, "sample")) else detected_table
+                )
+
 
     return material, family, selected_name, selected_row, detected_table
 
