@@ -4076,56 +4076,80 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         buck_map["Nb_Rd_T"] = Nb_Rd_T_N
         buck_map["util_T"] = util_T
         buck_map["status_T"] = status_T
-    
-    # IMPORTANT: (18) MUST START HERE, OUTSIDE THE else:
+
     # (18) Lateral-torsional buckling (uniform moment, zg=0, k=kw=1; NCCI-style)
-    K_LT = float(inputs.get("K_LT", 1.0))
-    Leff_LT = K_LT * L
+    # EN 1993-1-1 §6.3.2: LTB is relevant for OPEN sections; for closed (RHS/SHS/CHS) -> N/A (OK)
+    family = str(use_props.get("family", "") or "").upper()
+    is_closed_section = any(tag in family for tag in ("RHS", "SHS", "CHS"))
     
-    Mcr = None
-    lambda_LT = None
-    chi_LT = None
-    Mb_Rd_Nm = None
-    util_LT = None
-    status_LT = "n/a"
-    
-    if Leff_LT > 0 and I_z_m4 > 0 and J_m4 > 0 and Iw_m6 > 0 and Wy_m3 > 0:
-        term = (Iw_m6 / I_z_m4) + (Leff_LT**2) * G * J_m4 / ((math.pi**2) * E * I_z_m4)
-        Mcr = (math.pi**2) * E * I_z_m4 / (Leff_LT**2) * math.sqrt(max(term, 0.0))
-        lambda_LT = math.sqrt((Wy_m3 * fy * 1e6) / Mcr) if Mcr > 0 else float("inf")
-    
-        lambda_LT0 = 0.40
-        beta = 0.75
-        phi_LT = 0.5 * (1.0 + alpha_LT * (lambda_LT - lambda_LT0) + beta * lambda_LT**2)
-        sqrt_term = max(phi_LT**2 - beta * lambda_LT**2, 0.0)
-        chi_LT = min(
-            1.0,
-            (1.0 / (lambda_LT**2)) if lambda_LT > 0 else 1.0,
-            (1.0 / (phi_LT + math.sqrt(sqrt_term))) if (phi_LT + math.sqrt(sqrt_term)) > 0 else 0.0,
-        )
-    
-        Mb_Rd_Nm = chi_LT * Wy_m3 * fy * 1e6 / gamma_M1
-        util_LT = abs(My_Ed_kNm * 1e3) / Mb_Rd_Nm if Mb_Rd_Nm and Mb_Rd_Nm > 0 else float("inf")
-        status_LT = "OK" if util_LT <= 1.0 else "EXCEEDS"
-    
+    if is_closed_section:
         rows.append({
             "Check": "Lateral-torsional buckling",
-            "Applied": f"{abs(My_Ed_kNm):.3f} kNm",
-            "Resistance": f"{Mb_Rd_Nm/1e3:.3f} kNm",
-            "Utilization": f"{util_LT:.3f}",
-            "Status": status_LT,
+            "Utilization": f"{0.0:.3f}",
+            "Status": "OK",
         })
     
-    buck_map["Leff_LT"] = Leff_LT
-    buck_map["Mcr"] = Mcr
-    buck_map["lambda_LT"] = lambda_LT
-    buck_map["chi_LT"] = chi_LT
-    buck_map["Mb_Rd"] = Mb_Rd_Nm
-    buck_map["util_LT"] = util_LT
-    buck_map["status_LT"] = status_LT
-    buck_map["curve_LT"] = curve_LT
-    buck_map["alpha_LT"] = alpha_LT
-
+        # Ensure report tab won't crash when reading buck_map
+        K_LT = float(inputs.get("K_LT", 1.0))
+        Leff_LT = K_LT * L
+        buck_map["Leff_LT"] = Leff_LT
+        buck_map["Mcr"] = None
+        buck_map["lambda_LT"] = None
+        buck_map["chi_LT"] = None
+        buck_map["Mb_Rd"] = None
+        buck_map["util_LT"] = 0.0
+        buck_map["status_LT"] = "OK"
+        buck_map["curve_LT"] = curve_LT
+        buck_map["alpha_LT"] = alpha_LT
+    
+    else:
+        # ---- KEEP YOUR OPEN-SECTION CALCULATION EXACTLY AS-IS (ONLY INDENTED) ----
+        K_LT = float(inputs.get("K_LT", 1.0))
+        Leff_LT = K_LT * L
+    
+        Mcr = None
+        lambda_LT = None
+        chi_LT = None
+        Mb_Rd_Nm = None
+        util_LT = None
+        status_LT = "n/a"
+    
+        if Leff_LT > 0 and I_z_m4 > 0 and J_m4 > 0 and Iw_m6 > 0 and Wy_m3 > 0:
+            term = (Iw_m6 / I_z_m4) + (Leff_LT**2) * G * J_m4 / ((math.pi**2) * E * I_z_m4)
+            Mcr = (math.pi**2) * E * I_z_m4 / (Leff_LT**2) * math.sqrt(max(term, 0.0))
+            lambda_LT = math.sqrt((Wy_m3 * fy * 1e6) / Mcr) if Mcr > 0 else float("inf")
+    
+            lambda_LT0 = 0.40
+            beta = 0.75
+            phi_LT = 0.5 * (1.0 + alpha_LT * (lambda_LT - lambda_LT0) + beta * lambda_LT**2)
+            sqrt_term = max(phi_LT**2 - beta * lambda_LT**2, 0.0)
+            chi_LT = min(
+                1.0,
+                (1.0 / (lambda_LT**2)) if lambda_LT > 0 else 1.0,
+                (1.0 / (phi_LT + math.sqrt(sqrt_term))) if (phi_LT + math.sqrt(sqrt_term)) > 0 else 0.0,
+            )
+    
+            Mb_Rd_Nm = chi_LT * Wy_m3 * fy * 1e6 / gamma_M1
+            util_LT = abs(My_Ed_kNm * 1e3) / Mb_Rd_Nm if Mb_Rd_Nm and Mb_Rd_Nm > 0 else float("inf")
+            status_LT = "OK" if util_LT <= 1.0 else "EXCEEDS"
+    
+            rows.append({
+                "Check": "Lateral-torsional buckling",
+                "Applied": f"{abs(My_Ed_kNm):.3f} kNm",
+                "Resistance": f"{Mb_Rd_Nm/1e3:.3f} kNm",
+                "Utilization": f"{util_LT:.3f}",
+                "Status": status_LT,
+            })
+    
+        buck_map["Leff_LT"] = Leff_LT
+        buck_map["Mcr"] = Mcr
+        buck_map["lambda_LT"] = lambda_LT
+        buck_map["chi_LT"] = chi_LT
+        buck_map["Mb_Rd"] = Mb_Rd_Nm
+        buck_map["util_LT"] = util_LT
+        buck_map["status_LT"] = status_LT
+        buck_map["curve_LT"] = curve_LT
+        buck_map["alpha_LT"] = alpha_LT
 
 
     # (19),(20) Buckling interaction for bending + axial compression — EN 1993-1-1 Annex B (Method 2)
@@ -6651,85 +6675,98 @@ def render_report_tab():
             _eq_line("&nbsp;", rf"=\frac{{{abs(NEd_kN):.1f}}}{{{NbRdT_disp_kN:.1f}}}={utilT_disp:.3f}")
             report_status_badge(utilT_disp)
 
-    
         # ----------------------------
         # (18) Lateral-torsional buckling
         # ----------------------------
         report_h4("(18) Lateral-torsional buckling – EN 1993-1-1 §6.3.2")
-    
-        st.markdown(
-            "A laterally unrestrained member in **major-axis bending** should be verified against lateral-torsional buckling "
-            "in accordance with **EN 1993-1-1 §6.3.2** (see also §8.3.2). The design condition is:"
-        )
-        _eq_center(r"\frac{M_{Ed}}{M_{b,Rd}}\le 1.0")
-        _eq_center(r"M_{b,Rd}=\chi_{LT}\,\frac{M_{Rk}}{\gamma_{M1}}")
-    
-        # Characteristic bending resistance for display (consistent with compute_checks)
-        Wy_mm3 = (Wpl_y_mm3 if (Wpl_y_mm3 > 0) else Wel_y_mm3)
-        MRk_kNm = (Wy_mm3 * fy) / 1e6 if Wy_mm3 > 0 else 0.0
-        _eq_line("Characteristic resistance:", r"M_{Rk}=W_y f_y")
-        _eq_line("&nbsp;", rf"={Wy_mm3:,.0f}\cdot {fy:.0f}={MRk_kNm:.1f}\,\mathrm{{kNm}}")
-    
-        # Elastic critical moment for LTB
-        Mcr_kNm = (Mcr / 1e3) if (Mcr is not None) else 0.0
-        lamLT = float(lam_LT or 0.0)
-        chiLT_disp = float(chi_LT or 0.0)
-        MbRd_kNm = (Mb_Rd / 1e3) if (Mb_Rd is not None) else 0.0
-        utilLT_disp = float(util_LT if util_LT is not None else float("inf"))
-    
-        _eq_line("Elastic critical moment:", r"M_{cr}\;\text{(from gross section properties)}")
-        _eq_line("&nbsp;", rf"={Mcr_kNm:.1f}\,\mathrm{{kNm}}")
-    
-        _eq_line("Relative slenderness:", r"\bar{\lambda}_{LT}=\sqrt{\frac{M_{Rk}}{M_{cr}}}")
-        _eq_line("&nbsp;", rf"=\sqrt{{\frac{{{MRk_kNm:.1f}}}{{{Mcr_kNm:.1f}}}}}={lamLT:.3f}")
-    
-        # Reduction factor (EN 1993-1-1 §6.3.2 / §8.3.2)
-        # --- LTB imperfection factor alpha_LT (EN 1993-1-1 Table 6.3 + 6.4) ---
-        # Decide curve based on cross-section type + h/b
-        # Rolled I:   h/b <= 2 -> a (0.21),  h/b > 2 -> b (0.34)
-        # Welded I:   h/b <= 2 -> c (0.49),  h/b > 2 -> d (0.76)
-        # Other:      d (0.76)
         
-        hb = (h_mm / b_mm) if (b_mm and b_mm > 0) else None
+        family = str(sr_display.get("family", "") or "").upper()
+        is_closed_section = any(tag in family for tag in ("RHS", "SHS", "CHS"))
         
-        # Try to infer "rolled vs welded vs other" from whatever label exists in use_props
-        sec_label = (
-            str(use_props.get("family") or use_props.get("type") or use_props.get("Type") or
-                use_props.get("section_family") or use_props.get("Section") or use_props.get("name") or "")
-        ).upper()
+        if is_closed_section:
+            st.markdown(
+                "Lateral-torsional buckling in major-axis bending is treated in **EN 1993-1-1 §6.3.2** and is relevant "
+                "for members with **open cross-sections** that can twist and deflect laterally. "
+                f"The selected section is a **closed hollow section ({family})**, which has high torsional rigidity; "
+                "therefore the lateral-torsional buckling verification is **not applicable** here. "
+                "Member stability is covered by **flexural buckling about y–y and z–z** (EN 1993-1-1 §6.3.1)."
+            )
+            report_status_badge(0.0)  # green OK tick
         
-        is_welded_i = ("WELD" in sec_label) or ("PLATE" in sec_label) or ("GIRDER" in sec_label)
-        is_rolled_i = any(sec_label.startswith(p) for p in ("IPE", "IPN", "HEA", "HEB", "HEM", "HE", "UB", "UC"))
-        
-        if hb is None:
-            curve_LT = "b"  # safe default if geometry missing
-        elif is_welded_i:
-            curve_LT = "c" if hb <= 2.0 else "d"
-        elif is_rolled_i:
-            curve_LT = "a" if hb <= 2.0 else "b"
         else:
-            curve_LT = "d"
+            st.markdown(
+                "A laterally unrestrained member in **major-axis bending** should be verified against lateral-torsional buckling "
+                "in accordance with **EN 1993-1-1 §6.3.2** (see also §8.3.2). The design condition is:"
+            )
+            _eq_center(r"\frac{M_{Ed}}{M_{b,Rd}}\le 1.0")
+            _eq_center(r"M_{b,Rd}=\chi_{LT}\,\frac{M_{Rk}}{\gamma_{M1}}")
         
-        alpha_LT = {"a": 0.21, "b": 0.34, "c": 0.49, "d": 0.76}[curve_LT]
-
-        lamLT0 = 0.40
-        beta_LT = 0.75
-        phiLT = 0.5 * (1.0 + alpha_LT * (lamLT - lamLT0) + beta_LT * lamLT**2)
-    
-        _eq_line("Auxiliary factor:", r"\Phi_{LT}=\frac{1}{2}\left[1+\alpha_{LT}(\bar{\lambda}_{LT}-\bar{\lambda}_{LT,0})+\beta\bar{\lambda}_{LT}^2\right]")
-        _eq_line("&nbsp;", rf"=\frac{{1}}{{2}}\left[1+{alpha_LT:.2f}({lamLT:.3f}-{lamLT0:.2f})+{beta_LT:.2f}{lamLT:.3f}^2\right]={phiLT:.3f}")
-    
-        _eq_line("Reduction factor:", r"\chi_{LT}=\min\left(1,\frac{1}{\Phi_{LT}+\sqrt{\Phi_{LT}^2-\bar{\lambda}_{LT}^2}}\right)")
-        _eq_line("&nbsp;", rf"={chiLT_disp:.3f}")
-    
-        _eq_line("Design LTB resistance:", r"M_{b,Rd}=\chi_{LT}\,\frac{M_{Rk}}{\gamma_{M1}}")
-        _eq_line("&nbsp;", rf"={chiLT_disp:.3f}\cdot\frac{{{MRk_kNm:.1f}}}{{{gamma_M1:.2f}}}={MbRd_kNm:.1f}\,\mathrm{{kNm}}")
-    
-        MyEd_kNm = float(My_Ed_kNm)
-        _eq_line("Utilization:", r"u_{LT}=\frac{|M_{Ed}|}{M_{b,Rd}}")
-        _eq_line("&nbsp;", rf"=\frac{{{abs(MyEd_kNm):.1f}}}{{{MbRd_kNm:.1f}}}={utilLT_disp:.3f}")
-        report_status_badge(utilLT_disp)
-    
+            # Characteristic bending resistance for display (consistent with compute_checks)
+            Wy_mm3 = (Wpl_y_mm3 if (Wpl_y_mm3 > 0) else Wel_y_mm3)
+            MRk_kNm = (Wy_mm3 * fy) / 1e6 if Wy_mm3 > 0 else 0.0
+            _eq_line("Characteristic resistance:", r"M_{Rk}=W_y f_y")
+            _eq_line("&nbsp;", rf"={Wy_mm3:,.0f}\cdot {fy:.0f}={MRk_kNm:.1f}\,\mathrm{{kNm}}")
+        
+            # Elastic critical moment for LTB
+            Mcr_kNm = (Mcr / 1e3) if (Mcr is not None) else 0.0
+            lamLT = float(lam_LT or 0.0)
+            chiLT_disp = float(chi_LT or 0.0)
+            MbRd_kNm = (Mb_Rd / 1e3) if (Mb_Rd is not None) else 0.0
+            utilLT_disp = float(util_LT if util_LT is not None else float("inf"))
+        
+            _eq_line("Elastic critical moment:", r"M_{cr}\;\text{(from gross section properties)}")
+            _eq_line("&nbsp;", rf"={Mcr_kNm:.1f}\,\mathrm{{kNm}}")
+        
+            _eq_line("Relative slenderness:", r"\bar{\lambda}_{LT}=\sqrt{\frac{M_{Rk}}{M_{cr}}}")
+            _eq_line("&nbsp;", rf"=\sqrt{{\frac{{{MRk_kNm:.1f}}}{{{Mcr_kNm:.1f}}}}}={lamLT:.3f}")
+        
+            # Reduction factor (EN 1993-1-1 §6.3.2 / §8.3.2)
+            # --- LTB imperfection factor alpha_LT (EN 1993-1-1 Table 6.3 + 6.4) ---
+            # Decide curve based on cross-section type + h/b
+            # Rolled I:   h/b <= 2 -> a (0.21),  h/b > 2 -> b (0.34)
+            # Welded I:   h/b <= 2 -> c (0.49),  h/b > 2 -> d (0.76)
+            # Other:      d (0.76)
+        
+            hb = (h_mm / b_mm) if (b_mm and b_mm > 0) else None
+        
+            # Try to infer "rolled vs welded vs other" from whatever label exists in use_props
+            sec_label = (
+                str(use_props.get("family") or use_props.get("type") or use_props.get("Type") or
+                    use_props.get("section_family") or use_props.get("Section") or use_props.get("name") or "")
+            ).upper()
+        
+            is_welded_i = ("WELD" in sec_label) or ("PLATE" in sec_label) or ("GIRDER" in sec_label)
+            is_rolled_i = any(sec_label.startswith(p) for p in ("IPE", "IPN", "HEA", "HEB", "HEM", "HE", "UB", "UC"))
+        
+            if hb is None:
+                curve_LT = "b"  # safe default if geometry missing
+            elif is_welded_i:
+                curve_LT = "c" if hb <= 2.0 else "d"
+            elif is_rolled_i:
+                curve_LT = "a" if hb <= 2.0 else "b"
+            else:
+                curve_LT = "d"
+        
+            alpha_LT = {"a": 0.21, "b": 0.34, "c": 0.49, "d": 0.76}[curve_LT]
+        
+            lamLT0 = 0.40
+            beta_LT = 0.75
+            phiLT = 0.5 * (1.0 + alpha_LT * (lamLT - lamLT0) + beta_LT * lamLT**2)
+        
+            _eq_line("Auxiliary factor:", r"\Phi_{LT}=\frac{1}{2}\left[1+\alpha_{LT}(\bar{\lambda}_{LT}-\bar{\lambda}_{LT,0})+\beta\bar{\lambda}_{LT}^2\right]")
+            _eq_line("&nbsp;", rf"=\frac{{1}}{{2}}\left[1+{alpha_LT:.2f}({lamLT:.3f}-{lamLT0:.2f})+{beta_LT:.2f}{lamLT:.3f}^2\right]={phiLT:.3f}")
+        
+            _eq_line("Reduction factor:", r"\chi_{LT}=\min\left(1,\frac{1}{\Phi_{LT}+\sqrt{\Phi_{LT}^2-\bar{\lambda}_{LT}^2}}\right)")
+            _eq_line("&nbsp;", rf"={chiLT_disp:.3f}")
+        
+            _eq_line("Design LTB resistance:", r"M_{b,Rd}=\chi_{LT}\,\frac{M_{Rk}}{\gamma_{M1}}")
+            _eq_line("&nbsp;", rf"={chiLT_disp:.3f}\cdot\frac{{{MRk_kNm:.1f}}}{{{gamma_M1:.2f}}}={MbRd_kNm:.1f}\,\mathrm{{kNm}}")
+        
+            MyEd_kNm = float(My_Ed_kNm)
+            _eq_line("Utilization:", r"u_{LT}=\frac{|M_{Ed}|}{M_{b,Rd}}")
+            _eq_line("&nbsp;", rf"=\frac{{{abs(MyEd_kNm):.1f}}}{{{MbRd_kNm:.1f}}}={utilLT_disp:.3f}")
+            report_status_badge(utilLT_disp)
+          
         # ----------------------------
         # (19),(20) Buckling interaction for bending and axial compression — EN 1993-1-1 Annex B (Method 2)
         # ----------------------------
@@ -7248,6 +7285,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
