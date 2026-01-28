@@ -1088,24 +1088,6 @@ def ssb_c5_diagram(L_mm, w, P, M1, M2, E=None, I=None, n=1001):
 
     return x, V, M, delta
 
-
-
-def dummy_case_func(*args, **kwargs):
-    return (0.0, 0.0, 0.0, 0.0, 0.0)
-
-def make_cases(prefix, n, default_inputs):
-    cases = []
-    for i in range(1, n + 1):
-        cases.append({
-            "key": f"{prefix}-{i:02d}",
-            "label": f"Case {i}",
-            "img_path": None,   # placeholder
-            "inputs": default_inputs.copy(),
-            "func": dummy_case_func
-        })
-    return cases
-
-
 def feb_c1_case(L_mm, w, a, F):
     """
     FEB-C1: Propped cantilever (pin at x=0, fixed at x=L)
@@ -1139,7 +1121,7 @@ def feb_c1_case(L_mm, w, a, F):
 
     return (0.0, Mmax, 0.0, Vmax, 0.0)
 
-
+#Beams Fixed at one end (1 case)
 def feb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=801):
     """
     Returns x (m), V (kN), M (kN·m), delta (m) for FEB-C1:
@@ -1207,6 +1189,7 @@ def feb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=801):
         delta = delta_w + delta_F
 
     return x, V, M, delta
+
 def fbb_c1_case(L_mm, w, a, F):
     """
     FBB-C1: Fixed-Fixed beam (both ends fixed)
@@ -7232,6 +7215,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
