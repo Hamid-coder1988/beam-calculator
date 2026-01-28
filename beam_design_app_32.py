@@ -2490,7 +2490,7 @@ READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["label"] = "FEB - C1
 READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["inputs"] = {
     "L_mm": 6000.0,
     "w": 10.0,
-    "a": 2.0,
+    "a": 3000.0,
     "F": 20.0
 }
 READY_CATALOG["Beam"]["Beams Fixed at one end (1 case)"][0]["func"] = feb_c1_case
@@ -2508,35 +2508,35 @@ READY_CATALOG["Beam"]["Cantilever Beams (1 case)"][0]["delta_max_func"] = cant_c
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["label"] = "OH - C1"
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["func"] = oh_c1_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["diagram_func"] = oh_c1_diagram
-READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["inputs"] = {"L_mm": 6000.0, "a": 1.5, "w1": 10.0, "w2": 10.0}
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][0]["inputs"] = {"L_mm": 6000.0, "a": 3000, "w1": 10.0, "w2": 10.0}
 
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["label"] = "OH - C2"
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["func"] = oh_c2_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["diagram_func"] = oh_c2_diagram
-READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["inputs"] = {"L_mm": 6000.0, "a": 1.5, "F": 20.0}
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][1]["inputs"] = {"L_mm": 6000.0, "a": 3000, "F": 20.0}
 
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["label"] = "OH - C3"
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["func"] = oh_c3_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["diagram_func"] = oh_c3_diagram
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][2]["inputs"] = {
     "L_mm": 6000.0,
-    "a": 2.0,
+    "a": 3000,
     "F": 20.0
 }
 
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["label"] = "OH - C4"
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["func"] = oh_c4_case
 READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["diagram_func"] = oh_c4_diagram
-READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["inputs"] = {"a": 1.0, "b": 6.0, "c": 1.0, "w": 10.0}
+READY_CATALOG["Beam"]["Beams with Overhang (4 cases)"][3]["inputs"] = {"a": 1000, "b": 2000, "c": 2000, "w": 10.0}
 
 READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["label"] = "CS3 - C1 (3 spans UDL)"
-READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["inputs"] = {"L": 5.0, "w1": 10.0, "w2": 10.0, "w3": 10.0}
+READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["inputs"] = {"L": 6000, "w1": 10.0, "w2": 10.0, "w3": 10.0}
 READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["func"] = cs3_c1_case
 READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)"][0]["diagram_func"] = cs3_c1_diagram
 
 READY_CATALOG["Beam"]["Continuous Beams — Four Spans / Five Supports (1 case)"][0]["label"] = "CS4 - C1 (4 spans UDL)"
 READY_CATALOG["Beam"]["Continuous Beams — Four Spans / Five Supports (1 case)"][0]["inputs"] = {
-    "L": 5.0,
+    "L": 6000,
     "w1": 10.0,
     "w2": 10.0,
     "w3": 10.0,
@@ -7215,6 +7215,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
