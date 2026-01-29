@@ -1370,49 +1370,35 @@ def cant_c1_case(L_mm, w, a, F, M):
 
 
 def cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=801):
-    """
-    Cantilever general case (x measured from FREE end):
-    - Free end at x=0, Fixed end at x=L
-    - UDL w (kN/m) over full span
-    - Point load F (kN) at x=a (m from FREE end)
-    - End moment M (kN·m) applied at FREE end
-
-    Returns:
-      x (m), V (kN), Mx (kN·m), delta=None  (no deflection curve)
-    """
     L = float(L_mm) / 1000.0  # m
     w = float(w)              # kN/m
     F = float(F)              # kN
     M_end = float(M)          # kN·m
-    a = float(a) / 1000.0              # mm (from FREE end)
+    a = float(a) / 1000.0     # m (from FREE end), UI input is mm
 
     if L <= 0:
         x = np.array([0.0, 0.0])
         return x, np.zeros_like(x), np.zeros_like(x), None
 
-    # clamp a into [0, L] (from FREE end)
     a = max(0.0, min(a, L))
-
-    # x from FREE end
     x = np.linspace(0.0, L, n)
 
-    # -------------------------
-    # (1) UDL part (cantilever, x from FREE end)
-    # -------------------------
-    # V(x) = -w*x
-    # M(x) = -w*x^2/2
+    # (1) UDL
     V_w = -w * x
     M_w = -w * x**2 / 2.0
 
-    # -------------------------
-    # (2) Point load part at x=a (from FREE end)
-    # -------------------------
-    # For sections 0 <= x <= a (between FREE end and load): affected
-    # V = -F ; M = -F (a - x)
-    # For x > a: V = 0 ; M = 0
-    mask = (x <= a).astype(float)
+    # (2) Point load at x=a (from FREE end)  <-- FIXED
+    mask = (x >= a).astype(float)
     V_F = -F * mask
-    M_F = -F * (a - x) * mask
+    M_F = -F * (x - a) * mask
+
+    # (3) End moment at FREE end
+    M_M = -M_end * np.ones_like(x)
+
+    V = V_w + V_F
+    Mx = M_w + M_F + M_M
+
+    return x, V, Mx, None
 
     # -------------------------
     # (3) End moment applied at FREE end
@@ -7229,6 +7215,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
