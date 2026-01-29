@@ -1111,7 +1111,7 @@ def feb_c1_case(L_mm, w, a, F):
     Returns (N, My, Mz, Vy, Vz) maxima for prefill.
     """
     L = float(L_mm) / 1000.0  # m
-    a = float(a)
+    a = float(a) / 1000.0 
     w = float(w)
     F = float(F)
 
@@ -1227,7 +1227,7 @@ def fbb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=801):
     L = float(L_mm) / 1000.0  # m
     w = float(w)              # kN/m
     F = float(F)              # kN
-    a = float(a)              # m
+    a = float(a) / 1000.0              # mm
 
     if L <= 0:
         x = np.array([0.0, 0.0])
@@ -1384,7 +1384,7 @@ def cant_c1_diagram(L_mm, w, a, F, M, E=None, I=None, n=801):
     w = float(w)              # kN/m
     F = float(F)              # kN
     M_end = float(M)          # kN·m
-    a = float(a)              # m (from FREE end)
+    a = float(a) / 1000.0              # mm (from FREE end)
 
     if L <= 0:
         x = np.array([0.0, 0.0])
@@ -1480,7 +1480,7 @@ def oh_c1_diagram(L_mm, a, w1, w2, E=None, I=None, n=1001):
     Deflection computed numerically from curvature with y(0)=0 and y(L)=0.
     """
     L = float(L_mm) / 1000.0  # m
-    a = float(a)              # m
+    a = float(a) / 1000.0              # mm
     w1 = float(w1)            # kN/m
     w2 = float(w2)            # kN/m
 
@@ -1578,7 +1578,7 @@ def oh_c2_diagram(L_mm, a, F, E=None, I=None, n=1001):
     Deflection computed numerically from curvature with y(0)=0 and y(L)=0.
     """
     L = float(L_mm) / 1000.0  # m
-    a = float(a)              # m
+    a = float(a) / 1000.0              # mm
     F = float(F)              # kN
 
     if L <= 0:
@@ -1665,7 +1665,7 @@ def oh_c3_diagram(L_mm, a, F, E=None, I=None, n=1001):
       x (m), V (kN), M (kN·m), delta (m or None)
     """
     L = float(L_mm) / 1000.0
-    a = float(a)
+    a = float(a) / 1000.0 
     F = float(F)
 
     if L <= 0:
@@ -1736,9 +1736,9 @@ def oh_c4_diagram(a, b, c, w, E=None, I=None, n=1201):
     Returns: x (m), V (kN), M (kN·m), delta (m or None)
     Deflection computed numerically from curvature with y(a)=0 and y(a+b)=0.
     """
-    a = float(a)
-    b = float(b)
-    c = float(c)
+    a = float(a) / 1000.0
+    b = float(b) / 1000.0
+    c = float(c) / 1000.0
     w = float(w)  # kN/m
 
     a = max(0.0, a)
@@ -1939,7 +1939,7 @@ def cs2_c1_diagram(a, b, w, E=None, I=None, n=1201):
     Continuous Beam - Two Unequal Spans with UDL on both spans.
     Spans: a (left), b (right). Supports at x=0, x=a, x=a+b.
     """
-    a = float(a); b = float(b); w = float(w)
+    a = float(a) / 1000.0; b = float(b) / 1000.0; w = float(w)
     a = max(1e-9, a); b = max(1e-9, b)
     L = a + b
     x = np.linspace(0.0, L, n)
@@ -2060,7 +2060,7 @@ def cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201):
 
     Returns: x (m), V (kN), M (kN·m), delta (m or None)
     """
-    a = float(a); b = float(b); F1 = float(F1); F2 = float(F2)
+    a = float(a) / 1000.0; b = float(b) / 1000.0; F1 = float(F1); F2 = float(F2)
     a = max(1e-9, a); b = max(1e-9, b)
     L = a + b
 
@@ -6317,7 +6317,7 @@ def render_report_tab():
         def _curve_from_alpha(a):
             if a is None:
                 return "n/a"
-            a = float(a)
+            a = float(a) / 1000.0
             if abs(a - 0.21) < 1e-3: return "a"
             if abs(a - 0.34) < 1e-3: return "b"
             if abs(a - 0.49) < 1e-3: return "c"
@@ -7229,6 +7229,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
