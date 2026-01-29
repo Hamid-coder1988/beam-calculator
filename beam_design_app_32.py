@@ -1144,7 +1144,7 @@ def feb_c1_diagram(L_mm, w, a, F, E=None, I=None, n=801):
     Inputs: L_mm (mm), w (kN/m), a (m), F (kN)
     """
     L = float(L_mm) / 1000.0  # m
-    a = float(a)
+    a = float(a) / 1000.0
     w = float(w)
     F = float(F)
 
@@ -7229,6 +7229,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
