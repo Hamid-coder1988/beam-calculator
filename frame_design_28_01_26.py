@@ -7079,7 +7079,17 @@ def _render_member_section_panel(member_prefix: str, title: str):
             key_prefix=f"sum_{prefix_id}"
         )
 
-        st.markdown("### Cross-section preview")
+        
+        st.markdown("### Bending axis in frame plane")
+        st.selectbox(
+            "Use bending about",
+            ["Strong axis (yy)", "Weak axis (zz)"],
+            index=0 if str(st.session_state.get(f"{member_prefix}bend_axis_sel", "Strong axis (yy)")).lower().startswith("strong") else 1,
+            key=f"{member_prefix}bend_axis_sel",
+            help="Strong axis = yy (default, higher stiffness). Weak axis = zz."
+        )
+
+st.markdown("### Cross-section preview")
         img_path = get_section_image(sr_display.get("family", ""))
         _l, _m, _r = st.columns([0.45, 1.1, 0.45])
         with _m:
@@ -7331,8 +7341,52 @@ def _render_ready_frame_cases():
         st.toast("Case applied — tweak loads if needed.", icon="✅")
 
 
+
+def _swap_yz_in_sr_display(sr_display: dict) -> dict:
+    """Return a shallow-copied sr_display with y/z (strong/weak) properties swapped.
+    Use when the user selects 'Weak axis (zz)' but the load component is still entered as My / Vz etc.
+    Your DB convention: strong axis = yy, weak axis = zz.
+    """
+    if not isinstance(sr_display, dict):
+        return sr_display
+    sr = dict(sr_display)  # shallow copy
+
+    swap_pairs = [
+        ("Iy_cm4", "Iz_cm4"),
+        ("I_y_cm4", "I_z_cm4"),
+        ("iy_mm", "iz_mm"),
+        ("Wel_y_cm3", "Wel_z_cm3"),
+        ("Wpl_y_cm3", "Wpl_z_cm3"),
+        ("Av_y_mm2", "Av_z_mm2"),
+        ("Avy_mm2", "Avz_mm2"),
+        ("alpha_y", "alpha_z"),
+        ("buckling_curve_y", "buckling_curve_z"),
+        # precomputed resistances if present
+        ("Mel_Rd_y_kNm", "Mel_Rd_z_kNm"),
+        ("Mpl_Rd_y_kNm", "Mpl_Rd_z_kNm"),
+        ("Vpl_Rd_y_kN", "Vpl_Rd_z_kN"),
+    ]
+
+    for a, b in swap_pairs:
+        if a in sr or b in sr:
+            sr[a], sr[b] = sr.get(b), sr.get(a)
+
+    # Some families may store alternate spellings
+    # Keep other keys untouched (torsion/warping etc.).
+    return sr
+
+
+def _apply_member_bending_axis(member_prefix: str, sr_display: dict) -> dict:
+    """Apply the member's 'Bending axis in frame plane' setting to sr_display."""
+    sel = st.session_state.get(f"{member_prefix}bend_axis_sel", "Strong axis (yy)")
+    if isinstance(sel, str) and sel.lower().startswith("weak"):
+        return _swap_yz_in_sr_display(sr_display)
+    return sr_display
+
+
 def _run_member_checks(member_prefix: str, inputs_key: str, out_prefix: str):
-    sr_display = st.session_state.get(f"{member_prefix}sr_display", None)
+    sr_display_raw = st.session_state.get(f"{member_prefix}sr_display", None)
+    sr_display = _apply_member_bending_axis(member_prefix, sr_display_raw)
     material = st.session_state.get(f"{member_prefix}material", st.session_state.get(f"{member_prefix}mat_sel", "S355"))
     fy, fu = get_material_props(material)
 
@@ -7368,7 +7422,8 @@ def _render_report_member(member_prefix: str, inputs_key: str, title: str):
     }
 
     try:
-        st.session_state["sr_display"] = st.session_state.get(f"{member_prefix}sr_display")
+        _sr_raw = st.session_state.get(f"{member_prefix}sr_display")
+        st.session_state["sr_display"] = _apply_member_bending_axis(member_prefix, _sr_raw)
         st.session_state["inputs"] = st.session_state.get(inputs_key, {})
         st.session_state["material"] = st.session_state.get(f"{member_prefix}material")
         st.session_state["mat_sel"] = st.session_state.get(f"{member_prefix}mat_sel", "S355")
