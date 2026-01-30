@@ -2457,6 +2457,10 @@ def cs4_c1_diagram(L, w1, w2, w3, w4, E=None, I=None, n=2201):
             w4_Nm=w4 * 1000.0
         )
         delta = np.interp(x, xs, vs)
+        
+    # ---- FIX SIGN TO MATCH OTHER CASES ----
+    M = -M
+    V = V
 
     return x, V, M, delta
 
@@ -7374,6 +7378,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
