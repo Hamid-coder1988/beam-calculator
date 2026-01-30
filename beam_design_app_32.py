@@ -2409,7 +2409,7 @@ READY_CATALOG = {
         ),
 
         # Category 6: 3 cases (patched below)
-        "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases(
+        "Continuous Beams — Two Spans / Three Supports (4 cases)": make_cases(
             "CS2", 4, {}
         ),
 
@@ -7291,6 +7291,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
