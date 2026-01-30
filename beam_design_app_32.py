@@ -2084,6 +2084,71 @@ def cs2_c3_diagram(a, b, F1, F2, E=None, I=None, n=1201):
         delta = np.interp(x, xs, vs)
 
     return x, V, M, delta
+    
+# ================================
+# CS2 - CASE 4 (equal spans, point load on span 1 at any point)
+# ================================
+def cs2_c4_case(L, a, F):
+    """
+    Continuous beam (2 equal spans / 3 supports) - Case 4:
+    Point load F at distance a from left support (in span 1).
+    Inputs: L (mm), a (mm), F (kN)
+    """
+    x, V, M, _ = cs2_c4_diagram(L, a, F, E=None, I=None, n=1401)
+    Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
+    Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    return (0.0, Mmax, 0.0, Vmax, 0.0)
+
+
+def cs2_c4_diagram(L, a, F, E=None, I=None, n=1401):
+    """
+    Continuous Beam - Two equal spans (L each), 3 supports at x=0, x=L, x=2L.
+    Point load F (kN) located in span 1 at x=a from the left support.
+
+    Equations (from your attached source, b = L - a):
+      R1 = F*b/(4L^3) * (4L^2 - a(L+a))
+      R2 = F*a/(2L^3) * (2L^2 + b(L+a))
+      R3 = F*a*b/(4L^3) * (L+a)
+      M_support_at_L (hogging) = -F*a*b*(L+a)/(4L^2)
+    """
+    L = float(L) / 1000.0
+    a = float(a) / 1000.0
+    F = float(F)
+
+    L = max(1e-9, L)
+    a = max(0.0, min(a, L))
+    b = L - a
+
+    x = np.linspace(0.0, 2.0 * L, n)
+
+    # ---- Reactions (kN) ----
+    R1 = (F * b / (4.0 * L**3)) * (4.0 * L**2 - a * (L + a))
+    R2 = (F * a / (2.0 * L**3)) * (2.0 * L**2 + b * (L + a))
+    R3 = (F * a * b / (4.0 * L**3)) * (L + a)
+
+    # ---- Heaviside steps ----
+    H_a = (x >= a).astype(float)
+    H_L = (x >= L).astype(float)
+
+    # ---- Shear V(x) (kN) ----
+    # V = R1 - F*H(x-a) + R2*H(x-L)
+    # (R3 kicks in only at x=2L, which is the end)
+    V = R1 - F * H_a + R2 * H_L
+
+    # ---- Moment M(x) (kN·m) ----
+    M = R1 * x - F * (x - a) * H_a + R2 * (x - L) * H_L
+
+    # ---- Deflection by FE (v=0 at x=0, L, 2L) ----
+    delta = None
+    if E and I and I > 0:
+        point_loads = [(0, a, F * 1000.0)]  # element 0, kN -> N
+        xs, vs = _beam2span_delta_fe(L, L, E, I, w1_Nm=0.0, w2_Nm=0.0, point_loads=point_loads)
+        delta = np.interp(x, xs, vs)
+
+    return x, V, M, delta
+
+
+
 def cs3_c1_case(L, w1, w2, w3):
     x, V, M, _ = cs3_c1_diagram(L, w1, w2, w3, E=None, I=None, n=1601)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
@@ -2364,7 +2429,7 @@ READY_CATALOG = {
 # ================================
 # PATCH CS2 (AFTER READY_CATALOG EXISTS)
 # ================================
-_cat = "Continuous Beams — Two Spans / Three Supports (3 cases)"
+_cat = "Continuous Beams — Two Spans / Three Supports (4 cases)"
 _cases = READY_CATALOG["Beam"][_cat]
 
 # Case 1: Two Unequal Spans with UDL
@@ -2384,6 +2449,16 @@ _cases[2]["label"] = "CS2 - C3 (Central point loads)"
 _cases[2]["inputs"] = {"a": 4000, "b": 6000, "F1": 20.0, "F2": 20.0}
 _cases[2]["func"] = cs2_c3_case
 _cases[2]["diagram_func"] = cs2_c3_diagram
+
+# -------------------------------
+# Case 4: Two equal spans, point load on span 1 at any point
+# Inputs: L (mm), a (mm from left support), F (kN)
+# -------------------------------
+_cases[3]["label"] = "CS2 - C4 (Point load on one span at any point)"
+_cases[3]["inputs"] = {"L": 5000, "a": 1500, "F": 20.0}
+_cases[3]["func"] = cs2_c4_case
+_cases[3]["diagram_func"] = cs2_c4_diagram
+
 
 
 # Image mapping for ready beam cases (only cases 1 and 2 for now)
@@ -2416,10 +2491,11 @@ CASE_IMAGE_MAP = {
 
     # --- Continuous Beams — Two Spans / Three Supports ---
     # NOTE: your catalog currently defines 2 cases (CS2-01, CS2-02)
-    # You provided 3 images; add 3rd when you increase to 3 cases.
+    # You provided 3 images; add 3rd when you increase to 4 cases.
     "CS2-01": "beam_case_img/2S-C1.png",
     "CS2-02": "beam_case_img/2S-C2.png",
     "CS2-03": "beam_case_img/2S-C3.png",
+    "CS2-04": "beam_case_img/2S-C4.png",
 
     # --- Continuous Beams — Three Spans / Four Supports (1 case) ---
     "CS3-01": "beam_case_img/3S-C1.png",
@@ -7215,6 +7291,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
