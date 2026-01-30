@@ -1914,6 +1914,114 @@ def _beam2span_delta_fe(L1, L2, E, I, w1_Nm=0.0, w2_Nm=0.0, point_loads=None, n_
 
     return np.array(xs, dtype=float), np.array(vs, dtype=float)
 
+def _beam4span_delta_fe(L1, L2, L3, L4, E, I,
+                        w1_Nm=0.0, w2_Nm=0.0, w3_Nm=0.0, w4_Nm=0.0,
+                        n_el_per_span=30, n_per_elem=40):
+    """
+    4-span Euler-Bernoulli beam FE:
+      nodes at [0, L1, L1+L2, L1+L2+L3, L1+L2+L3+L4]
+      simple supports at ALL 5 support nodes -> v=0 at those nodes, rotations free.
+
+    Returns:
+      xs (m), vs (m) sampled along the whole beam.
+    Sign convention: consistent nodal loads assume q (N/m) positive downward gives positive v.
+    """
+    import numpy as np
+
+    Ls = [float(L1), float(L2), float(L3), float(L4)]
+    ws = [float(w1_Nm), float(w2_Nm), float(w3_Nm), float(w4_Nm)]
+
+    EI = float(E) * float(I)
+
+    # Build nodes for 4 spans, each subdivided into n_el_per_span
+    x_nodes = [0.0]
+    for L in Ls:
+        for _ in range(n_el_per_span):
+            x_nodes.append(x_nodes[-1] + L / n_el_per_span)
+    x_nodes = np.array(x_nodes, dtype=float)
+
+    n_nodes = len(x_nodes)
+    ndof = 2 * n_nodes  # [v0,th0,v1,th1,...]
+
+    K = np.zeros((ndof, ndof), dtype=float)
+    f = np.zeros((ndof,), dtype=float)
+
+    def ke(Le):
+        Le = float(Le)
+        return (EI / Le**3) * np.array([
+            [ 12,    6*Le,  -12,    6*Le],
+            [  6*Le, 4*Le**2, -6*Le, 2*Le**2],
+            [-12,   -6*Le,   12,   -6*Le],
+            [  6*Le, 2*Le**2, -6*Le, 4*Le**2],
+        ], dtype=float)
+
+    def fe_udl(q, Le):
+        # consistent nodal loads for uniform q (N/m), downward positive with v positive
+        return q * Le / 2.0 * np.array([1.0, Le/6.0, 1.0, -Le/6.0], dtype=float)
+
+    # Assembly element-by-element, assigning each element to a span
+    # Determine span index for each element by node index
+    # spans: [0..n_el_per_span-1], [n_el_per_span..2n_el-1], ...
+    for e in range(n_nodes - 1):
+        n1 = e
+        n2 = e + 1
+        Le = x_nodes[n2] - x_nodes[n1]
+
+        dofs = [2*n1, 2*n1+1, 2*n2, 2*n2+1]
+        K[np.ix_(dofs, dofs)] += ke(Le)
+
+        span_idx = min(e // n_el_per_span, 3)
+        q = ws[span_idx]
+        if abs(q) > 0:
+            f[dofs] += fe_udl(q, Le)
+
+    # Boundary conditions: v=0 at the 5 support nodes
+    support_nodes = [
+        0,
+        n_el_per_span,
+        2*n_el_per_span,
+        3*n_el_per_span,
+        4*n_el_per_span
+    ]
+    fixed = {2*n for n in support_nodes}  # v DOFs
+    free = [i for i in range(ndof) if i not in fixed]
+
+    u = np.zeros((ndof,), dtype=float)
+    if free:
+        Kff = K[np.ix_(free, free)]
+        ff = f[free]
+        u_free = np.linalg.solve(Kff, ff)
+        u[free] = u_free
+
+    # Sample deflection along each element (Hermite shape functions)
+    def shape_v(Le, xloc):
+        r = xloc / Le
+        N1 = 1 - 3*r**2 + 2*r**3
+        N2 = Le * (r - 2*r**2 + r**3)
+        N3 = 3*r**2 - 2*r**3
+        N4 = Le * (-r**2 + r**3)
+        return np.array([N1, N2, N3, N4], dtype=float)
+
+    xs, vs = [], []
+    for e in range(n_nodes - 1):
+        n1 = e
+        n2 = e + 1
+        Le = x_nodes[n2] - x_nodes[n1]
+        ue = u[[2*n1, 2*n1+1, 2*n2, 2*n2+1]]
+
+        # sample inside element
+        for xi in np.linspace(0.0, Le, n_per_elem, endpoint=False):
+            N = shape_v(Le, xi)
+            xs.append(x_nodes[n1] + xi)
+            vs.append(float(N @ ue))
+
+    # include last node point
+    xs.append(float(x_nodes[-1]))
+    vs.append(float(u[2*(n_nodes-1)]))
+
+    return np.array(xs, dtype=float), np.array(vs, dtype=float)
+
+
 def cs2_c1_case(a, b, w):
     x, V, M, _ = cs2_c1_diagram(a, b, w, E=None, I=None, n=1201)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
@@ -2236,124 +2344,119 @@ def cs3_c1_diagram(L_mm, w1, w2, w3, E=None, I=None, n=1601):
 
     return x, V, M, delta
 
-def cs4_c1_case(L_mm, w1, w2, w3, w4):
-    x, V, M, _ = cs4_c1_diagram(L, w1, w2, w3, w4, E=None, I=None, n=2001)
+def cs4_c1_case(L, w1, w2, w3, w4):
+    x, V, M, delta = cs4_c1_diagram(L, w1, w2, w3, w4, E=None, I=None, n=2201)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
+    # deflection max is handled in your Results tab from delta; keep return format unchanged
     return (0.0, Mmax, 0.0, Vmax, 0.0)
 
 
-def cs4_c1_diagram(L, w1, w2, w3, w4, E=None, I=None, n=2001):
+def cs4_c1_diagram(L, w1, w2, w3, w4, E=None, I=None, n=2201):
     """
-    Continuous beam: 4 equal spans (L each), 5 supports at x=0, L, 2L, 3L, 4L
-    UDLs: w1 on span 1, w2 on span 2, w3 on span 3, w4 on span 4 (kN/m)
+    Continuous beam: 4 equal spans, 5 supports at x=0, L, 2L, 3L, 4L
+    UDLs per span: w1,w2,w3,w4 (kN/m)
 
-    Unknown internal support moments:
-      M1 at x=L, M2 at x=2L, M3 at x=3L
-    End moments at x=0 and x=4L are zero (pinned ends).
+    IMPORTANT: your UI uses NEGATIVE w for downward loads (you input -10).
+    Reference formulas assume w is positive downward.
+    So we convert inside: w_down = -w_input.
+
+    Internal support moments from Clapeyron 3-moment (equal spans, pinned ends):
+      4*M1 + 1*M2       = -(w1+w2) * L^2 / 4
+      1*M1 + 4*M2 + 1*M3 = -(w2+w3) * L^2 / 4
+            1*M2 + 4*M3  = -(w3+w4) * L^2 / 4
+
+    Then span i (local x in [0,L]):
+      V_i(x) = V_i_left - w_i*x
+      M_i(x) = M_left + V_i_left*x - w_i*x^2/2
+    using:
+      V_i_left = w_i*L/2 + (M_right - M_left)/L
 
     Returns: x (m), V (kN), M (kN·m), delta (m or None)
     """
-    L = float(L) / 1000.0
-    L = max(1e-9, L)
-    w1 = float(w1); w2 = float(w2); w3 = float(w3); w4 = float(w4)
+    import numpy as np
 
-    # -----------------------------
-    # 1) Solve internal moments M1,M2,M3
-    # -----------------------------
-    # Correct 3-moment form for 4 equal spans, pinned at both ends:
-    #   4*M1 + 1*M2       = -(w1 + w2) * L^2 / 4
-    #   1*M1 + 4*M2 + 1*M3 = -(w2 + w3) * L^2 / 4
-    #         1*M2 + 4*M3  = -(w3 + w4) * L^2 / 4
+    # ---- Robust length handling: if user passes mm, auto-convert ----
+    L = float(L)
+    if L > 50.0:  # treat as mm if it looks like 6000, 8000, ...
+        L = L / 1000.0
+    L = max(1e-9, L)
+
+    # ---- Convert loads: input negative = downward -> make downward positive ----
+    w1 = -float(w1)
+    w2 = -float(w2)
+    w3 = -float(w3)
+    w4 = -float(w4)
+
+    # ---- 1) Solve internal moments M1,M2,M3 (kN·m) ----
     rhs1 = - (w1 + w2) * (L**2) / 4.0
     rhs2 = - (w2 + w3) * (L**2) / 4.0
     rhs3 = - (w3 + w4) * (L**2) / 4.0
-
 
     A = np.array([
         [4.0, 1.0, 0.0],
         [1.0, 4.0, 1.0],
         [0.0, 1.0, 4.0],
     ], dtype=float)
-    b = np.array([rhs1, rhs2, rhs3], dtype=float)
 
-    M1, M2, M3 = np.linalg.solve(A, b)  # kN·m at x=L,2L,3L
+    M1, M2, M3 = np.linalg.solve(A, np.array([rhs1, rhs2, rhs3], dtype=float))
 
-    # end moments at outer supports
     M0 = 0.0
     M4 = 0.0
 
-    # -----------------------------
-    # 2) Span end reactions from end moments
-    # -----------------------------
-    # For span with UDL w and end moments Ma (left), Mb (right):
-    #   Ra = wL/2 + (Mb - Ma)/L
-    #   Rb = wL - Ra
-    def span_end_reactions(w, Ma, Mb):
-        Ra = w * L / 2.0 + (Mb - Ma) / L
-        Rb = w * L - Ra
-        return Ra, Rb
+    # ---- 2) Span left-end shears (kN) ----
+    V1L = w1 * L / 2.0 + (M1 - M0) / L
+    V2L = w2 * L / 2.0 + (M2 - M1) / L
+    V3L = w3 * L / 2.0 + (M3 - M2) / L
+    V4L = w4 * L / 2.0 + (M4 - M3) / L
 
-    # span 1 (0..L): moments M0 -> M1
-    R0_1, R1_1 = span_end_reactions(w1, M0, M1)
-    # span 2 (L..2L): moments M1 -> M2
-    R1_2, R2_2 = span_end_reactions(w2, M1, M2)
-    # span 3 (2L..3L): moments M2 -> M3
-    R2_3, R3_3 = span_end_reactions(w3, M2, M3)
-    # span 4 (3L..4L): moments M3 -> M4
-    R3_4, R4_4 = span_end_reactions(w4, M3, M4)
+    # Support reactions (kN, upward positive) – derived from adjacent span end forces
+    R1 = V1L
+    R2 = (w1*L - V1L) + V2L
+    R3 = (w2*L - V2L) + V3L
+    R4 = (w3*L - V3L) + V4L
+    R5 = (w4*L - V4L)
 
-    # total support reactions (sum adjacent-span contributions)
-    R1 = R0_1
-    R2 = R1_1 + R1_2
-    R3 = R2_2 + R2_3
-    R4 = R3_3 + R3_4
-    R5 = R4_4
-
-    # -----------------------------
-    # 3) Build V(x), M(x) piecewise
-    # -----------------------------
-    Ltot = 4.0 * L
-    x = np.linspace(0.0, Ltot, n)
-
+    # ---- 3) Build V(x), M(x) piecewise (CONTINUOUS M) ----
+    x = np.linspace(0.0, 4.0 * L, n)
     V = np.zeros_like(x, dtype=float)
     M = np.zeros_like(x, dtype=float)
 
-    # Span 1: 0..L
-    s1 = (x <= L)
-    xx = x[s1]
-    V[s1] = R1 - w1 * xx
-    M[s1] = M0 + R1 * xx - (w1 * xx**2) / 2.0
+    # Span 1: [0, L]
+    msk = (x <= 1.0 * L)
+    xx = x[msk]
+    V[msk] = V1L - w1 * xx
+    M[msk] = M0 + V1L * xx - (w1 * xx**2) / 2.0
 
-    # Span 2: L..2L
-    s2 = (x > L) & (x <= 2.0 * L)
-    xx = x[s2] - L
-    V[s2] = R2 - w2 * xx
-    M[s2] = M1 + R2 * xx - (w2 * xx**2) / 2.0
+    # Span 2: (L, 2L]
+    msk = (x > 1.0 * L) & (x <= 2.0 * L)
+    xx = x[msk] - 1.0 * L
+    V[msk] = V2L - w2 * xx
+    M[msk] = M1 + V2L * xx - (w2 * xx**2) / 2.0
 
-    # Span 3: 2L..3L
-    s3 = (x > 2.0 * L) & (x <= 3.0 * L)
-    xx = x[s3] - 2.0 * L
-    V[s3] = R3 - w3 * xx
-    M[s3] = M2 + R3 * xx - (w3 * xx**2) / 2.0
+    # Span 3: (2L, 3L]
+    msk = (x > 2.0 * L) & (x <= 3.0 * L)
+    xx = x[msk] - 2.0 * L
+    V[msk] = V3L - w3 * xx
+    M[msk] = M2 + V3L * xx - (w3 * xx**2) / 2.0
 
-    # Span 4: 3L..4L
-    s4 = (x > 3.0 * L)
-    xx = x[s4] - 3.0 * L
-    V[s4] = R4 - w4 * xx
-    M[s4] = M3 + R4 * xx - (w4 * xx**2) / 2.0
+    # Span 4: (3L, 4L]
+    msk = (x > 3.0 * L)
+    xx = x[msk] - 3.0 * L
+    V[msk] = V4L - w4 * xx
+    M[msk] = M3 + V4L * xx - (w4 * xx**2) / 2.0
 
-    # -----------------------------
-    # 4) Deflection (optional)
-    # -----------------------------
+    # ---- 4) Deflection (FE) ----
     delta = None
     if E and I and I > 0:
-        # If you have a 4-span FE helper, use it.
-        if "_beam4span_delta_fe" in globals():
-            xs, vs = _beam4span_delta_fe(L, L, L, L, E, I,
-                                         w1_Nm=w1*1000.0, w2_Nm=w2*1000.0,
-                                         w3_Nm=w3*1000.0, w4_Nm=w4*1000.0)
-            delta = np.interp(x, xs, vs)
+        xs, vs = _beam4span_delta_fe(
+            L, L, L, L, E, I,
+            w1_Nm=w1 * 1000.0,
+            w2_Nm=w2 * 1000.0,
+            w3_Nm=w3 * 1000.0,
+            w4_Nm=w4 * 1000.0
+        )
+        delta = np.interp(x, xs, vs)
 
     return x, V, M, delta
 
@@ -7271,6 +7374,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
