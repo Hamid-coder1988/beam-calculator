@@ -2345,7 +2345,7 @@ READY_CATALOG = {
 
         # Category 6: 3 cases (patched below)
         "Continuous Beams — Two Spans / Three Supports (3 cases)": make_cases(
-            "CS2", 3, {}
+            "CS2", 4, {}
         ),
 
         # Category 7: 1 case
@@ -7215,6 +7215,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
