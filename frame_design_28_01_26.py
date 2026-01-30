@@ -7200,23 +7200,75 @@ def _apply_ready_frame_case(case: dict):
 
 def _render_ready_frame_cases():
     st.markdown("### Ready frame cases")
-    st.caption("Pick a case to prefill beam + column forces. Then you can tweak any value below.")
+    st.caption(
+        "Pick a catalog + case to prefill **both** beam and column forces. "
+        "Then you can tweak any value below."
+    )
 
-    # Minimal starter library — extend later with your real frame solver/cases
-    FRAME_CASES = {
-        "Portal frame — gravity (approx.)": {
-            "beam": {"L_mm_in": 8000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 120.0, "My_in": 0.0, "Mz_in": 160.0, "Tx_in": 0.0, "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0},
-            "col":  {"L_mm_in": 4000.0, "N_in": 450.0, "Vy_in": 0.0, "Vz_in": 60.0,  "My_in": 0.0, "Mz_in": 80.0,  "Tx_in": 0.0, "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0},
-        },
-        "Portal frame — wind (approx.)": {
-            "beam": {"L_mm_in": 8000.0, "N_in": 0.0, "Vy_in": 90.0, "Vz_in": 0.0, "My_in": 120.0, "Mz_in": 0.0, "Tx_in": 0.0, "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0},
-            "col":  {"L_mm_in": 4000.0, "N_in": 150.0, "Vy_in": 90.0, "Vz_in": 0.0, "My_in": 120.0, "Mz_in": 0.0, "Tx_in": 0.0, "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0},
-        },
+    # -----------------------------
+    # Helper: build placeholder cases (you'll replace loads later when we add equations)
+    # -----------------------------
+    def make_frame_cases(prefix: str, n: int, beam_defaults: dict, col_defaults: dict):
+        out = []
+        for i in range(1, int(n) + 1):
+            out.append({
+                "key": f"{prefix}-{i:02d}",
+                "label": f"Case {i}",
+                "img_path": None,  # you will attach images later
+                "beam": beam_defaults.copy(),
+                "col":  col_defaults.copy(),
+            })
+        return out
+
+    # -----------------------------
+    # FRAME CATALOG (layout only)
+    # -----------------------------
+    # NOTE: All loads below are placeholders so the UI works.
+    # We will replace these numbers once you send the case images and we derive equations.
+    beam0 = {"L_mm_in": 8000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0, "Tx_in": 0.0,
+             "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0}
+    col0  = {"L_mm_in": 4000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0, "Tx_in": 0.0,
+             "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0}
+
+    FRAME_CATALOG = {
+        "Three Member Frames (Pin / Roller) (8 cases)": make_frame_cases("TM-PR", 8, beam0, col0),
+        "Three Member Frames (Pin / Pin) (5 cases)": make_frame_cases("TM-PP", 5, beam0, col0),
+        "Three Member Frames (Fixed / Fixed) (3 cases)": make_frame_cases("TM-FF", 3, beam0, col0),
+        "Three Member Frames (Fixed / Free) (5 cases)": make_frame_cases("TM-FR", 5, beam0, col0),
+        "Two Member Frame (Pin / Pin) (2 cases)": make_frame_cases("2M-PP", 2, beam0, col0),
+        "Two Member Frame (Fixed / Fixed) (2 cases)": make_frame_cases("2M-FF", 2, beam0, col0),
+        "Two Member Frame (Fixed / Pin) (4 cases)": make_frame_cases("2M-FP", 4, beam0, col0),
+        # You wrote "( cases)" with no number; using 1 placeholder so the UI exists.
+        "Two Member Frame (Fixed / Free) (1 case)": make_frame_cases("2M-FR", 1, beam0, col0),
     }
 
-    case_name = st.selectbox("Frame case", list(FRAME_CASES.keys()), key="frame_case_sel")
+    # -----------------------------
+    # UI
+    # -----------------------------
+    cat = st.selectbox("Frame catalog", list(FRAME_CATALOG.keys()), key="frame_cat_sel")
+    cases = FRAME_CATALOG.get(cat, [])
+    if not cases:
+        st.info("No cases in this catalog yet.")
+        return
+
+    # show stable labels with keys (helps when you start sending images)
+    case_labels = [f"{c['label']}  —  {c['key']}" for c in cases]
+    idx = st.selectbox("Case", list(range(len(cases))), format_func=lambda i: case_labels[i], key="frame_case_sel_idx")
+    case = cases[int(idx)]
+
+    # Optional: show image (when you add them)
+    if case.get("img_path"):
+        try:
+            p = Path(case["img_path"])
+            if p.exists():
+                st.image(str(p), use_container_width=True)
+        except Exception:
+            pass
+    else:
+        st.caption("Case image: (not added yet)")
+
     if st.button("Apply case", key="btn_apply_frame_case"):
-        _apply_ready_frame_case(FRAME_CASES[case_name])
+        _apply_ready_frame_case(case)
         # Invalidate previous results
         for k in ["beam_df_rows","beam_overall_ok","beam_governing","beam_extras",
                   "col_df_rows","col_overall_ok","col_governing","col_extras"]:
