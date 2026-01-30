@@ -2591,7 +2591,7 @@ READY_CATALOG["Beam"]["Continuous Beams — Three Spans / Four Supports (1 case)
 
 READY_CATALOG["Beam"]["Continuous Beams — Four Spans / Five Supports (1 case)"][0]["label"] = "CS4 - C1 (4 spans UDL)"
 READY_CATALOG["Beam"]["Continuous Beams — Four Spans / Five Supports (1 case)"][0]["inputs"] = {
-    "L": 6000,
+    "L_mm": 6000,
     "w1": 10.0,
     "w2": 10.0,
     "w3": 10.0,
@@ -7270,6 +7270,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
