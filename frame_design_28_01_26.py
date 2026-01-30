@@ -7199,11 +7199,44 @@ def _apply_ready_frame_case(case: dict):
 
 
 def _render_ready_frame_cases():
-    st.markdown("### Ready frame cases")
+    st.markdown("### Ready frame cases — Gallery")
     st.caption(
-        "Pick a catalog + case to prefill **both** beam and column forces. "
-        "Then you can tweak any value below."
+        "Pick a frame catalog, then choose a case from the preview cards. "
+        "Selecting a case will reveal its parameters; you can still edit loads afterwards."
     )
+
+    # -----------------------------
+    # Placeholder preview images (until you provide real case images)
+    # -----------------------------
+    @st.cache_data(show_spinner=False)
+    def _placeholder_png(label: str, w: int = 900, h: int = 260):
+        """Return a simple in-memory PNG (bytes) used as a case thumbnail."""
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+        except Exception:
+            return None
+
+        img = Image.new("RGB", (int(w), int(h)), (245, 248, 252))
+        d = ImageDraw.Draw(img)
+        # border
+        d.rounded_rectangle([(8, 8), (w - 8, h - 8)], radius=18, outline=(170, 190, 220), width=3)
+        # top bar
+        d.rounded_rectangle([(18, 18), (w - 18, 70)], radius=14, fill=(230, 238, 250), outline=None)
+        # text
+        try:
+            font_big = ImageFont.truetype("DejaVuSans.ttf", 34)
+            font_small = ImageFont.truetype("DejaVuSans.ttf", 22)
+        except Exception:
+            font_big = None
+            font_small = None
+        d.text((34, 28), "FRAME CASE", fill=(40, 60, 90), font=font_small)
+        d.text((34, 100), label, fill=(20, 40, 70), font=font_big)
+        d.text((34, 170), "(placeholder image — you will add the real diagram later)", fill=(80, 95, 120), font=font_small)
+
+        import io
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
 
     # -----------------------------
     # Helper: build placeholder cases (you'll replace loads later when we add equations)
@@ -7243,29 +7276,65 @@ def _render_ready_frame_cases():
     }
 
     # -----------------------------
-    # UI
+    # UI (beam-tool-like gallery)
     # -----------------------------
-    cat = st.selectbox("Frame catalog", list(FRAME_CATALOG.keys()), key="frame_cat_sel")
+    st.markdown("#### Step 1 — Frame catalog")
+    cat = st.selectbox("", list(FRAME_CATALOG.keys()), key="frame_cat_sel")
     cases = FRAME_CATALOG.get(cat, [])
     if not cases:
         st.info("No cases in this catalog yet.")
         return
 
-    # show stable labels with keys (helps when you start sending images)
-    case_labels = [f"{c['label']}  —  {c['key']}" for c in cases]
-    idx = st.selectbox("Case", list(range(len(cases))), format_func=lambda i: case_labels[i], key="frame_case_sel_idx")
-    case = cases[int(idx)]
+    st.markdown("#### Step 2 — Choose a case")
 
-    # Optional: show image (when you add them)
-    if case.get("img_path"):
-        try:
-            p = Path(case["img_path"])
-            if p.exists():
-                st.image(str(p), use_container_width=True)
-        except Exception:
-            pass
-    else:
-        st.caption("Case image: (not added yet)")
+    # Keep selection stable across reruns
+    sel_key = st.session_state.get("frame_case_key", None)
+    if sel_key not in {c["key"] for c in cases}:
+        sel_key = None
+        st.session_state["frame_case_key"] = None
+
+    # Render cards (5 per row like the beam tool)
+    max_cols = 5
+    for r0 in range(0, len(cases), max_cols):
+        row = cases[r0:r0 + max_cols]
+        cols = st.columns(len(row))
+        for c, col in zip(row, cols):
+            with col:
+                # image: real if available; else placeholder
+                if c.get("img_path"):
+                    try:
+                        p = Path(c["img_path"])
+                        if p.exists():
+                            st.image(str(p), use_container_width=True)
+                        else:
+                            st.image(_placeholder_png(f"{c['key']}"), use_container_width=True)
+                    except Exception:
+                        st.image(_placeholder_png(f"{c['key']}"), use_container_width=True)
+                else:
+                    st.image(_placeholder_png(f"{c['key']}"), use_container_width=True)
+
+                # caption
+                st.caption(f"{cat.split('(')[0].strip()} — {c['key']}")
+
+                # select button
+                btn_label = "Selected" if (sel_key == c["key"]) else "Select"
+                if st.button(btn_label, key=f"btn_sel_{c['key']}"):
+                    st.session_state["frame_case_key"] = c["key"]
+                    sel_key = c["key"]
+
+    st.markdown("---")
+
+    if not sel_key:
+        st.info("Select a case above to see parameters and diagrams.")
+        return
+
+    case = next((x for x in cases if x["key"] == sel_key), None)
+    if not case:
+        st.info("Select a case above to see parameters and diagrams.")
+        return
+
+    st.markdown(f"### Selected case: {case['key']}")
+    st.caption("This will prefill both Beam and Column load inputs (placeholders for now).")
 
     if st.button("Apply case", key="btn_apply_frame_case"):
         _apply_ready_frame_case(case)
