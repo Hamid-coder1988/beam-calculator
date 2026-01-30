@@ -7136,7 +7136,7 @@ def _render_member_load_form(member_prefix: str, title: str, family_for_torsion:
         st.number_input("Mz (kN·m)", value=float(st.session_state.get(f"{member_prefix}Mz_in", 0.0)), step=1.0, disabled=dis, key=f"{member_prefix}Mz_in")
 
     torsion_ok = supports_torsion_and_warping(family_for_torsion or "")
-    if torsion_ok:
+    if torsion_ok and member_prefix != "col_":
         st.number_input("Tx (kN·m)", value=float(st.session_state.get(f"{member_prefix}Tx_in", 0.0)), step=0.5, disabled=dis, key=f"{member_prefix}Tx_in")
     else:
         # Keep key consistent even if hidden (so state doesn’t crash downstream)
@@ -7163,7 +7163,7 @@ def _store_design_forces_from_state_member(member_prefix: str, inputs_key: str):
     Vz_kN = float(st.session_state.get(f"{member_prefix}Vz_in", 0.0))
     My_kNm = float(st.session_state.get(f"{member_prefix}My_in", 0.0))
     Mz_kNm = float(st.session_state.get(f"{member_prefix}Mz_in", 0.0))
-    Tx_kNm = float(st.session_state.get(f"{member_prefix}Tx_in", 0.0))
+    Tx_kNm = 0.0 if member_prefix == "col_" else float(st.session_state.get(f"{member_prefix}Tx_in", 0.0))
 
     K_y  = float(st.session_state.get(f"{member_prefix}Ky_in", 1.0))
     K_z  = float(st.session_state.get(f"{member_prefix}Kz_in", 1.0))
