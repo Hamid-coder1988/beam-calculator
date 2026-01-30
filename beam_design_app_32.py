@@ -2149,110 +2149,89 @@ def cs2_c4_diagram(L, a, F, E=None, I=None, n=1401):
 
 
 
-def cs3_c1_case(L, w1, w2, w3):
-    x, V, M, _ = cs3_c1_diagram(L, w1, w2, w3, E=None, I=None, n=1601)
+def cs3_c1_case(L_mm, w1, w2, w3):
+    x, V, M, _ = cs3_c1_diagram(L_mm, w1, w2, w3, E=None, I=None, n=1601)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
     return (0.0, Mmax, 0.0, Vmax, 0.0)
 
-
-def cs3_c1_diagram(L, w1, w2, w3, E=None, I=None, n=1601):
+def cs3_c1_diagram(L_mm, w1, w2, w3, E=None, I=None, n=1601):
     """
     Continuous beam: 3 equal spans (L each), 4 simple supports at x=0, L, 2L, 3L
     UDLs: w1 on span 1, w2 on span 2, w3 on span 3  (kN/m)
+    Inputs:
+      L_mm in mm (NOT meters)
 
-    Unknown internal support moments: M1 at x=L, M2 at x=2L
-    End moments at x=0 and x=3L are zero.
+    Internal support moments (at x=L and x=2L) from Clapeyron three-moment (equal spans):
+      4*M1 + 1*M2 = -(w1 + w2) * L^2 / 4
+      1*M1 + 4*M2 = -(w2 + w3) * L^2 / 4
 
-    Returns: x (m), V (kN), M (kN·m), delta (m or None)
+    This gives, for w1=w2=w3=w:
+      M1 = M2 = -0.100 w L^2   (matches your reference diagram)
+      R1=R4=0.400 wL and R2=R3=1.10 wL
     """
-    L = float(L)
+    L = float(L_mm) / 1000.0  # m
     L = max(1e-9, L)
+
     w1 = float(w1); w2 = float(w2); w3 = float(w3)
 
-    # ---- Solve for internal support moments using slope-deflection / three-moment equivalent ----
-    # For equal spans and prismatic beam with UDL on a span:
-    # Fixed-end moments for UDL on span i: FEM_left = -wL^2/12, FEM_right = +wL^2/12 (sign conv)
-    # We use standard continuous-beam equations at internal joints:
-    #
-    # Joint at x=L:   4*M1 + 1*M2 = - (FEM_right(span1) + FEM_left(span2))*2
-    # Joint at x=2L:  1*M1 + 4*M2 = - (FEM_right(span2) + FEM_left(span3))*2
-    #
-    # This is a compact form of the slope-deflection joint equilibrium for equal spans with far ends pinned.
-    #
-    # FEM_right(span i) = + w_i*L^2/12
-    # FEM_left (span i) = - w_i*L^2/12
-    #
-    # So:
-    # RHS1 = -2*( +w1 L^2/12  + (-w2 L^2/12) ) = - (w1 - w2) * L^2/6
-    # RHS2 = -2*( +w2 L^2/12  + (-w3 L^2/12) ) = - (w2 - w3) * L^2/6
-    rhs1 = - (w1 - w2) * (L**2) / 6.0
-    rhs2 = - (w2 - w3) * (L**2) / 6.0
+    # ---- 1) Solve internal moments M1 (at x=L), M2 (at x=2L) ----
+    rhs1 = - (w1 + w2) * (L**2) / 4.0
+    rhs2 = - (w2 + w3) * (L**2) / 4.0
 
     A = np.array([[4.0, 1.0],
                   [1.0, 4.0]], dtype=float)
-    b = np.array([rhs1, rhs2], dtype=float)
 
-    M1, M2 = np.linalg.solve(A, b)  # moments at x=L and x=2L (kN·m)
+    M1, M2 = np.linalg.solve(A, np.array([rhs1, rhs2], dtype=float))  # kN·m
 
-    # End moments at outer supports (pinned)
-    M0 = 0.0
-    M3 = 0.0
+    # ---- 2) Reactions (kN) using span end-moment equilibrium ----
+    # Span 1 (0..L): end moments M(0)=0, M(L)=M1
+    R1 = w1 * L / 2.0 + (M1 / L)
 
-    # ---- Reactions per span from end moments ----
-    # For span with UDL w and end moments Ma (left), Mb (right):
-    # Shear at left end:  Ra = wL/2 + (Mb - Ma)/L
-    # Shear at right end: Rb = wL - Ra
-    def span_end_reactions(w, Ma, Mb):
-        Ra = w * L / 2.0 + (Mb - Ma) / L
-        Rb = w * L - Ra
-        return Ra, Rb
+    # Span 2 (L..2L): end moments M(L)=M1, M(2L)=M2
+    R2_left = w2 * L / 2.0 + (M2 - M1) / L
 
-    # span 1: 0..L
-    R0_1, R1_1 = span_end_reactions(w1, M0, M1)
-    # span 2: L..2L
-    R1_2, R2_2 = span_end_reactions(w2, M1, M2)
-    # span 3: 2L..3L
-    R2_3, R3_3 = span_end_reactions(w3, M2, M3)
+    # Span 3 (2L..3L): end moments M(2L)=M2, M(3L)=0
+    R3_left = w3 * L / 2.0 - (M2 / L)
 
-    # total support reactions (sum contributions from adjacent spans)
-    R1 = R0_1
-    R2 = R1_1 + R1_2
-    R3 = R2_2 + R2_3
-    R4 = R3_3
+    # Support reactions
+    R2 = (w1 * L - R1) + R2_left
+    R3 = (w2 * L - R2_left) + R3_left
+    R4 = (w3 * L - R3_left)
 
-    # ---- Build diagrams along x ----
-    Ltot = 3.0 * L
-    x = np.linspace(0.0, Ltot, n)
-
+    # ---- 3) Build V(x), M(x) piecewise along total length 0..3L ----
+    x = np.linspace(0.0, 3.0 * L, n)
     V = np.zeros_like(x, dtype=float)
     M = np.zeros_like(x, dtype=float)
 
     # Span 1
-    m1 = (x <= L)
+    m1 = (x <= 1.0 * L)
     xx = x[m1]
     V[m1] = R1 - w1 * xx
-    M[m1] = M0 + R1 * xx - (w1 * xx**2) / 2.0
+    M[m1] = R1 * xx - (w1 * xx**2) / 2.0
 
     # Span 2
-    m2 = (x > L) & (x <= 2.0 * L)
-    xx = x[m2] - L
-    V[m2] = (R2) - w2 * xx  # shear just to the right of support 2 includes R2
-    M[m2] = M1 + R2 * xx - (w2 * xx**2) / 2.0
+    m2 = (x > 1.0 * L) & (x <= 2.0 * L)
+    xx = x[m2] - 1.0 * L
+    V[m2] = R2_left - w2 * xx
+    M[m2] = M1 + R2_left * xx - (w2 * xx**2) / 2.0
 
     # Span 3
     m3 = (x > 2.0 * L)
     xx = x[m3] - 2.0 * L
-    V[m3] = (R3) - w3 * xx
-    M[m3] = M2 + R3 * xx - (w3 * xx**2) / 2.0
+    V[m3] = R3_left - w3 * xx
+    M[m3] = M2 + R3_left * xx - (w3 * xx**2) / 2.0
 
-    # ---- Deflection (optional) ----
+    # ---- 4) Deflection (optional FE helper if you have it) ----
     delta = None
     if E and I and I > 0:
-        # If you already have a 3-span FE helper, use it here.
-        # Otherwise, set delta=None and the app will still show max deflection only where available.
         if "_beam3span_delta_fe" in globals():
-            xs, vs = _beam3span_delta_fe(L, L, L, E, I, w1_Nm=w1*1000.0, w2_Nm=w2*1000.0, w3_Nm=w3*1000.0)
+            xs, vs = _beam3span_delta_fe(
+                L, L, L, E, I,
+                w1_Nm=w1 * 1000.0,
+                w2_Nm=w2 * 1000.0,
+                w3_Nm=w3 * 1000.0
+            )
             delta = np.interp(x, xs, vs)
 
     return x, V, M, delta
@@ -7291,6 +7270,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
