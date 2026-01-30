@@ -7199,44 +7199,11 @@ def _apply_ready_frame_case(case: dict):
 
 
 def _render_ready_frame_cases():
-    st.markdown("### Ready frame cases — Gallery")
+    st.markdown("### Ready frame cases")
     st.caption(
-        "Pick a frame catalog, then choose a case from the preview cards. "
-        "Selecting a case will reveal its parameters; you can still edit loads afterwards."
+        "Pick a catalog + case to prefill **both** beam and column forces. "
+        "Then you can tweak any value below."
     )
-
-    # -----------------------------
-    # Placeholder preview images (until you provide real case images)
-    # -----------------------------
-    @st.cache_data(show_spinner=False)
-    def _placeholder_png(label: str, w: int = 900, h: int = 260):
-        """Return a simple in-memory PNG (bytes) used as a case thumbnail."""
-        try:
-            from PIL import Image, ImageDraw, ImageFont
-        except Exception:
-            return None
-
-        img = Image.new("RGB", (int(w), int(h)), (245, 248, 252))
-        d = ImageDraw.Draw(img)
-        # border
-        d.rounded_rectangle([(8, 8), (w - 8, h - 8)], radius=18, outline=(170, 190, 220), width=3)
-        # top bar
-        d.rounded_rectangle([(18, 18), (w - 18, 70)], radius=14, fill=(230, 238, 250), outline=None)
-        # text
-        try:
-            font_big = ImageFont.truetype("DejaVuSans.ttf", 34)
-            font_small = ImageFont.truetype("DejaVuSans.ttf", 22)
-        except Exception:
-            font_big = None
-            font_small = None
-        d.text((34, 28), "FRAME CASE", fill=(40, 60, 90), font=font_small)
-        d.text((34, 100), label, fill=(20, 40, 70), font=font_big)
-        d.text((34, 170), "(placeholder image — you will add the real diagram later)", fill=(80, 95, 120), font=font_small)
-
-        import io
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        return buf.getvalue()
 
     # -----------------------------
     # Helper: build placeholder cases (you'll replace loads later when we add equations)
@@ -7276,65 +7243,84 @@ def _render_ready_frame_cases():
     }
 
     # -----------------------------
-    # UI (beam-tool-like gallery)
+    # UI (same look & feel as Beam gallery)
     # -----------------------------
-    st.markdown("#### Step 1 — Frame catalog")
-    cat = st.selectbox("", list(FRAME_CATALOG.keys()), key="frame_cat_sel")
+    cat = st.selectbox("Step 1 — Frame catalog", list(FRAME_CATALOG.keys()), key="frame_cat_sel")
     cases = FRAME_CATALOG.get(cat, [])
     if not cases:
         st.info("No cases in this catalog yet.")
         return
 
-    st.markdown("#### Step 2 — Choose a case")
-
-    # Keep selection stable across reruns
-    sel_key = st.session_state.get("frame_case_key", None)
-    if sel_key not in {c["key"] for c in cases}:
-        sel_key = None
+    # Reset selection when catalog changes
+    last_cat = st.session_state.get("_frame_last_cat")
+    if last_cat != cat:
         st.session_state["frame_case_key"] = None
+        st.session_state["_frame_last_cat"] = cat
 
-    # Render cards (5 per row like the beam tool)
-    max_cols = 5
-    for r0 in range(0, len(cases), max_cols):
-        row = cases[r0:r0 + max_cols]
-        cols = st.columns(len(row))
-        for c, col in zip(row, cols):
-            with col:
-                # image: real if available; else placeholder
-                if c.get("img_path"):
+    st.markdown("### Step 2 — Choose a case")
+
+    clicked = None
+    n_per_row = 5
+    for start in range(0, len(cases), n_per_row):
+        row_cases = cases[start:start + n_per_row]
+        cols = st.columns(n_per_row)
+
+        for j in range(n_per_row):
+            with cols[j]:
+                if j >= len(row_cases):
+                    st.write("")
+                    continue
+
+                case = row_cases[j]
+
+                # fixed-size preview tile
+                if case.get("img_path"):
                     try:
-                        p = Path(c["img_path"])
+                        p = Path(case["img_path"])
                         if p.exists():
                             st.image(str(p), use_container_width=True)
                         else:
-                            st.image(_placeholder_png(f"{c['key']}"), use_container_width=True)
+                            raise FileNotFoundError
                     except Exception:
-                        st.image(_placeholder_png(f"{c['key']}"), use_container_width=True)
+                        st.markdown(
+                            "<div style='height:110px;border:1px dashed #bbb;"
+                            "border-radius:10px;display:flex;align-items:center;"
+                            "justify-content:center;color:#888;font-size:12px;"
+                            "background:rgba(0,0,0,0.02);'>(image missing)</div>",
+                            unsafe_allow_html=True
+                        )
                 else:
-                    st.image(_placeholder_png(f"{c['key']}"), use_container_width=True)
+                    st.markdown(
+                        "<div style='height:110px;border:1px dashed #bbb;"
+                        "border-radius:10px;display:flex;align-items:center;"
+                        "justify-content:center;color:#888;font-size:12px;"
+                        "background:rgba(0,0,0,0.02);'>(placeholder image)</div>",
+                        unsafe_allow_html=True
+                    )
 
-                # caption
-                st.caption(f"{cat.split('(')[0].strip()} — {c['key']}")
+                # Title like your screenshot: group + key
+                st.caption(f"{cat.split('(')[0].strip()} — {case['key']}")
 
-                # select button
-                btn_label = "Selected" if (sel_key == c["key"]) else "Select"
-                if st.button(btn_label, key=f"btn_sel_{c['key']}"):
-                    st.session_state["frame_case_key"] = c["key"]
-                    sel_key = c["key"]
+                if st.button("Select", key=f"frame_select_{cat}_{case['key']}"):
+                    clicked = case["key"]
 
-    st.markdown("---")
+    if clicked:
+        st.session_state["frame_case_key"] = clicked
 
-    if not sel_key:
-        st.info("Select a case above to see parameters and diagrams.")
+    case_key = st.session_state.get("frame_case_key")
+    if not case_key:
+        st.info("Select a case above to see parameters and then apply it.")
         return
 
-    case = next((x for x in cases if x["key"] == sel_key), None)
-    if not case:
-        st.info("Select a case above to see parameters and diagrams.")
+    # Validate key still in current catalog
+    keyset = {c["key"] for c in cases}
+    if case_key not in keyset:
+        st.session_state["frame_case_key"] = None
+        st.info("Selected case was from another catalog. Pick again.")
         return
 
-    st.markdown(f"### Selected case: {case['key']}")
-    st.caption("This will prefill both Beam and Column load inputs (placeholders for now).")
+    case = next(c for c in cases if c["key"] == case_key)
+    st.markdown(f"**Selected:** {case['key']} — {case['label']}")
 
     if st.button("Apply case", key="btn_apply_frame_case"):
         _apply_ready_frame_case(case)
