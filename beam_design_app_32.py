@@ -2236,7 +2236,7 @@ def cs3_c1_diagram(L_mm, w1, w2, w3, E=None, I=None, n=1601):
 
     return x, V, M, delta
 
-def cs4_c1_case(L, w1, w2, w3, w4):
+def cs4_c1_case(L_mm, w1, w2, w3, w4):
     x, V, M, _ = cs4_c1_diagram(L, w1, w2, w3, w4, E=None, I=None, n=2001)
     Vmax = float(np.nanmax(np.abs(V))) if V is not None else 0.0
     Mmax = float(np.nanmax(np.abs(M))) if M is not None else 0.0
@@ -2254,20 +2254,21 @@ def cs4_c1_diagram(L, w1, w2, w3, w4, E=None, I=None, n=2001):
 
     Returns: x (m), V (kN), M (kN·m), delta (m or None)
     """
-    L = float(L)
+    L = float(L) / 1000.0
     L = max(1e-9, L)
     w1 = float(w1); w2 = float(w2); w3 = float(w3); w4 = float(w4)
 
     # -----------------------------
     # 1) Solve internal moments M1,M2,M3
     # -----------------------------
-    # Same compact joint-equilibrium form used in CS3 (equal spans, pinned outer ends):
-    #   4*M1 + 1*M2       = -(w1 - w2) * L^2 / 6
-    #   1*M1 + 4*M2 + 1*M3 = -(w2 - w3) * L^2 / 6
-    #         1*M2 + 4*M3  = -(w3 - w4) * L^2 / 6
-    rhs1 = - (w1 - w2) * (L**2) / 6.0
-    rhs2 = - (w2 - w3) * (L**2) / 6.0
-    rhs3 = - (w3 - w4) * (L**2) / 6.0
+    # Correct 3-moment form for 4 equal spans, pinned at both ends:
+    #   4*M1 + 1*M2       = -(w1 + w2) * L^2 / 4
+    #   1*M1 + 4*M2 + 1*M3 = -(w2 + w3) * L^2 / 4
+    #         1*M2 + 4*M3  = -(w3 + w4) * L^2 / 4
+    rhs1 = - (w1 + w2) * (L**2) / 4.0
+    rhs2 = - (w2 + w3) * (L**2) / 4.0
+    rhs3 = - (w3 + w4) * (L**2) / 4.0
+
 
     A = np.array([
         [4.0, 1.0, 0.0],
@@ -2399,7 +2400,7 @@ READY_CATALOG = {
 
         # Category 8: 1 case
         "Continuous Beams — Four Spans / Five Supports (1 case)": make_cases(
-            "CS4", 1, {"L1": 2000.0, "L2": 2000.0, "L3": 2000.0, "L4": 2000.0, "w": 10.0}
+            "CS4", 1, {"L_mm": 6000.0, "w1": 10.0, "w2": 10.0, "w3": 10.0, "w4": 10.0}
         ),
     }
 }
@@ -7270,6 +7271,7 @@ with tab4:
             st.error(f"Computation error: {e}")
 with tab5:
     render_report_tab()
+
 
 
 
