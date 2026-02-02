@@ -7254,6 +7254,27 @@ def _render_ready_frame_cases():
     col0  = {"L_mm_in": 4000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0, "Tx_in": 0.0,
              "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0}
 
+    beam_defaults = {
+        "L_mm": 6000.0,
+        "N_kN": 0.0,
+        "Vy_kN": 0.0,
+        "Vz_kN": 0.0,
+        "My_kNm": 0.0,
+        "Mz_kNm": 0.0,
+        "Tx_kNm": 0.0,
+    }
+    
+    col_defaults = {
+        "L_mm": 3000.0,
+        "N_kN": 0.0,
+        "Vy_kN": 0.0,
+        "Vz_kN": 0.0,
+        "My_kNm": 0.0,
+        "Mz_kNm": 0.0,
+        "Tx_kNm": 0.0,   # (you already hide Tx in UI for column; leaving it here avoids key errors)
+    }
+
+
     FRAME_CATALOG = {
         "Three Member Frames (Pin / Roller) (8 cases)": make_frame_cases("TM-PR", 8, beam0, col0),
         "Three Member Frames (Pin / Pin) (5 cases)": make_frame_cases("TM-PP", 5, beam0, col0),
