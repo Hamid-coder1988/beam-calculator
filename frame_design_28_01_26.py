@@ -57,7 +57,6 @@ def get_material_props(grade: str):
 # - N is assumed POSITIVE in compression (Eurocode convention).
 #   If your app uses compression negative, flip N once where marked.
 # =========================================================
-
 import math
 
 def ec3_epsilon(fy_MPa: float) -> float:
@@ -7221,10 +7220,13 @@ def _render_ready_frame_cases():
     def make_frame_cases(prefix: str, n: int, beam_defaults: dict, col_defaults: dict):
         out = []
         for i in range(1, int(n) + 1):
+            key = f"{prefix}-{i:02d}"
             out.append({
-                "key": f"{prefix}-{i:02d}",
+                "key": key,
                 "label": f"Case {i}",
-                "img_path": None,  # you will attach images later
+                # IMPORTANT: image file name must match the key
+                # Example: assets/frame_cases/TM-PR-01.png
+                "img_path": f"assets/frame_cases/{key}.png",
                 "beam": beam_defaults.copy(),
                 "col":  col_defaults.copy(),
             })
@@ -7285,13 +7287,8 @@ def _render_ready_frame_cases():
 
                 # fixed-size preview tile
                 if case.get("img_path"):
-                    try:
-                        p = Path(case["img_path"])
-                        if p.exists():
-                            st.image(str(p), use_container_width=True)
-                        else:
-                            raise FileNotFoundError
-                    except Exception:
+                    shown = safe_image(case["img_path"], use_container_width=True)
+                    if not shown:
                         st.markdown(
                             "<div style='height:110px;border:1px dashed #bbb;"
                             "border-radius:10px;display:flex;align-items:center;"
@@ -7299,6 +7296,15 @@ def _render_ready_frame_cases():
                             "background:rgba(0,0,0,0.02);'>(image missing)</div>",
                             unsafe_allow_html=True
                         )
+                else:
+                    st.markdown(
+                        "<div style='height:110px;border:1px dashed #bbb;"
+                        "border-radius:10px;display:flex;align-items:center;"
+                        "justify-content:center;color:#888;font-size:12px;"
+                        "background:rgba(0,0,0,0.02);'>(placeholder image)</div>",
+                        unsafe_allow_html=True
+                    )
+
                 else:
                     st.markdown(
                         "<div style='height:110px;border:1px dashed #bbb;"
