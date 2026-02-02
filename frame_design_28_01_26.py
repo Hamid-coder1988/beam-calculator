@@ -7316,16 +7316,7 @@ def _render_ready_frame_cases():
                         "background:rgba(0,0,0,0.02);'>(placeholder image)</div>",
                         unsafe_allow_html=True
                     )
-
-                else:
-                    st.markdown(
-                        "<div style='height:110px;border:1px dashed #bbb;"
-                        "border-radius:10px;display:flex;align-items:center;"
-                        "justify-content:center;color:#888;font-size:12px;"
-                        "background:rgba(0,0,0,0.02);'>(placeholder image)</div>",
-                        unsafe_allow_html=True
-                    )
-
+                )
                 # Title like your screenshot: group + key
                 st.caption(f"{cat.split('(')[0].strip()} — {case['key']}")
 
