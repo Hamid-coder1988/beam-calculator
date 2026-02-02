@@ -7280,9 +7280,9 @@ def _render_ready_frame_cases():
         "Three Member Frames (Pin / Pin) (5 cases)": make_frame_cases("TM-PP", 5, beam0, col0),
         "Three Member Frames (Fixed / Fixed) (3 cases)": make_frame_cases("TM-FF", 3, beam0, col0),
         "Three Member Frames (Fixed / Free) (5 cases)": make_frame_cases("TM-FR", 5, beam0, col0),
-        "Two Member Frame (Pin / Pin) (2 cases)": make_frame_cases("2M-PP", 2, beam0, col0),
-        "Two Member Frame (Fixed / Fixed) (2 cases)": make_frame_cases("2M-FF", 2, beam0, col0),
-        "Two Member Frame (Fixed / Pin) (4 cases)": make_frame_cases("2M-FP", 4, beam0, col0),
+        "Two Member Frame (Pin / Pin) (2 cases)": make_frame_cases("DM-PP", 2, beam0, col0),
+        "Two Member Frame (Fixed / Fixed) (2 cases)": make_frame_cases("DM-FF", 2, beam0, col0),
+        "Two Member Frame (Fixed / Pin) (4 cases)": make_frame_cases("DM-FP", 4, beam0, col0),
         # You wrote "( cases)" with no number; using 1 placeholder so the UI exists.
         "Two Member Frame (Fixed / Free) (4 cases)": make_frame_cases("DM-FR", 4, beam_defaults, col_defaults),
     }
