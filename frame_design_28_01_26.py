@@ -7066,48 +7066,60 @@ def _render_member_section_panel(member_prefix: str, title: str):
     # Store to session (member-specific)
     st.session_state[f"{member_prefix}material"] = material
 
-    if selected_row is not None:
-        sr_display, bad_fields = build_section_display(selected_row)
-        st.session_state[f"{member_prefix}sr_display"] = sr_display
-
-        prefix_id = f"{member_prefix}{family}_{selected_name}".replace(" ", "_")
-
-        render_section_summary_like_props(
-            material,
-            sr_display,
-            key_prefix=f"sum_{prefix_id}"
-        )
-
-        
-        st.markdown("### Bending axis in frame plane")
-        st.selectbox(
-            "Use bending about",
-            ["Strong axis (yy)", "Weak axis (zz)"],
-            index=0 if str(st.session_state.get(f"{member_prefix}bend_axis_sel", "Strong axis (yy)")).lower().startswith("strong") else 1,
-            key=f"{member_prefix}bend_axis_sel",
-            help="Strong axis = yy (default, higher stiffness). Weak axis = zz."
-        )
-
-st.markdown("### Cross-section preview")
-        img_path = get_section_image(sr_display.get("family", ""))
-        _l, _m, _r = st.columns([0.45, 1.1, 0.45])
-        with _m:
-            if img_path and Path(img_path).exists():
-                st.image(img_path, use_container_width=True)
-            else:
-                render_section_preview_placeholder(
-                    title=f"{sr_display.get('family','')} {sr_display.get('name','')}",
-                    key_prefix=f"prev_{prefix_id}"
-                )
-
-        with st.expander("Section properties", expanded=False):
-            render_section_properties_readonly(
-                sr_display,
-                key_prefix=f"db_{prefix_id}"
-            )
-    else:
+    if selected_row is None:
         st.info("Select a section to continue.")
+        return
 
+    # Build display struct
+    sr_display, bad_fields = build_section_display(selected_row)
+    st.session_state[f"{member_prefix}sr_display"] = sr_display
+
+    prefix_id = f"{member_prefix}{family}_{selected_name}".replace(" ", "_")
+
+    # Summary (same as beam app)
+    render_section_summary_like_props(
+        material,
+        sr_display,
+        key_prefix=f"sum_{prefix_id}"
+    )
+
+    # -----------------------------
+    # Axis selection (Option A)
+    # -----------------------------
+    st.markdown("### Bending axis in frame plane")
+    default_val = st.session_state.get(f"{member_prefix}bend_axis_sel", "Strong axis (yy)")
+    idx = 0 if str(default_val).lower().startswith("strong") else 1
+    st.selectbox(
+        "Use bending about",
+        ["Strong axis (yy)", "Weak axis (zz)"],
+        index=idx,
+        key=f"{member_prefix}bend_axis_sel",
+        help="Strong axis = yy (default, higher stiffness). Weak axis = zz."
+    )
+
+    # -----------------------------
+    # Cross-section preview
+    # -----------------------------
+    st.markdown("### Cross-section preview")
+    img_path = get_section_image(sr_display.get("family", ""))
+    _l, _m, _r = st.columns([0.45, 1.1, 0.45])
+    with _m:
+        if img_path and Path(img_path).exists():
+            st.image(img_path, use_container_width=True)
+        else:
+            render_section_preview_placeholder(
+                title=f"{sr_display.get('family','')} {sr_display.get('name','')}",
+                key_prefix=f"prev_{prefix_id}"
+            )
+
+    # -----------------------------
+    # Properties table (readonly)
+    # -----------------------------
+    with st.expander("Section properties", expanded=False):
+        render_section_properties_readonly(
+            sr_display,
+            key_prefix=f"db_{prefix_id}"
+        )
 
 def _render_design_settings():
     """Design factors shared for both members (same as your beam app intent)."""
