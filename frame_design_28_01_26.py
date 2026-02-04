@@ -7122,20 +7122,74 @@ def _render_member_section_panel(member_prefix: str, title: str):
         )
 
 def _render_design_settings():
-    """Design factors shared for both members (same as your beam app intent)."""
-    st.markdown("### Design settings")
-    c1, c2, c3 = st.columns([1, 1, 1])
-    with c1:
-        st.number_input("γF (load factor)", min_value=1.0, value=float(st.session_state.get("gamma_F", 1.50)), step=0.05, key="gamma_F")
-    with c2:
-        st.selectbox(
-            "Loads entered as",
-            ["Characteristic (will be multiplied by γF)", "Design (already factored)"],
-            index=0 if str(st.session_state.get("manual_forces_type", "Characteristic")).startswith("Characteristic") else 1,
-            key="manual_forces_type",
+    """
+    Beam-app style Design settings (ULS) box.
+    - γF radio: 1.35 / 1.50 / Custom
+    - Manual internal forces: Characteristic vs Design values
+    Stores:
+      st.session_state["gamma_F"]
+      st.session_state["manual_forces_type"]
+    """
+    # Defaults
+    if "gamma_F" not in st.session_state:
+        st.session_state["gamma_F"] = 1.35
+    if "manual_forces_type" not in st.session_state:
+        st.session_state["manual_forces_type"] = "Characteristic"
+
+    with st.expander("Design settings (ULS)", expanded=True):
+        st.markdown("##### Load factor γ_F")
+
+        # Decide which option is currently active
+        g = float(st.session_state.get("gamma_F", 1.35))
+        if abs(g - 1.35) < 1e-6:
+            gamma_choice = "1.35 (static)"
+        elif abs(g - 1.50) < 1e-6:
+            gamma_choice = "1.50 (dynamic)"
+        else:
+            gamma_choice = "Custom"
+
+        gamma_choice = st.radio(
+            "Load factor γ_F",
+            ["1.35 (static)", "1.50 (dynamic)", "Custom"],
+            index=["1.35 (static)", "1.50 (dynamic)", "Custom"].index(gamma_choice),
+            key="gammaF_choice_ui",
+            label_visibility="collapsed",
         )
-    with c3:
-        st.caption("These settings apply to both beam and column in this frame app.")
+
+        if gamma_choice.startswith("1.35"):
+            st.session_state["gamma_F"] = 1.35
+        elif gamma_choice.startswith("1.50"):
+            st.session_state["gamma_F"] = 1.50
+        else:
+            st.session_state["gamma_F"] = st.number_input(
+                "Custom γ_F",
+                min_value=1.0,
+                value=float(st.session_state.get("gamma_F", 1.35)),
+                step=0.05,
+                key="gammaF_custom_ui",
+            )
+
+        st.markdown("##### Manual internal forces are")
+
+        mf = st.session_state.get("manual_forces_type", "Characteristic")
+        # Normalize (just in case old string exists)
+        if str(mf).lower().startswith("design"):
+            mf_idx = 1
+        else:
+            mf_idx = 0
+
+        manual_choice = st.radio(
+            "Manual internal forces are",
+            ["Characteristic", "Design values (N_Ed, M_Ed, ...)"],
+            index=mf_idx,
+            key="manual_forces_ui",
+            label_visibility="collapsed",
+        )
+
+        if manual_choice.startswith("Characteristic"):
+            st.session_state["manual_forces_type"] = "Characteristic"
+        else:
+            st.session_state["manual_forces_type"] = "Design"
 
 
 def _render_member_load_form(member_prefix: str, title: str, family_for_torsion: str, read_only: bool):
@@ -7483,8 +7537,6 @@ tab_p, tab_b, tab_c, tab_l, tab_br, tab_cr, tab_brep, tab_crep = st.tabs(
 
 with tab_p:
     render_project_data()
-    st.markdown("---")
-    _render_design_settings()
 
 with tab_b:
     _render_member_section_panel("beam_", "Beam section selection")
@@ -7493,24 +7545,70 @@ with tab_c:
     _render_member_section_panel("col_", "Column section selection")
 
 with tab_l:
+    # -----------------------------
+    # Loads settings (like beam app) — TOP of Loads tab
+    # -----------------------------
+    st.markdown("### Loads settings")
+    _render_design_settings()
+
+    # Auto-apply factoring when user changes γF or Characteristic/Design mode
+    prev_g = st.session_state.get("_prev_gamma_F_frame", None)
+    prev_t = st.session_state.get("_prev_manual_forces_type_frame", None)
+
+    cur_g = float(st.session_state.get("gamma_F", 1.35))
+    cur_t = str(st.session_state.get("manual_forces_type", "Characteristic"))
+
+    if (prev_g is None) or (prev_t is None) or (abs(prev_g - cur_g) > 1e-9) or (prev_t != cur_t):
+        st.session_state["_prev_gamma_F_frame"] = cur_g
+        st.session_state["_prev_manual_forces_type_frame"] = cur_t
+
+        # Re-store design forces for BOTH members immediately
+        _store_design_forces_from_state_member("beam_", "beam_inputs")
+        _store_design_forces_from_state_member("col_", "col_inputs")
+
+        # Invalidate previous results/reports (they depend on N_Ed/M_Ed etc.)
+        for k in [
+            "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
+            "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
+        ]:
+            st.session_state.pop(k, None)
+
+    st.markdown("---")
+
+    # -----------------------------
+    # Ready frame cases gallery
+    # -----------------------------
     _render_ready_frame_cases()
 
     st.markdown("---")
+
+    # -----------------------------
+    # Member force panels (editable)
+    # -----------------------------
     cL, cR = st.columns(2)
 
-    beam_sr = st.session_state.get("beam_sr_display", {})
-    col_sr = st.session_state.get("col_sr_display", {})
+    beam_sr = st.session_state.get("beam_sr_display", {}) or {}
+    col_sr  = st.session_state.get("col_sr_display", {}) or {}
 
     with cL:
         _render_member_load_form("beam_", "Beam design forces (ULS)", beam_sr.get("family", ""), read_only=False)
     with cR:
         _render_member_load_form("col_", "Column design forces (ULS)", col_sr.get("family", ""), read_only=False)
 
-    # Store design loads immediately (no separate Run button in Loads tab)
+    # Manual refresh button (useful after user edits N/M/V)
     if st.button("Update design forces", key="btn_update_frame_forces"):
         _store_design_forces_from_state_member("beam_", "beam_inputs")
         _store_design_forces_from_state_member("col_", "col_inputs")
+
+        # Invalidate results so they re-run with new forces
+        for k in [
+            "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
+            "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
+        ]:
+            st.session_state.pop(k, None)
+
         st.toast("Design forces updated.", icon="🧮")
+
 
 with tab_br:
     run_col, _ = st.columns([1, 3])
@@ -7525,6 +7623,7 @@ with tab_br:
     if not st.session_state.get("beam_df_rows"):
         st.info("Set up **Loads** and select a **Beam** section, then press **Run beam check**.")
 
+
 with tab_cr:
     run_col, _ = st.columns([1, 3])
     with run_col:
@@ -7538,11 +7637,13 @@ with tab_cr:
     if not st.session_state.get("col_df_rows"):
         st.info("Set up **Loads** and select a **Column** section, then press **Run column check**.")
 
+
 with tab_brep:
     if st.session_state.get("beam_sr_display") is None:
         st.info("Select a beam section first.")
     else:
         _render_report_member("beam_", "beam_inputs", "Beam report")
+
 
 with tab_crep:
     if st.session_state.get("col_sr_display") is None:
