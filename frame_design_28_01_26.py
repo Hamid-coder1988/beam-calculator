@@ -3122,45 +3122,6 @@ def render_section_properties_readonly(sr_display, key_prefix="db"):
     c4.empty()
     c5.empty()
     c6.empty()
-
-
-def render_loads_form(family_for_torsion: str, read_only: bool = False):
-    prefill = st.session_state.get("prefill_from_case", False)
-    defval = lambda key, fallback: float(st.session_state.get(key, fallback)) if prefill else fallback
-    torsion_supported = supports_torsion_and_warping(family_for_torsion)
-
-    with st.container():
-        if read_only:
-            st.subheader("Design forces and moments (ULS) — from ready case")
-            st.caption(
-                "Values come from the selected ready beam case. "
-                "You can still adjust K-factors (buckling) below."
-            )
-        else:
-            st.subheader("Design forces and moments (ULS) — INPUT")
-            st.caption("Positive N = compression. Enter characteristic or design forces based on Tab 2 settings.")
-            # Row 1 (3 cols)
-            r1c1, r1c2, r1c3 = st.columns(3)
-            with r1c1:
-                st.number_input("Element length L (mm)", ... , key=f"{member_prefix}L_mm_in", disabled=dis)
-            with r1c2:
-                st.number_input("Axial force N (kN)", ... , key=f"{member_prefix}N_in", disabled=dis)
-            with r1c3:
-                st.number_input("Shear V_y (kN)", ... , key=f"{member_prefix}Vy_in", disabled=dis)
-            
-            # Row 2 (3 cols)
-            r2c1, r2c2, r2c3 = st.columns(3)
-            with r2c1:
-                st.number_input("Shear V_z (kN)", ... , key=f"{member_prefix}Vz_in", disabled=dis)
-            with r2c2:
-                st.number_input("Bending M_y (kN·m) about y", ... , key=f"{member_prefix}My_in", disabled=dis)
-            with r2c3:
-                st.number_input("Bending M_z (kN·m) about z", ... , key=f"{member_prefix}Mz_in", disabled=dis)
-            
-            # Optional Row 3 for beam torsion ONLY (if you still keep it)
-            if member_prefix == "beam_":
-                st.number_input("Torsion T_x (kN·m)", ... , key=f"{member_prefix}Tx_in", disabled=dis)
-
 def store_design_forces_from_state():
     """Compute design ULS forces from current Loads inputs in session_state
     and store them into st.session_state['inputs']. This replaces the old
@@ -7520,6 +7481,74 @@ def _render_report_member(member_prefix: str, inputs_key: str, title: str):
             else:
                 st.session_state[k] = v
 
+def _render_member_load_form(member_prefix: str, title: str, family_for_torsion: str, read_only: bool):
+    """Loads form (ULS) — same fields as beam app, isolated by prefix."""
+    st.markdown(f"#### {title}")
+    st.caption("Positive N = compression.")
+
+    dis = bool(read_only)
+
+    r1c1, r1c2, r1c3 = st.columns(3)
+    with r1c1:
+        st.number_input(
+            "L (mm)", min_value=1.0,
+            value=float(st.session_state.get(f"{member_prefix}L_mm_in", 3000.0)),
+            step=100.0, disabled=dis, key=f"{member_prefix}L_mm_in"
+        )
+        st.number_input(
+            "N (kN)",
+            value=float(st.session_state.get(f"{member_prefix}N_in", 0.0)),
+            step=1.0, disabled=dis, key=f"{member_prefix}N_in"
+        )
+    with r1c2:
+        st.number_input(
+            "Vy (kN)",
+            value=float(st.session_state.get(f"{member_prefix}Vy_in", 0.0)),
+            step=1.0, disabled=dis, key=f"{member_prefix}Vy_in"
+        )
+        st.number_input(
+            "Vz (kN)",
+            value=float(st.session_state.get(f"{member_prefix}Vz_in", 0.0)),
+            step=1.0, disabled=dis, key=f"{member_prefix}Vz_in"
+        )
+    with r1c3:
+        st.number_input(
+            "My (kN·m)",
+            value=float(st.session_state.get(f"{member_prefix}My_in", 0.0)),
+            step=1.0, disabled=dis, key=f"{member_prefix}My_in"
+        )
+        st.number_input(
+            "Mz (kN·m)",
+            value=float(st.session_state.get(f"{member_prefix}Mz_in", 0.0)),
+            step=1.0, disabled=dis, key=f"{member_prefix}Mz_in"
+        )
+
+    torsion_ok = supports_torsion_and_warping(family_for_torsion or "")
+    if torsion_ok and member_prefix != "col_":
+        st.number_input(
+            "Tx (kN·m)",
+            value=float(st.session_state.get(f"{member_prefix}Tx_in", 0.0)),
+            step=0.5, disabled=dis, key=f"{member_prefix}Tx_in"
+        )
+    else:
+        # keep key consistent even if hidden
+        if f"{member_prefix}Tx_in" not in st.session_state:
+            st.session_state[f"{member_prefix}Tx_in"] = 0.0
+
+    st.markdown("##### Buckling / stability factors")
+    b1, b2, b3, b4 = st.columns(4)
+    with b1:
+        st.number_input("Ky", min_value=0.1, value=float(st.session_state.get(f"{member_prefix}Ky_in", 1.0)),
+                        step=0.05, disabled=dis, key=f"{member_prefix}Ky_in")
+    with b2:
+        st.number_input("Kz", min_value=0.1, value=float(st.session_state.get(f"{member_prefix}Kz_in", 1.0)),
+                        step=0.05, disabled=dis, key=f"{member_prefix}Kz_in")
+    with b3:
+        st.number_input("KLT", min_value=0.1, value=float(st.session_state.get(f"{member_prefix}KLT_in", 1.0)),
+                        step=0.05, disabled=dis, key=f"{member_prefix}KLT_in")
+    with b4:
+        st.number_input("KT", min_value=0.1, value=float(st.session_state.get(f"{member_prefix}KT_in", 1.0)),
+                        step=0.05, disabled=dis, key=f"{member_prefix}KT_in")
 
 # ----------------------------
 # MAIN TABS (Frame app)
