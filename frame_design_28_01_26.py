@@ -3139,55 +3139,27 @@ def render_loads_form(family_for_torsion: str, read_only: bool = False):
         else:
             st.subheader("Design forces and moments (ULS) — INPUT")
             st.caption("Positive N = compression. Enter characteristic or design forces based on Tab 2 settings.")
+            # Row 1 (3 cols)
             r1c1, r1c2, r1c3 = st.columns(3)
-            
             with r1c1:
-                with r1c1:
-                    L_mm = st.number_input(
-                        "Element length L (mm)",
-                        min_value=1.0,
-                        value=float(st.session_state.get("L_mm_in", 6000.0)),
-                        step=100.0,
-                        key="L_mm_in",
-                        disabled=read_only,
-                    )
-                    
-                    # keep legacy length in meters synced (some parts still read L_in)
-                    st.session_state["L_in"] = st.session_state["L_mm_in"] / 1000.0
+                st.number_input("Element length L (mm)", ... , key=f"{member_prefix}L_mm_in", disabled=dis)
             with r1c2:
-                N_kN = st.number_input("Axial force N (kN)", key="N_in",disabled=read_only,)
-            
+                st.number_input("Axial force N (kN)", ... , key=f"{member_prefix}N_in", disabled=dis)
             with r1c3:
-                Vy_kN = st.number_input(
-                    "Shear V_y (kN)",
-                    key="Vy_in",
-                    disabled=read_only,
-                )
+                st.number_input("Shear V_y (kN)", ... , key=f"{member_prefix}Vy_in", disabled=dis)
             
+            # Row 2 (3 cols)
             r2c1, r2c2, r2c3 = st.columns(3)
-            
             with r2c1:
-                Vz_kN = st.number_input(
-                    "Shear V_z (kN)",
-                    key="Vz_in",
-                    disabled=read_only,
-                )
-            
+                st.number_input("Shear V_z (kN)", ... , key=f"{member_prefix}Vz_in", disabled=dis)
             with r2c2:
-                My_kNm = st.number_input(
-                    "Bending M_y (kN·m) about y",
-                    key="My_in",
-                    disabled=read_only,
-                )
-            
+                st.number_input("Bending M_y (kN·m) about y", ... , key=f"{member_prefix}My_in", disabled=dis)
             with r2c3:
-                Mz_kNm = st.number_input(
-                    "Bending M_z (kN·m) about z",
-                    key="Mz_in",
-                    disabled=read_only,
-                )
-
+                st.number_input("Bending M_z (kN·m) about z", ... , key=f"{member_prefix}Mz_in", disabled=dis)
             
+            # Optional Row 3 for beam torsion ONLY (if you still keep it)
+            if member_prefix == "beam_":
+                st.number_input("Torsion T_x (kN·m)", ... , key=f"{member_prefix}Tx_in", disabled=dis)
 
 def store_design_forces_from_state():
     """Compute design ULS forces from current Loads inputs in session_state
@@ -7018,6 +6990,75 @@ def render_section_preview_placeholder(title="Cross-section preview", key_prefix
 # FRAME DESIGN APP (Beam + Column) — based on the beam app
 # =========================================================
 
+def _render_instability_ratios_member(member_prefix: str, member_title: str):
+    """
+    UI only: show instability length ratios like the beam app.
+    Internally we still store them in the existing keys:
+      K_y_in, K_z_in, K_LT_in, K_T_in
+    """
+    st.markdown(f"**{member_title}**")
+
+    help_y = (
+        "Flexural buckling about y–y.\n"
+        "Lcr,y / L = 1.0 → pinned–pinned typical.\n"
+        "Smaller = more restraint; larger = less restraint."
+    )
+    help_z = (
+        "Flexural buckling about z–z.\n"
+        "Lcr,z / L = 1.0 → pinned–pinned typical.\n"
+        "Smaller = more restraint; larger = less restraint."
+    )
+    help_lt = (
+        "Lateral–torsional buckling length ratio.\n"
+        "For braced beams this can be < 1.\n"
+        "For unbraced length equal to span → 1.0."
+    )
+    help_tf = (
+        "Torsional / flexural–torsional buckling length ratio.\n"
+        "Often relevant for open sections.\n"
+        "Use 1.0 if uncertain."
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        st.number_input(
+            "Lcr,y / L (flexural y–y)",
+            min_value=0.1,
+            value=float(st.session_state.get(f"{member_prefix}K_y_in", 1.0)),
+            step=0.05,
+            key=f"{member_prefix}K_y_in",
+            help=help_y,
+        )
+    with c2:
+        st.number_input(
+            "Lcr,z / L (flexural z–z)",
+            min_value=0.1,
+            value=float(st.session_state.get(f"{member_prefix}K_z_in", 1.0)),
+            step=0.05,
+            key=f"{member_prefix}K_z_in",
+            help=help_z,
+        )
+    with c3:
+        st.number_input(
+            "L_LT / L (lateral–torsional)",
+            min_value=0.1,
+            value=float(st.session_state.get(f"{member_prefix}K_LT_in", 1.0)),
+            step=0.05,
+            key=f"{member_prefix}K_LT_in",
+            help=help_lt,
+        )
+    with c4:
+        st.number_input(
+            "L_TF / L (torsional / flexural–torsional)",
+            min_value=0.1,
+            value=float(st.session_state.get(f"{member_prefix}K_T_in", 1.0)),
+            step=0.05,
+            key=f"{member_prefix}K_T_in",
+            help=help_tf,
+        )
+
+
 def _render_section_selection_member(member_prefix: str, title: str):
     """Same as render_section_selection(), but with isolated Streamlit keys per member."""
     st.subheader(title)
@@ -7190,114 +7231,6 @@ def _render_design_settings():
             st.session_state["manual_forces_type"] = "Characteristic"
         else:
             st.session_state["manual_forces_type"] = "Design"
-
-
-def _render_member_load_form(member_prefix: str, title: str, family_for_torsion: str, read_only: bool):
-    """Loads form (ULS) — same fields as beam app, isolated by prefix."""
-    st.markdown(f"#### {title}")
-    st.caption("Positive N = compression.")
-
-    dis = bool(read_only)
-
-    r1c1, r1c2, r1c3 = st.columns(3)
-    with r1c1:
-        st.number_input("L (mm)", min_value=1.0, value=float(st.session_state.get(f"{member_prefix}L_mm_in", 3000.0)), step=100.0, disabled=dis, key=f"{member_prefix}L_mm_in")
-        st.number_input("N (kN)", value=float(st.session_state.get(f"{member_prefix}N_in", 0.0)), step=1.0, disabled=dis, key=f"{member_prefix}N_in")
-    with r1c2:
-        st.number_input("Vy (kN)", value=float(st.session_state.get(f"{member_prefix}Vy_in", 0.0)), step=1.0, disabled=dis, key=f"{member_prefix}Vy_in")
-        st.number_input("Vz (kN)", value=float(st.session_state.get(f"{member_prefix}Vz_in", 0.0)), step=1.0, disabled=dis, key=f"{member_prefix}Vz_in")
-    with r1c3:
-        st.number_input("My (kN·m)", value=float(st.session_state.get(f"{member_prefix}My_in", 0.0)), step=1.0, disabled=dis, key=f"{member_prefix}My_in")
-        st.number_input("Mz (kN·m)", value=float(st.session_state.get(f"{member_prefix}Mz_in", 0.0)), step=1.0, disabled=dis, key=f"{member_prefix}Mz_in")
-
-    torsion_ok = supports_torsion_and_warping(family_for_torsion or "")
-    if torsion_ok and member_prefix != "col_":
-        st.number_input("Tx (kN·m)", value=float(st.session_state.get(f"{member_prefix}Tx_in", 0.0)), step=0.5, disabled=dis, key=f"{member_prefix}Tx_in")
-    else:
-        # Keep key consistent even if hidden (so state doesn’t crash downstream)
-        if f"{member_prefix}Tx_in" not in st.session_state:
-            st.session_state[f"{member_prefix}Tx_in"] = 0.0
-
-    st.markdown("##### Buckling / stability factors")
-
-    # Tooltips (same idea as beam app)
-    help_Ky = (
-        "Flexural buckling about y–y:  Lcr,y = K_y · L.\n"
-        "Typical K:\n"
-        "- pinned–pinned ≈ 1.0\n"
-        "- fixed–fixed ≈ 0.5–0.65\n"
-        "- fixed–pinned ≈ 0.7–0.8\n"
-        "- cantilever ≈ 2.0"
-    )
-    help_Kz = (
-        "Flexural buckling about z–z:  Lcr,z = K_z · L.\n"
-        "Typical K:\n"
-        "- pinned–pinned ≈ 1.0\n"
-        "- fixed–fixed ≈ 0.5–0.65\n"
-        "- fixed–pinned ≈ 0.7–0.8\n"
-        "- cantilever ≈ 2.0"
-    )
-    help_KLT = (
-        "Lateral–torsional buckling length:  Lcr,LT = K_LT · L.\n"
-        "Mainly relevant for OPEN sections (IPE/HEA/etc).\n"
-        "If no intermediate lateral restraint: ≈ 1.0\n"
-        "If laterally braced: use (unbraced length)/L."
-    )
-    help_KT = (
-        "Torsional / flexural–torsional buckling length:  Lcr,T = K_T · L.\n"
-        "Mainly relevant for OPEN sections.\n"
-        "Use 1.0 if torsional/warping restraint is uncertain.\n"
-        "≈ 0.7 may be used with significant restraint."
-    )
-
-    b1, b2, b3, b4 = st.columns(4)
-
-    with b1:
-        st.number_input(
-            "K_y (buckling y–y)",
-            min_value=0.1,
-            value=float(st.session_state.get(f"{member_prefix}K_y_in", 1.0)),
-            step=0.05,
-            disabled=dis,
-            key=f"{member_prefix}K_y_in",
-            help=help_Ky,
-        )
-
-    with b2:
-        st.number_input(
-            "K_z (buckling z–z)",
-            min_value=0.1,
-            value=float(st.session_state.get(f"{member_prefix}K_z_in", 1.0)),
-            step=0.05,
-            disabled=dis,
-            key=f"{member_prefix}K_z_in",
-            help=help_Kz,
-        )
-
-    with b3:
-        st.number_input(
-            "K_LT (LTB)",
-            min_value=0.1,
-            value=float(st.session_state.get(f"{member_prefix}K_LT_in", 1.0)),
-            step=0.05,
-            disabled=dis,
-            key=f"{member_prefix}K_LT_in",
-            help=help_KLT,
-        )
-
-    with b4:
-        st.number_input(
-            "K_T (torsion / FT)",
-            min_value=0.1,
-            value=float(st.session_state.get(f"{member_prefix}K_T_in", 1.0)),
-            step=0.05,
-            disabled=dis,
-            key=f"{member_prefix}K_T_in",
-            help=help_KT,
-        )
-
-
-    
 
 def _store_design_forces_from_state_member(member_prefix: str, inputs_key: str):
     """Compute design ULS forces from member-prefixed Loads inputs and store into st.session_state[inputs_key]."""
