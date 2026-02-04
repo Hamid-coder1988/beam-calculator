@@ -7219,16 +7219,85 @@ def _render_member_load_form(member_prefix: str, title: str, family_for_torsion:
             st.session_state[f"{member_prefix}Tx_in"] = 0.0
 
     st.markdown("##### Buckling / stability factors")
-    b1, b2, b3, b4 = st.columns(4)
-    with b1:
-        st.number_input("Ky", min_value=0.1, value=float(st.session_state.get(f"{member_prefix}Ky_in", 1.0)), step=0.05, disabled=dis, key=f"{member_prefix}Ky_in")
-    with b2:
-        st.number_input("Kz", min_value=0.1, value=float(st.session_state.get(f"{member_prefix}Kz_in", 1.0)), step=0.05, disabled=dis, key=f"{member_prefix}Kz_in")
-    with b3:
-        st.number_input("KLT", min_value=0.1, value=float(st.session_state.get(f"{member_prefix}KLT_in", 1.0)), step=0.05, disabled=dis, key=f"{member_prefix}KLT_in")
-    with b4:
-        st.number_input("KT", min_value=0.1, value=float(st.session_state.get(f"{member_prefix}KT_in", 1.0)), step=0.05, disabled=dis, key=f"{member_prefix}KT_in")
 
+    # Tooltips (same idea as beam app)
+    help_Ky = (
+        "Flexural buckling about y–y:  Lcr,y = K_y · L.\n"
+        "Typical K:\n"
+        "- pinned–pinned ≈ 1.0\n"
+        "- fixed–fixed ≈ 0.5–0.65\n"
+        "- fixed–pinned ≈ 0.7–0.8\n"
+        "- cantilever ≈ 2.0"
+    )
+    help_Kz = (
+        "Flexural buckling about z–z:  Lcr,z = K_z · L.\n"
+        "Typical K:\n"
+        "- pinned–pinned ≈ 1.0\n"
+        "- fixed–fixed ≈ 0.5–0.65\n"
+        "- fixed–pinned ≈ 0.7–0.8\n"
+        "- cantilever ≈ 2.0"
+    )
+    help_KLT = (
+        "Lateral–torsional buckling length:  Lcr,LT = K_LT · L.\n"
+        "Mainly relevant for OPEN sections (IPE/HEA/etc).\n"
+        "If no intermediate lateral restraint: ≈ 1.0\n"
+        "If laterally braced: use (unbraced length)/L."
+    )
+    help_KT = (
+        "Torsional / flexural–torsional buckling length:  Lcr,T = K_T · L.\n"
+        "Mainly relevant for OPEN sections.\n"
+        "Use 1.0 if torsional/warping restraint is uncertain.\n"
+        "≈ 0.7 may be used with significant restraint."
+    )
+
+    b1, b2, b3, b4 = st.columns(4)
+
+    with b1:
+        st.number_input(
+            "K_y (buckling y–y)",
+            min_value=0.1,
+            value=float(st.session_state.get(f"{member_prefix}K_y_in", 1.0)),
+            step=0.05,
+            disabled=dis,
+            key=f"{member_prefix}K_y_in",
+            help=help_Ky,
+        )
+
+    with b2:
+        st.number_input(
+            "K_z (buckling z–z)",
+            min_value=0.1,
+            value=float(st.session_state.get(f"{member_prefix}K_z_in", 1.0)),
+            step=0.05,
+            disabled=dis,
+            key=f"{member_prefix}K_z_in",
+            help=help_Kz,
+        )
+
+    with b3:
+        st.number_input(
+            "K_LT (LTB)",
+            min_value=0.1,
+            value=float(st.session_state.get(f"{member_prefix}K_LT_in", 1.0)),
+            step=0.05,
+            disabled=dis,
+            key=f"{member_prefix}K_LT_in",
+            help=help_KLT,
+        )
+
+    with b4:
+        st.number_input(
+            "K_T (torsion / FT)",
+            min_value=0.1,
+            value=float(st.session_state.get(f"{member_prefix}K_T_in", 1.0)),
+            step=0.05,
+            disabled=dis,
+            key=f"{member_prefix}K_T_in",
+            help=help_KT,
+        )
+
+
+    
 
 def _store_design_forces_from_state_member(member_prefix: str, inputs_key: str):
     """Compute design ULS forces from member-prefixed Loads inputs and store into st.session_state[inputs_key]."""
