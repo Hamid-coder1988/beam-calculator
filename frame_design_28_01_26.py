@@ -7195,24 +7195,37 @@ def _render_design_settings():
 
 def _store_design_forces_from_state_member(member_prefix: str, inputs_key: str):
     """Compute design ULS forces from member-prefixed Loads inputs and store into st.session_state[inputs_key]."""
+
+    # Raw loads (UI uses mm, kN, kN·m)
     L = float(st.session_state.get(f"{member_prefix}L_mm_in", 0.0)) / 1000.0  # mm → m
-    N_kN = float(st.session_state.get(f"{member_prefix}N_in", 0.0))
+    N_kN  = float(st.session_state.get(f"{member_prefix}N_in", 0.0))
     Vy_kN = float(st.session_state.get(f"{member_prefix}Vy_in", 0.0))
     Vz_kN = float(st.session_state.get(f"{member_prefix}Vz_in", 0.0))
     My_kNm = float(st.session_state.get(f"{member_prefix}My_in", 0.0))
     Mz_kNm = float(st.session_state.get(f"{member_prefix}Mz_in", 0.0))
-    Tx_kNm = 0.0 if member_prefix == "col_" else float(st.session_state.get(f"{member_prefix}Tx_in", 0.0))
 
-    K_y  = float(st.session_state.get(f"{member_prefix}Ky_in", 1.0))
-    K_z  = float(st.session_state.get(f"{member_prefix}Kz_in", 1.0))
-    K_LT = float(st.session_state.get(f"{member_prefix}KLT_in", 1.0))
-    K_T  = float(st.session_state.get(f"{member_prefix}KT_in", 1.0))
+    # Beam torsion only (keep key stable even if hidden elsewhere)
+    Tx_kNm = float(st.session_state.get(f"{member_prefix}Tx_in", 0.0)) if member_prefix == "beam_" else 0.0
 
-    gamma_F = float(st.session_state.get("gamma_F", 1.50))
-    manual_forces_type = st.session_state.get("manual_forces_type", "Characteristic")
+    # NEW UI (ratios)
+    r_y  = float(st.session_state.get(f"{member_prefix}Lcr_y_ratio", 1.0))
+    r_z  = float(st.session_state.get(f"{member_prefix}Lcr_z_ratio", 1.0))
+    r_LT = float(st.session_state.get(f"{member_prefix}L_LT_ratio",  1.0))
+    r_TF = float(st.session_state.get(f"{member_prefix}L_TF_ratio",  1.0))
 
-    factor = gamma_F if str(manual_forces_type).startswith("Characteristic") else 1.0
+    # Map ratios → the old “K” names your check engine already expects
+    K_y  = r_y
+    K_z  = r_z
+    K_LT = r_LT
+    K_T  = r_TF
 
+    # Design settings
+    gamma_F = float(st.session_state.get("gamma_F", 1.35))
+    manual_forces_type = str(st.session_state.get("manual_forces_type", "Characteristic"))
+
+    factor = gamma_F if manual_forces_type.lower().startswith("character") else 1.0
+
+    # Design (Ed)
     st.session_state[inputs_key] = dict(
         L=L,
         N_kN=N_kN * factor,
@@ -7226,7 +7239,6 @@ def _store_design_forces_from_state_member(member_prefix: str, inputs_key: str):
         K_LT=K_LT,
         K_T=K_T,
     )
-
 
 def _apply_ready_frame_case(case: dict):
     """Fill BOTH beam_ and col_ inputs in session_state from a ready frame case."""
@@ -7550,6 +7562,86 @@ def _render_member_load_form(member_prefix: str, title: str, family_for_torsion:
         st.number_input("KT", min_value=0.1, value=float(st.session_state.get(f"{member_prefix}KT_in", 1.0)),
                         step=0.05, disabled=dis, key=f"{member_prefix}KT_in")
 
+def _render_instability_length_ratios_member(member_prefix: str, title: str):
+    st.markdown(f"##### {title}")
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        st.number_input(
+            "Lcr,y / L (flexural y–y)",
+            min_value=0.05,
+            value=float(st.session_state.get(f"{member_prefix}Lcr_y_ratio", 1.0)),
+            step=0.05,
+            key=f"{member_prefix}Lcr_y_ratio",
+            help="Effective buckling length ratio about strong axis y–y. 1.0 means Lcr,y = L."
+        )
+    with c2:
+        st.number_input(
+            "Lcr,z / L (flexural z–z)",
+            min_value=0.05,
+            value=float(st.session_state.get(f"{member_prefix}Lcr_z_ratio", 1.0)),
+            step=0.05,
+            key=f"{member_prefix}Lcr_z_ratio",
+            help="Effective buckling length ratio about weak axis z–z. 1.0 means Lcr,z = L."
+        )
+    with c3:
+        st.number_input(
+            "L_LT / L (lateral–torsional)",
+            min_value=0.05,
+            value=float(st.session_state.get(f"{member_prefix}L_LT_ratio", 1.0)),
+            step=0.05,
+            key=f"{member_prefix}L_LT_ratio",
+            help="Effective lateral–torsional buckling length ratio. 1.0 means L_LT = L."
+        )
+    with c4:
+        st.number_input(
+            "L_TF / L (torsional / flexural–torsional)",
+            min_value=0.05,
+            value=float(st.session_state.get(f"{member_prefix}L_TF_ratio", 1.0)),
+            step=0.05,
+            key=f"{member_prefix}L_TF_ratio",
+            help="Effective torsional / flexural–torsional buckling length ratio. 1.0 means L_TF = L."
+        )
+def _render_member_load_form(member_prefix: str, title: str, family_for_torsion: str, read_only: bool = False):
+    """
+    Renders ONLY member design forces (ULS) in a 3-columns-per-row grid,
+    like the Beam app. Buckling ratios are rendered separately in the expander.
+    """
+    dis = bool(read_only)
+
+    st.subheader(title)
+    st.caption("Positive N = compression.")
+
+    r1c1, r1c2, r1c3 = st.columns(3)
+    with r1c1:
+        st.number_input("L (mm)", value=float(st.session_state.get(f"{member_prefix}L_mm_in", 3000.0)),
+                        step=100.0, disabled=dis, key=f"{member_prefix}L_mm_in")
+        st.number_input("N (kN)", value=float(st.session_state.get(f"{member_prefix}N_in", 0.0)),
+                        step=1.0, disabled=dis, key=f"{member_prefix}N_in")
+
+    with r1c2:
+        st.number_input("Vy (kN)", value=float(st.session_state.get(f"{member_prefix}Vy_in", 0.0)),
+                        step=1.0, disabled=dis, key=f"{member_prefix}Vy_in")
+        st.number_input("Vz (kN)", value=float(st.session_state.get(f"{member_prefix}Vz_in", 0.0)),
+                        step=1.0, disabled=dis, key=f"{member_prefix}Vz_in")
+
+    with r1c3:
+        st.number_input("My (kN·m)", value=float(st.session_state.get(f"{member_prefix}My_in", 0.0)),
+                        step=1.0, disabled=dis, key=f"{member_prefix}My_in")
+        st.number_input("Mz (kN·m)", value=float(st.session_state.get(f"{member_prefix}Mz_in", 0.0)),
+                        step=1.0, disabled=dis, key=f"{member_prefix}Mz_in")
+
+    # Beam torsion only (and only if section supports it)
+    torsion_ok = supports_torsion_and_warping(family_for_torsion or "")
+    if member_prefix == "beam_" and torsion_ok:
+        st.number_input("Tx (kN·m)", value=float(st.session_state.get(f"{member_prefix}Tx_in", 0.0)),
+                        step=0.5, disabled=dis, key=f"{member_prefix}Tx_in")
+    else:
+        # Keep stable key so downstream never crashes
+        if f"{member_prefix}Tx_in" not in st.session_state:
+            st.session_state[f"{member_prefix}Tx_in"] = 0.0
+
 # ----------------------------
 # MAIN TABS (Frame app)
 # ----------------------------
@@ -7577,9 +7669,10 @@ with tab_c:
 
 with tab_l:
     # -----------------------------
-    # Loads settings (like beam app) — TOP of Loads tab
+    # Loads settings — TOP (like beam app)
     # -----------------------------
     st.markdown("### Loads settings")
+
     _render_design_settings()
 
     # Auto-apply factoring when user changes γF or Characteristic/Design mode
@@ -7593,16 +7686,22 @@ with tab_l:
         st.session_state["_prev_gamma_F_frame"] = cur_g
         st.session_state["_prev_manual_forces_type_frame"] = cur_t
 
-        # Re-store design forces for BOTH members immediately
         _store_design_forces_from_state_member("beam_", "beam_inputs")
-        _store_design_forces_from_state_member("col_", "col_inputs")
+        _store_design_forces_from_state_member("col_",  "col_inputs")
 
-        # Invalidate previous results/reports (they depend on N_Ed/M_Ed etc.)
         for k in [
             "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
             "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
         ]:
             st.session_state.pop(k, None)
+
+    # -----------------------------
+    # Instability length ratios (expander)
+    # -----------------------------
+    with st.expander("Instability length ratios (relative to span L)", expanded=False):
+        _render_instability_length_ratios_member("beam_", "Beam")
+        st.markdown("---")
+        _render_instability_length_ratios_member("col_", "Column")
 
     st.markdown("---")
 
@@ -7614,10 +7713,9 @@ with tab_l:
     st.markdown("---")
 
     # -----------------------------
-    # Member force panels (editable)
+    # Beam + Column forces (editable) — side by side
     # -----------------------------
     cL, cR = st.columns(2)
-
     beam_sr = st.session_state.get("beam_sr_display", {}) or {}
     col_sr  = st.session_state.get("col_sr_display", {}) or {}
 
@@ -7626,12 +7724,10 @@ with tab_l:
     with cR:
         _render_member_load_form("col_", "Column design forces (ULS)", col_sr.get("family", ""), read_only=False)
 
-    # Manual refresh button (useful after user edits N/M/V)
     if st.button("Update design forces", key="btn_update_frame_forces"):
         _store_design_forces_from_state_member("beam_", "beam_inputs")
-        _store_design_forces_from_state_member("col_", "col_inputs")
+        _store_design_forces_from_state_member("col_",  "col_inputs")
 
-        # Invalidate results so they re-run with new forces
         for k in [
             "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
             "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
@@ -7639,45 +7735,3 @@ with tab_l:
             st.session_state.pop(k, None)
 
         st.toast("Design forces updated.", icon="🧮")
-
-
-with tab_br:
-    run_col, _ = st.columns([1, 3])
-    with run_col:
-        if st.button("Run beam check", key="run_check_beam"):
-            _store_design_forces_from_state_member("beam_", "beam_inputs")
-            try:
-                _run_member_checks("beam_", "beam_inputs", "beam_")
-            except Exception as e:
-                st.error(f"Beam computation error: {e}")
-
-    if not st.session_state.get("beam_df_rows"):
-        st.info("Set up **Loads** and select a **Beam** section, then press **Run beam check**.")
-
-
-with tab_cr:
-    run_col, _ = st.columns([1, 3])
-    with run_col:
-        if st.button("Run column check", key="run_check_col"):
-            _store_design_forces_from_state_member("col_", "col_inputs")
-            try:
-                _run_member_checks("col_", "col_inputs", "col_")
-            except Exception as e:
-                st.error(f"Column computation error: {e}")
-
-    if not st.session_state.get("col_df_rows"):
-        st.info("Set up **Loads** and select a **Column** section, then press **Run column check**.")
-
-
-with tab_brep:
-    if st.session_state.get("beam_sr_display") is None:
-        st.info("Select a beam section first.")
-    else:
-        _render_report_member("beam_", "beam_inputs", "Beam report")
-
-
-with tab_crep:
-    if st.session_state.get("col_sr_display") is None:
-        st.info("Select a column section first.")
-    else:
-        _render_report_member("col_", "col_inputs", "Column report")
