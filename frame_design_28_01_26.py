@@ -4925,7 +4925,7 @@ def render_loads_readonly_report(inputs: dict, torsion_supported: bool, key_pref
             key=f"{key_prefix}_Tx"
         )
 
-def render_report_tab():
+def render_report_tab(key_prefix="rpt"):
     # ----------------------------------------------------
     # Print helpers (screen only)
     # ----------------------------------------------------
@@ -5048,22 +5048,22 @@ def render_report_tab():
     c1, c2, c3 = st.columns([1, 1, 1])
     
     with c1:
-        st.text_input("Document title", value=str(doc_name), disabled=True)
-        st.text_input("Project name", value=str(project_name), disabled=True)
+        st.text_input("Document title", value=str(doc_name), disabled=True, key=f"{key_prefix}_doc_title")
+        st.text_input("Project name", value=str(project_name), disabled=True, key=f"{key_prefix}_project_name")
     
     with c2:
-        st.text_input("Position / Location (Beam ID)", value=str(position), disabled=True)
-        st.text_input("Requested by", value=str(requested_by), disabled=True)
+        st.text_input("Position / Location (Beam ID)", value=str(position), disabled=True, key=f"{key_prefix}_position")
+        st.text_input("Requested by", value=str(requested_by), disabled=True, key=f"{key_prefix}_requested_by")
     
     with c3:
-        st.text_input("Revision", value=str(revision), disabled=True)
-        st.text_input("Date", value=str(run_date), disabled=True)
+        st.text_input("Revision", value=str(revision), disabled=True, key=f"{key_prefix}_revision")
+        st.text_input("Date", value=str(run_date), disabled=True, key=f"{key_prefix}_date")
     
     # Notes: keep editable in Report tab (optional but usually useful)
-    if "rpt_notes" not in st.session_state:
-        st.session_state["rpt_notes"] = str(notes)
+    if f"{key_prefix}_rpt_notes" not in st.session_state:
+        st.session_state[f"{key_prefix}_rpt_notes"] = str(notes)
     
-    st.text_area("Notes / comments", value=str(notes), disabled=True, height=120)
+    st.text_area("Notes / comments", value=str(notes), disabled=True, height=120, key=f"{key_prefix}_notes")
     
     st.markdown("---")
 
@@ -5086,21 +5086,21 @@ def render_report_tab():
             "Steel grade",
             value=str(material),
             disabled=True,
-            key="rpt_mat_grade",
+            key=f"{key_prefix}_mat_grade",
         )
     with c2:
         st.text_input(
             "γ_M0",
             value=f"{gamma_M0:.2f}",
             disabled=True,
-            key="rpt_mat_gM0",
+            key=f"{key_prefix}_mat_gM0",
         )
     with c3:
         st.text_input(
             "γ_M1",
             value=f"{gamma_M1:.2f}",
             disabled=True,
-            key="rpt_mat_gM1",
+            key=f"{key_prefix}_mat_gM1",
         )
     
     # ---- Lines 2–3 (SCREEN ONLY) ----
@@ -5112,14 +5112,14 @@ def render_report_tab():
             "Yield strength f_y [MPa]",
             value=f"{fy:.1f}",
             disabled=True,
-            key="rpt_mat_fy",
+            key=f"{key_prefix}_mat_fy",
         )
     with r2:
         st.text_input(
             "Ultimate strength f_u [MPa]",
             value=f"{fu:.1f}",
             disabled=True,
-            key="rpt_mat_fu",
+            key=f"{key_prefix}_mat_fu",
         )
         
     with r3:
@@ -5127,7 +5127,7 @@ def render_report_tab():
             "Elastic modulus E [MPa]",
             value=f"{E:.0f}",
             disabled=True,
-            key="rpt_mat_E",
+            key=f"{key_prefix}_mat_E",
         )
     
     r4, r5, r6 = st.columns(3)
@@ -5136,21 +5136,21 @@ def render_report_tab():
             "Shear modulus G [MPa]",
             value=f"{G:.0f}",
             disabled=True,
-            key="rpt_mat_G",
+            key=f"{key_prefix}_mat_G",
         )
     with r5:
         st.text_input(
             "ε = √(235 / f_y)",
             value=f"{eps:.3f}" if eps is not None else "n/a",
             disabled=True,
-            key="rpt_mat_eps",
+            key=f"{key_prefix}_mat_eps",
         )
     with r6:
         st.text_input(
             "Poisson’s ratio ν",
             value=f"{nu:.2f}",
             disabled=True,
-            key="rpt_mat_nu",
+            key=f"{key_prefix}_mat_nu",
         )   
     
     st.markdown("---")
@@ -5171,14 +5171,14 @@ def render_report_tab():
 
     mc1, mc2, mc3 = st.columns(3)
     with mc1:
-        st.text_input("Member type", value=member_type, disabled=True, key="rpt_mem_type")
-        st.number_input("Span length L [m]", value=float(L), disabled=True, key="rpt_L")
+        st.text_input("Member type", value=member_type, disabled=True, key=f"{key_prefix}_mem_type")
+        st.number_input("Span length L [m]", value=float(L), disabled=True, key=f"{key_prefix}_L")
     with mc2:
-        st.text_input("Support conditions", value=support_txt, disabled=True, key="rpt_support")
-        st.number_input("Effective length L_y [m]", value=float(Leff_y), disabled=True, key="rpt_Leff_y")
+        st.text_input("Support conditions", value=support_txt, disabled=True, key=f"{key_prefix}_support")
+        st.number_input("Effective length L_y [m]", value=float(Leff_y), disabled=True, key=f"{key_prefix}_Leff_y")
     with mc3:
-        st.number_input("Effective length L_z [m]", value=float(Leff_z), disabled=True, key="rpt_Leff_z")
-        st.number_input("LT buckling length L_LT [m]", value=float(Leff_LT), disabled=True, key="rpt_Leff_LT")
+        st.number_input("Effective length L_z [m]", value=float(Leff_z), disabled=True, key=f"{key_prefix}_Leff_z")
+        st.number_input("LT buckling length L_LT [m]", value=float(Leff_LT), disabled=True, key=f"{key_prefix}_Leff_LT")
 
     # 3.2 Section data
     report_h4("3.2 Section data")
@@ -5190,9 +5190,9 @@ def render_report_tab():
         r1, r2, r3 = st.columns(3)
     
         with r1:
-            st.text_input("Section family", value=fam, disabled=True, key="rpt_cs_family")
+            st.text_input("Section family", value=fam, disabled=True, key=f"{key_prefix}_cs_family")
         with r2:
-            st.text_input("Section size", value=name, disabled=True, key="rpt_cs_name")
+            st.text_input("Section size", value=name, disabled=True, key=f"{key_prefix}_cs_name")
         with r3:
             # Total mass = L [m] * unit mass [kg/m]
             try:
@@ -5210,7 +5210,7 @@ def render_report_tab():
                 "Total mass [kg]",
                 value=float(total_mass),
                 disabled=True,
-                key="rpt_total_mass",
+                key=f"{key_prefix}_total_mass",
             )
     
         # Selected section summary — already nice (6 boxes per 2 rows)
@@ -5266,11 +5266,11 @@ def render_report_tab():
     
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.text_input("Flange – pure compression", disabled=True, key="rpt_flange_class_comp")
+        st.text_input("Flange – pure compression", disabled=True, key=f"{key_prefix}_flange_class_comp")
     with c2:
-        st.text_input("Web – bending + compression", disabled=True, key="rpt_web_class_bc")
+        st.text_input("Web – bending + compression", disabled=True, key=f"{key_prefix}_web_class_bc")
     with c3:
-        st.text_input("Governing cross-section class", disabled=True, key="rpt_cs_class")
+        st.text_input("Governing cross-section class", disabled=True, key=f"{key_prefix}_cs_class")
     
     # ----------------------------------------------------
     # 5. Applied actions & internal forces (ULS)
@@ -5285,18 +5285,18 @@ def render_report_tab():
     # --- Row 1: N, Vy, Vz ---
     r1c1, r1c2, r1c3 = st.columns(3)
     with r1c1:
-        st.text_input("N_Ed [kN]", f"{inputs.get('N_kN',0.0):.3f}", disabled=True)
+        st.text_input("N_Ed [kN]", f"{inputs.get('N_kN',0.0):.3f}", disabled=True, key=f"{key_prefix}_N_Ed")
     with r1c2:
-        st.text_input("Vy_Ed [kN]", f"{inputs.get('Vy_kN',0.0):.3f}", disabled=True)
+        st.text_input("Vy_Ed [kN]", f"{inputs.get('Vy_kN',0.0):.3f}", disabled=True, key=f"{key_prefix}_Vy_Ed")
     with r1c3:
-        st.text_input("Vz_Ed [kN]", f"{inputs.get('Vz_kN',0.0):.3f}", disabled=True)
+        st.text_input("Vz_Ed [kN]", f"{inputs.get('Vz_kN',0.0):.3f}", disabled=True, key=f"{key_prefix}_Vz_Ed")
 
     # --- Row 2: My, Mz ---
     r2c1, r2c2, r2c3 = st.columns(3)
     with r2c1:
-        st.text_input("My_Ed [kNm]", f"{inputs.get('My_kNm',0.0):.3f}", disabled=True)
+        st.text_input("My_Ed [kNm]", f"{inputs.get('My_kNm',0.0):.3f}", disabled=True, key=f"{key_prefix}_My_Ed")
     with r2c2:
-        st.text_input("Mz_Ed [kNm]", f"{inputs.get('Mz_kNm',0.0):.3f}", disabled=True)
+        st.text_input("Mz_Ed [kNm]", f"{inputs.get('Mz_kNm',0.0):.3f}", disabled=True, key=f"{key_prefix}_Mz_Ed")
     with r2c3:
         st.empty()   # clean layout (no empty grey box)
     st.markdown("---")
@@ -7502,7 +7502,7 @@ def _render_report_member(member_prefix: str, inputs_key: str, title: str):
         st.session_state["extras"]     = st.session_state.get(f"{out_prefix}extras") or {}
         # --------------------------------------
 
-        render_report_tab()
+        render_report_tab(key_prefix=f"{member_prefix}rpt")
 
     finally:
         # Restore
