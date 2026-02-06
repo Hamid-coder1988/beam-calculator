@@ -7769,15 +7769,27 @@ with tab_br:
             except Exception as e:
                 st.error(f"Beam computation error: {e}")
 
-    if st.session_state.get("beam_df_rows", None) is None:
+    df_rows = st.session_state.get("beam_df_rows", None)
+    if df_rows is None:
         st.info("Set up **Loads** and select a **Beam** section, then press **Run beam check**.")
     else:
-        render_results(
-            st.session_state["beam_df_rows"],
-            st.session_state.get("beam_overall_ok"),
-            st.session_state.get("beam_governing"),
-            show_footer=True
-        )
+        old_extras = st.session_state.get("extras", None)
+        try:
+            # IMPORTANT: render_results reads st.session_state["extras"]
+            st.session_state["extras"] = st.session_state.get("beam_extras") or {}
+
+            render_results(
+                df_rows,
+                st.session_state.get("beam_overall_ok"),
+                st.session_state.get("beam_governing"),
+                show_footer=True,
+                key_prefix="beam_res_",
+            )
+        finally:
+            if old_extras is None:
+                st.session_state.pop("extras", None)
+            else:
+                st.session_state["extras"] = old_extras
 
 
 # ----------------------------
@@ -7793,15 +7805,28 @@ with tab_cr:
             except Exception as e:
                 st.error(f"Column computation error: {e}")
 
-    if st.session_state.get("col_df_rows", None) is None:
+    df_rows = st.session_state.get("col_df_rows", None)
+    if df_rows is None:
         st.info("Set up **Loads** and select a **Column** section, then press **Run column check**.")
     else:
-        render_results(
-            st.session_state["col_df_rows"],
-            st.session_state.get("col_overall_ok"),
-            st.session_state.get("col_governing"),
-            show_footer=True
-        )
+        old_extras = st.session_state.get("extras", None)
+        try:
+            # IMPORTANT: render_results reads st.session_state["extras"]
+            st.session_state["extras"] = st.session_state.get("col_extras") or {}
+
+            render_results(
+                df_rows,
+                st.session_state.get("col_overall_ok"),
+                st.session_state.get("col_governing"),
+                show_footer=True,
+                key_prefix="col_res_",
+            )
+        finally:
+            if old_extras is None:
+                st.session_state.pop("extras", None)
+            else:
+                st.session_state["extras"] = old_extras
+
 
 # ----------------------------
 # Beam report tab
