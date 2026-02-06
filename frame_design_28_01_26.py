@@ -7466,29 +7466,49 @@ def _run_member_checks(member_prefix: str, inputs_key: str, out_prefix: str):
 
     render_results(df_rows, overall_ok, governing, show_footer=True)
 
-
 def _render_report_member(member_prefix: str, inputs_key: str, title: str):
-    """Reuse your existing render_report_tab() without rewriting it: temporarily map member keys to the expected globals."""
+    """
+    Reuse render_report_tab() for beam/column by temporarily mapping
+    member-specific session_state keys to the global ones that report expects.
+    """
     st.markdown(f"## {title}")
+
+    out_prefix = member_prefix  # "beam_" or "col_"
+
     # Snapshot old globals
     old = {
-        "sr_display": st.session_state.get("sr_display"),
-        "inputs": st.session_state.get("inputs"),
-        "material": st.session_state.get("material"),
-        "mat_sel": st.session_state.get("mat_sel"),
+        "sr_display":  st.session_state.get("sr_display"),
+        "inputs":      st.session_state.get("inputs"),
+        "material":    st.session_state.get("material"),
+        "mat_sel":     st.session_state.get("mat_sel"),
+        "df_rows":     st.session_state.get("df_rows"),
+        "overall_ok":  st.session_state.get("overall_ok"),
+        "governing":   st.session_state.get("governing"),
+        "extras":      st.session_state.get("extras"),
     }
 
     try:
         _sr_raw = st.session_state.get(f"{member_prefix}sr_display")
         st.session_state["sr_display"] = _apply_member_bending_axis(member_prefix, _sr_raw)
+
         st.session_state["inputs"] = st.session_state.get(inputs_key, {})
+
         st.session_state["material"] = st.session_state.get(f"{member_prefix}material")
-        st.session_state["mat_sel"] = st.session_state.get(f"{member_prefix}mat_sel", "S355")
+        st.session_state["mat_sel"]  = st.session_state.get(f"{member_prefix}mat_sel", "S355")
+
+        # ---- THIS WAS MISSING IN YOUR CODE ----
+        st.session_state["df_rows"]    = st.session_state.get(f"{out_prefix}df_rows")
+        st.session_state["overall_ok"] = st.session_state.get(f"{out_prefix}overall_ok")
+        st.session_state["governing"]  = st.session_state.get(f"{out_prefix}governing")
+        st.session_state["extras"]     = st.session_state.get(f"{out_prefix}extras") or {}
+        # --------------------------------------
+
         render_report_tab()
+
     finally:
         # Restore
         for k, v in old.items():
-            if v is None and k in st.session_state:
+            if v is None:
                 st.session_state.pop(k, None)
             else:
                 st.session_state[k] = v
@@ -7750,7 +7770,7 @@ with tab_br:
             except Exception as e:
                 st.error(f"Beam computation error: {e}")
 
-    if not st.session_state.get("beam_df_rows"):
+    if st.session_state.get("beam_df_rows", None) is None:
         st.info("Set up **Loads** and select a **Beam** section, then press **Run beam check**.")
     else:
         render_results(
@@ -7774,7 +7794,7 @@ with tab_cr:
             except Exception as e:
                 st.error(f"Column computation error: {e}")
 
-    if not st.session_state.get("col_df_rows"):
+    if st.session_state.get("col_df_rows", None) is None:
         st.info("Set up **Loads** and select a **Column** section, then press **Run column check**.")
     else:
         render_results(
@@ -7784,14 +7804,13 @@ with tab_cr:
             show_footer=True
         )
 
-
 # ----------------------------
 # Beam report tab
 # ----------------------------
 with tab_brep:
     if not st.session_state.get("beam_sr_display"):
         st.info("Select a **Beam** section first.")
-    elif not st.session_state.get("beam_df_rows"):
+    elif st.session_state.get("beam_df_rows", None) is None::
         st.info("Run **Beam results** first, then open **Beam report**.")
     else:
         _render_report_member("beam_", "beam_inputs", "Beam report")
