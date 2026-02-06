@@ -7810,7 +7810,7 @@ with tab_cr:
 with tab_brep:
     if not st.session_state.get("beam_sr_display"):
         st.info("Select a **Beam** section first.")
-    elif st.session_state.get("beam_df_rows", None) is None::
+    elif st.session_state.get("beam_df_rows", None) is None:
         st.info("Run **Beam results** first, then open **Beam report**.")
     else:
         _render_report_member("beam_", "beam_inputs", "Beam report")
