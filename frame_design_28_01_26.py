@@ -7696,23 +7696,49 @@ with tab_l:
     # Auto-apply factoring when user changes γF or Characteristic/Design mode
     prev_g = st.session_state.get("_prev_gamma_F_frame", None)
     prev_t = st.session_state.get("_prev_manual_forces_type_frame", None)
-
+    
     cur_g = float(st.session_state.get("gamma_F", 1.35))
     cur_t = str(st.session_state.get("manual_forces_type", "Characteristic"))
-
-    if (prev_g is None) or (prev_t is None) or (abs(prev_g - cur_g) > 1e-9) or (prev_t != cur_t):
+    
+    # First run: initialize only (DO NOT clear results)
+    if (prev_g is None) or (prev_t is None):
         st.session_state["_prev_gamma_F_frame"] = cur_g
         st.session_state["_prev_manual_forces_type_frame"] = cur_t
-
-        _store_design_forces_from_state_member("beam_", "beam_inputs")
-        _store_design_forces_from_state_member("col_",  "col_inputs")
-
-        # Invalidate previous results (avoid stale output)
-        for k in [
-            "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
-            "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
-        ]:
-            st.session_state.pop(k, None)
+    
+    else:
+        changed = (abs(prev_g - cur_g) > 1e-9) or (prev_t != cur_t)
+        if changed:
+            st.session_state["_prev_gamma_F_frame"] = cur_g
+            st.session_state["_prev_manual_forces_type_frame"] = cur_t
+    
+            _store_design_forces_from_state_member("beam_", "beam_inputs")
+            _store_design_forces_from_state_member("col_",  "col_inputs")
+    
+            # Invalidate previous results (avoid stale output)
+            for k in [
+                "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
+                "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
+            ]:
+                st.session_state.pop(k, None)
+    ("_prev_gamma_F_frame", None)
+        prev_t = st.session_state.get("_prev_manual_forces_type_frame", None)
+    
+        cur_g = float(st.session_state.get("gamma_F", 1.35))
+        cur_t = str(st.session_state.get("manual_forces_type", "Characteristic"))
+    
+        if (prev_g is None) or (prev_t is None) or (abs(prev_g - cur_g) > 1e-9) or (prev_t != cur_t):
+            st.session_state["_prev_gamma_F_frame"] = cur_g
+            st.session_state["_prev_manual_forces_type_frame"] = cur_t
+    
+            _store_design_forces_from_state_member("beam_", "beam_inputs")
+            _store_design_forces_from_state_member("col_",  "col_inputs")
+    
+            # Invalidate previous results (avoid stale output)
+            for k in [
+                "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
+                "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
+            ]:
+                st.session_state.pop(k, None)
 
     # -----------------------------
     # Instability length ratios (expander)
