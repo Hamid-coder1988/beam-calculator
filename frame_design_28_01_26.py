@@ -7822,7 +7822,7 @@ with tab_brep:
 with tab_crep:
     if not st.session_state.get("col_sr_display"):
         st.info("Select a **Column** section first.")
-    elif not st.session_state.get("col_df_rows"):
+    elif st.session_state.get("col_df_rows", None) is None:
         st.info("Run **Column results** first, then open **Column report**.")
     else:
         _render_report_member("col_", "col_inputs", "Column report")
