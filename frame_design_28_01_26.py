@@ -7440,7 +7440,6 @@ def _apply_member_bending_axis(member_prefix: str, sr_display: dict) -> dict:
         return _swap_yz_in_sr_display(sr_display)
     return sr_display
 
-
 def _run_member_checks(member_prefix: str, inputs_key: str, out_prefix: str):
     sr_display_raw = st.session_state.get(f"{member_prefix}sr_display", None)
     sr_display = _apply_member_bending_axis(member_prefix, sr_display_raw)
@@ -7454,7 +7453,6 @@ def _run_member_checks(member_prefix: str, inputs_key: str, out_prefix: str):
     inputs = st.session_state.get(inputs_key, {})
     torsion_supported = supports_torsion_and_warping(sr_display.get("family", ""))
 
-    # EC3 class depends on fy
     calc_section_classes_ec3(sr_display, fy)
 
     df_rows, overall_ok, governing, extras = compute_checks(sr_display, fy, inputs, torsion_supported)
@@ -7464,7 +7462,8 @@ def _run_member_checks(member_prefix: str, inputs_key: str, out_prefix: str):
     st.session_state[f"{out_prefix}governing"] = governing
     st.session_state[f"{out_prefix}extras"] = extras
 
-    render_results(df_rows, overall_ok, governing, show_footer=True)
+    # REMOVE THIS LINE (it causes duplicate tables):
+    # render_results(df_rows, overall_ok, governing, show_footer=True)
 
 def _render_report_member(member_prefix: str, inputs_key: str, title: str):
     """
