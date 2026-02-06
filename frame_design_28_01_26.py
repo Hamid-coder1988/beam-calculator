@@ -7672,7 +7672,6 @@ with tab_l:
     # Loads settings — TOP (like beam app)
     # -----------------------------
     st.markdown("### Loads settings")
-
     _render_design_settings()
 
     # Auto-apply factoring when user changes γF or Characteristic/Design mode
@@ -7689,6 +7688,7 @@ with tab_l:
         _store_design_forces_from_state_member("beam_", "beam_inputs")
         _store_design_forces_from_state_member("col_",  "col_inputs")
 
+        # Invalidate previous results (avoid stale output)
         for k in [
             "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
             "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
@@ -7713,7 +7713,7 @@ with tab_l:
     st.markdown("---")
 
     # -----------------------------
-    # Beam + Column forces (editable) — side by side
+    # Beam + Column forces (editable)
     # -----------------------------
     cL, cR = st.columns(2)
     beam_sr = st.session_state.get("beam_sr_display", {}) or {}
@@ -7735,3 +7735,75 @@ with tab_l:
             st.session_state.pop(k, None)
 
         st.toast("Design forces updated.", icon="🧮")
+
+
+# ----------------------------
+# Beam results tab
+# ----------------------------
+with tab_br:
+    run_col, _ = st.columns([1, 3])
+    with run_col:
+        if st.button("Run beam check", key="run_check_beam"):
+            _store_design_forces_from_state_member("beam_", "beam_inputs")
+            try:
+                _run_member_checks("beam_", "beam_inputs", "beam_")
+            except Exception as e:
+                st.error(f"Beam computation error: {e}")
+
+    if not st.session_state.get("beam_df_rows"):
+        st.info("Set up **Loads** and select a **Beam** section, then press **Run beam check**.")
+    else:
+        render_results(
+            st.session_state["beam_df_rows"],
+            st.session_state.get("beam_overall_ok"),
+            st.session_state.get("beam_governing"),
+            show_footer=True
+        )
+
+
+# ----------------------------
+# Column results tab
+# ----------------------------
+with tab_cr:
+    run_col, _ = st.columns([1, 3])
+    with run_col:
+        if st.button("Run column check", key="run_check_col"):
+            _store_design_forces_from_state_member("col_", "col_inputs")
+            try:
+                _run_member_checks("col_", "col_inputs", "col_")
+            except Exception as e:
+                st.error(f"Column computation error: {e}")
+
+    if not st.session_state.get("col_df_rows"):
+        st.info("Set up **Loads** and select a **Column** section, then press **Run column check**.")
+    else:
+        render_results(
+            st.session_state["col_df_rows"],
+            st.session_state.get("col_overall_ok"),
+            st.session_state.get("col_governing"),
+            show_footer=True
+        )
+
+
+# ----------------------------
+# Beam report tab
+# ----------------------------
+with tab_brep:
+    if not st.session_state.get("beam_sr_display"):
+        st.info("Select a **Beam** section first.")
+    elif not st.session_state.get("beam_df_rows"):
+        st.info("Run **Beam results** first, then open **Beam report**.")
+    else:
+        _render_report_member("beam_", "beam_inputs", "Beam report")
+
+
+# ----------------------------
+# Column report tab
+# ----------------------------
+with tab_crep:
+    if not st.session_state.get("col_sr_display"):
+        st.info("Select a **Column** section first.")
+    elif not st.session_state.get("col_df_rows"):
+        st.info("Run **Column results** first, then open **Column report**.")
+    else:
+        _render_report_member("col_", "col_inputs", "Column report")
