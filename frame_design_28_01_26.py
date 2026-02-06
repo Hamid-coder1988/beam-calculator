@@ -3183,7 +3183,7 @@ def render_loads_readonly(inputs: dict, torsion_supported: bool, key_prefix="rpt
         return
 
     st.markdown("### 3. Design forces and moments (ULS)")
-    st.caption("Positive N = compression.")
+    st.caption("Positive N = tension.")
 
     r1c1, r1c2, r1c3 = st.columns(3)
     with r1c1:
@@ -7515,7 +7515,7 @@ def _render_report_member(member_prefix: str, inputs_key: str, title: str):
 def _render_member_load_form(member_prefix: str, title: str, family_for_torsion: str, read_only: bool):
     """Loads form (ULS) — same fields as beam app, isolated by prefix."""
     st.markdown(f"#### {title}")
-    st.caption("Positive N = compression.")
+    st.caption("Positive N = tension.")
 
     dis = bool(read_only)
 
@@ -7630,7 +7630,7 @@ def _render_member_load_form(member_prefix: str, title: str, family_for_torsion:
     dis = bool(read_only)
 
     st.subheader(title)
-    st.caption("Positive N = compression.")
+    st.caption("Positive N = tension.")
 
     r1c1, r1c2, r1c3 = st.columns(3)
     with r1c1:
