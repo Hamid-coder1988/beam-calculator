@@ -5214,7 +5214,7 @@ def render_report_tab(key_prefix="rpt"):
             )
     
         # Selected section summary — already nice (6 boxes per 2 rows)
-        render_section_summary_like_props(material, sr_display, key_prefix="rpt_sum")
+        render_section_summary_like_props(material, sr_display, key_prefix=f"{key_prefix}_sum")
 
     with cs2:
         img_path = get_section_image(fam)
@@ -5232,7 +5232,7 @@ def render_report_tab(key_prefix="rpt"):
 
     # full DB section properties
     with st.expander("3.3 Section properties from DB", expanded=EXPAND_ALL):
-        render_section_properties_readonly(sr_display, key_prefix="rpt_props")
+        render_section_properties_readonly(sr_display, key_prefix=f"{key_prefix}_props")
 
     st.markdown("---")
 
@@ -5311,7 +5311,7 @@ def render_report_tab(key_prefix="rpt"):
         governing,
         show_footer=False,      # no bottom hints in Report
         include_deflection=True,
-        key_prefix="rep_",      # different keys than Results tab
+        key_prefix=f"{key_prefix}_rep_",      # different keys than Results tab
     )
     # Status from the checks table (row 'Tension (N≥0)')
     status_ten = "n/a"
