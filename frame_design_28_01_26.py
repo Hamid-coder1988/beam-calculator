@@ -7743,10 +7743,6 @@ with tab_l:
     with cR:
         _render_member_load_form("col_", "Column design forces (ULS)", col_sr.get("family", ""), read_only=False)
 
-    if st.button("Update design forces", key="btn_update_frame_forces"):
-        _store_design_forces_from_state_member("beam_", "beam_inputs")
-        _store_design_forces_from_state_member("col_",  "col_inputs")
-
         for k in [
             "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
             "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
