@@ -7713,13 +7713,6 @@ with tab_l:
     
             _store_design_forces_from_state_member("beam_", "beam_inputs")
             _store_design_forces_from_state_member("col_",  "col_inputs")
-    
-            # Invalidate previous results (avoid stale output)
-            for k in [
-                "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
-                "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
-            ]:
-                st.session_state.pop(k, None)
 
     # -----------------------------
     # Instability length ratios (expander)
