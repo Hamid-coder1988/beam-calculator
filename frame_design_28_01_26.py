@@ -7373,6 +7373,14 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
 
     L = L_mm / 1000.0
     h = h_mm / 1000.0
+    # ---- styling ----
+    FRAME_COLOR = "#1f77b4"   # blue
+    DIAG_COLOR  = "#d62728"   # red
+    
+    FRAME_LW = 3.0            # thicker frame
+    DIAG_LW  = 2.0            # thinner M/V
+    AXIS_LW  = 1.0            # beam axis baseline
+
 
     # scale so diagrams fit nicely around the beam line
     Vmax = max(1e-9, float(np.max(np.abs(V))))
@@ -7394,15 +7402,17 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
         st.markdown(f"#### Whole frame shear diagram ({V_lbl})")
         fig, ax = plt.subplots()
 
-        # frame geometry
-        ax.plot([0, 0], [0, h], linewidth=2)      # left column
-        ax.plot([L, L], [0, h], linewidth=2)      # right column
-        ax.plot([0, L], [h, h], linewidth=2)      # top beam
-
-        # shear diagram along beam (offset from beam line)
+        # frame geometry (BLUE, thick)
+        ax.plot([0, 0], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+        ax.plot([L, L], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+        ax.plot([0, L], [h, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+        
+        # shear diagram (RED, thinner)
         yV = h + sv * V
-        ax.plot(x, yV, linewidth=2)
-        ax.plot([0, L], [h, h], linewidth=1)      # beam axis baseline
+        ax.plot(x, yV, color=DIAG_COLOR, linewidth=DIAG_LW)
+        
+        # beam axis baseline
+        ax.plot([0, L], [h, h], color="0.6", linewidth=AXIS_LW)
 
         ax.text(0.02 * L, 0.05 * h, f"N_left = {Ncol:.2f} kN", fontsize=10)
         ax.text(0.55 * L, 0.05 * h, f"N_right = {Ncol:.2f} kN", fontsize=10)
@@ -7417,6 +7427,10 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
         buf.seek(0)
         st.session_state["frame_tmpr01_whole_V_png"] = buf.getvalue()
 
+        ax.plot([], [], color=FRAME_COLOR, linewidth=FRAME_LW, label="Frame")
+        ax.plot([], [], color=DIAG_COLOR, linewidth=DIAG_LW, label="Diagram")
+        ax.legend(loc="upper right")
+
         st.pyplot(fig)
 
     # --- MOMENT ON WHOLE FRAME ---
@@ -7424,15 +7438,18 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
         st.markdown(f"#### Whole frame moment diagram ({M_lbl})")
         fig, ax = plt.subplots()
 
-        # frame geometry
-        ax.plot([0, 0], [0, h], linewidth=2)
-        ax.plot([L, L], [0, h], linewidth=2)
-        ax.plot([0, L], [h, h], linewidth=2)
-
-        # moment diagram along beam (offset from beam line)
+        # frame geometry (BLUE, thick)
+        ax.plot([0, 0], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+        ax.plot([L, L], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+        ax.plot([0, L], [h, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+        
+        # moment diagram (RED, thinner)
         yM = h + sm * M
-        ax.plot(x, yM, linewidth=2)
-        ax.plot([0, L], [h, h], linewidth=1)
+        ax.plot(x, yM, color=DIAG_COLOR, linewidth=DIAG_LW)
+        
+        # beam axis baseline
+        ax.plot([0, L], [h, h], color="0.6", linewidth=AXIS_LW)
+
 
         ax.text(0.02 * L, 0.05 * h, f"N_left = {Ncol:.2f} kN", fontsize=10)
         ax.text(0.55 * L, 0.05 * h, f"N_right = {Ncol:.2f} kN", fontsize=10)
@@ -7447,6 +7464,10 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
         buf.seek(0)
         st.session_state["frame_tmpr01_whole_M_png"] = buf.getvalue()
 
+        ax.plot([], [], color=FRAME_COLOR, linewidth=FRAME_LW, label="Frame")
+        ax.plot([], [], color=DIAG_COLOR, linewidth=DIAG_LW, label="Diagram")
+        ax.legend(loc="upper right")
+        
         st.pyplot(fig)
 
 
