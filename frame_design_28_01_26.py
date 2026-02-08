@@ -7318,6 +7318,136 @@ def _apply_ready_frame_case(case: dict):
         data = case.get("beam" if pref == "beam_" else "col", {})
         for k, v in data.items():
             st.session_state[f"{pref}{k}"] = v
+def _axis_is_weak(member_prefix: str) -> bool:
+    # Your member axis selector key is: f"{member_prefix}bend_axis_sel"
+    sel = st.session_state.get(f"{member_prefix}bend_axis_sel", "Strong axis (yy)")
+    return isinstance(sel, str) and sel.lower().startswith("weak")
+
+def _fill_VM_into_member_inputs(member_prefix: str, Vmax_kN: float, Mmax_kNm: float):
+    """
+    Strong axis -> (Vz, My)
+    Weak axis   -> (Vy, Mz)
+    """
+    weak = _axis_is_weak(member_prefix)
+
+    if weak:
+        st.session_state[f"{member_prefix}Vy_in"] = float(Vmax_kN)
+        st.session_state[f"{member_prefix}Vz_in"] = 0.0
+        st.session_state[f"{member_prefix}My_in"] = 0.0
+        st.session_state[f"{member_prefix}Mz_in"] = float(Mmax_kNm)
+    else:
+        st.session_state[f"{member_prefix}Vy_in"] = 0.0
+        st.session_state[f"{member_prefix}Vz_in"] = float(Vmax_kN)
+        st.session_state[f"{member_prefix}My_in"] = float(Mmax_kNm)
+        st.session_state[f"{member_prefix}Mz_in"] = 0.0
+
+def _tm_pr_01_beam_diagrams(L_mm: float, P_kN: float, n: int = 401):
+    """
+    Simply supported beam with central point load P.
+    Returns: x (m), V (kN), M (kN*m)
+    """
+    L_mm = float(L_mm)
+    P_kN = float(P_kN)
+
+    x = np.linspace(0.0, L_mm / 1000.0, int(n))
+    L = x[-1]
+    mid = 0.5 * L
+
+    R = 0.5 * P_kN
+    V = np.where(x <= mid, R, -R)
+    M = np.where(x <= mid, R * x, R * (L - x))
+    return x, V, M
+
+def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float):
+    """
+    Draw TWO combined diagrams (whole frame):
+      - Shear (on top beam only) + axial in columns as text
+      - Moment (on top beam only) + axial in columns as text
+    This matches the reference assumption (columns axial only).
+    """
+    L_mm = float(L_mm)
+    h_mm = float(h_mm)
+    P_kN = float(P_kN)
+
+    x, V, M = _tm_pr_01_beam_diagrams(L_mm=L_mm, P_kN=P_kN)
+
+    L = L_mm / 1000.0
+    h = h_mm / 1000.0
+
+    # scale so diagrams fit nicely around the beam line
+    Vmax = max(1e-9, float(np.max(np.abs(V))))
+    Mmax = max(1e-9, float(np.max(np.abs(M))))
+    sv = 0.35 * h / Vmax
+    sm = 0.35 * h / Mmax
+
+    # Determine labels based on beam axis selection
+    weak = _axis_is_weak("beam_")
+    V_lbl = "Vy (kN)" if weak else "Vz (kN)"
+    M_lbl = "Mz (kN·m)" if weak else "My (kN·m)"
+
+    Ncol = -0.5 * P_kN  # compression negative (your app: +N = tension)
+
+    c1, c2 = st.columns(2)
+
+    # --- SHEAR ON WHOLE FRAME ---
+    with c1:
+        st.markdown(f"#### Whole frame shear diagram ({V_lbl})")
+        fig, ax = plt.subplots()
+
+        # frame geometry
+        ax.plot([0, 0], [0, h], linewidth=2)      # left column
+        ax.plot([L, L], [0, h], linewidth=2)      # right column
+        ax.plot([0, L], [h, h], linewidth=2)      # top beam
+
+        # shear diagram along beam (offset from beam line)
+        yV = h + sv * V
+        ax.plot(x, yV, linewidth=2)
+        ax.plot([0, L], [h, h], linewidth=1)      # beam axis baseline
+
+        ax.text(0.02 * L, 0.05 * h, f"N_left = {Ncol:.2f} kN", fontsize=10)
+        ax.text(0.55 * L, 0.05 * h, f"N_right = {Ncol:.2f} kN", fontsize=10)
+
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("y (m)")
+        ax.grid(True)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+        buf.seek(0)
+        st.session_state["frame_tmpr01_whole_V_png"] = buf.getvalue()
+
+        st.pyplot(fig)
+
+    # --- MOMENT ON WHOLE FRAME ---
+    with c2:
+        st.markdown(f"#### Whole frame moment diagram ({M_lbl})")
+        fig, ax = plt.subplots()
+
+        # frame geometry
+        ax.plot([0, 0], [0, h], linewidth=2)
+        ax.plot([L, L], [0, h], linewidth=2)
+        ax.plot([0, L], [h, h], linewidth=2)
+
+        # moment diagram along beam (offset from beam line)
+        yM = h + sm * M
+        ax.plot(x, yM, linewidth=2)
+        ax.plot([0, L], [h, h], linewidth=1)
+
+        ax.text(0.02 * L, 0.05 * h, f"N_left = {Ncol:.2f} kN", fontsize=10)
+        ax.text(0.55 * L, 0.05 * h, f"N_right = {Ncol:.2f} kN", fontsize=10)
+
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("y (m)")
+        ax.grid(True)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+        buf.seek(0)
+        st.session_state["frame_tmpr01_whole_M_png"] = buf.getvalue()
+
+        st.pyplot(fig)
 
 
 def _render_ready_frame_cases():
@@ -7460,75 +7590,64 @@ def _render_ready_frame_cases():
 
     case = next(c for c in cases if c["key"] == case_key)
     st.markdown(f"**Selected:** {case['key']} — {case['label']}")
-    # --- Case-specific inputs (start with TM-PR-01 only) ---
+
+    # ---------------------------------------------------
+    # Case preview inputs + diagrams (like beam tool)
+    # ---------------------------------------------------
     if case["key"] == "TM-PR-01":
         st.markdown("#### Case inputs (TM-PR-01)")
         c1, c2, c3 = st.columns(3)
         with c1:
-            L_mm = st.number_input("Span L (mm)", min_value=1.0,
-                                   value=float(st.session_state.get("tmpr01_L_mm", 6000.0)),
-                                   step=10.0, key="tmpr01_L_mm")
+            L_mm = st.number_input("Span L (mm)", min_value=1.0, value=6000.0, step=10.0, key="tmpr01_L_mm")
         with c2:
-            h_mm = st.number_input("Column height h (mm)", min_value=1.0,
-                                   value=float(st.session_state.get("tmpr01_h_mm", 3000.0)),
-                                   step=10.0, key="tmpr01_h_mm")
+            h_mm = st.number_input("Column height h (mm)", min_value=1.0, value=3000.0, step=10.0, key="tmpr01_h_mm")
         with c3:
-            P_kN = st.number_input("Central point load F (kN) (downward)", min_value=0.0,
-                                   value=float(st.session_state.get("tmpr01_P_kN", 50.0)),
-                                   step=1.0, key="tmpr01_P_kN")
+            P_kN = st.number_input("Central point load F (kN) (downward)", min_value=0.0, value=50.0, step=1.0, key="tmpr01_P_kN")
     
         st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
+    
+        # ALWAYS show preview diagrams when selected (no Apply needed)
+        _render_tm_pr_01_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, P_kN=P_kN)
+    
+    else:
+        st.info("Diagrams not implemented for this case yet.")
 
-    if st.button("Apply case", key="btn_apply_frame_case"):
-    
-        if case["key"] == "TM-PR-01":
-            # Read user inputs
-            L_mm = float(st.session_state.get("tmpr01_L_mm", 6000.0))
-            h_mm = float(st.session_state.get("tmpr01_h_mm", 3000.0))
-            P_kN = float(st.session_state.get("tmpr01_P_kN", 50.0))
-    
-            # --- Fill BEAM member (design forces use maxima) ---
-            Vmax_kN = 0.5 * P_kN
-            Mmax_kNm = (P_kN * (L_mm / 1000.0)) / 4.0
-    
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            st.session_state["beam_Tx_in"] = 0.0
-    
-            # route into My/Mz and Vy/Vz depending on axis selection
-            _fill_beam_vm_to_components("beam_", Vmax_kN, Mmax_kNm)
-    
-            # Keep buckling factors untouched if user set them; otherwise defaults exist
-            for k, default in [("Ky_in", 1.0), ("Kz_in", 1.0), ("KLT_in", 1.0), ("KT_in", 1.0)]:
-                st.session_state.setdefault(f"beam_{k}", default)
-    
-            # --- Fill COLUMN member (axial only in this simplified reference case) ---
-            st.session_state["col_L_mm_in"] = h_mm   # your UI will show "h (mm)"
-            st.session_state["col_N_in"] = -0.5 * P_kN  # compression is negative (you said +N = tension)
-            st.session_state["col_Vy_in"] = 0.0
-            st.session_state["col_Vz_in"] = 0.0
-            st.session_state["col_My_in"] = 0.0
-            st.session_state["col_Mz_in"] = 0.0
-            st.session_state["col_Tx_in"] = 0.0
-    
-            for k, default in [("Ky_in", 1.0), ("Kz_in", 1.0), ("KLT_in", 1.0), ("KT_in", 1.0)]:
-                st.session_state.setdefault(f"col_{k}", default)
-    
-            # --- Diagrams for the BEAM member ---
-            x_m, V, M = _tm_pr_01_diagrams(L_mm=L_mm, P_kN=P_kN)
-            _render_frame_case_vm(x_m, V, M, member_prefix="beam_", key_prefix="frame_tmpr01_")
-    
-            st.toast("TM-PR-01 applied — loads + diagrams generated.", icon="✅")
-    
-        else:
-            # default behavior (placeholders)
-            _apply_ready_frame_case(case)
-            st.toast("Case applied — tweak loads if needed.", icon="✅")
-    
-        # Invalidate previous results (same as your current code)
-        for k in ["beam_df_rows","beam_overall_ok","beam_governing","beam_extras",
-                  "col_df_rows","col_overall_ok","col_governing","col_extras"]:
-            st.session_state.pop(k, None)
+        if st.button("Apply case", key="btn_apply_frame_case"):
+
+    if case["key"] == "TM-PR-01":
+        L_mm = float(st.session_state.get("tmpr01_L_mm", 6000.0))
+        h_mm = float(st.session_state.get("tmpr01_h_mm", 3000.0))
+        P_kN = float(st.session_state.get("tmpr01_P_kN", 50.0))
+
+        # Beam maxima
+        Vmax_kN = 0.5 * P_kN
+        Mmax_kNm = (P_kN * (L_mm / 1000.0)) / 4.0
+
+        # Fill BEAM inputs
+        st.session_state["beam_L_mm_in"] = L_mm
+        st.session_state["beam_N_in"] = 0.0
+        st.session_state["beam_Tx_in"] = 0.0
+        _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
+
+        # Fill COLUMN inputs (axial only, per reference assumption)
+        st.session_state["col_L_mm_in"] = h_mm  # (your UI already shows this as h)
+        st.session_state["col_N_in"] = -0.5 * P_kN  # compression negative
+        st.session_state["col_Vy_in"] = 0.0
+        st.session_state["col_Vz_in"] = 0.0
+        st.session_state["col_My_in"] = 0.0
+        st.session_state["col_Mz_in"] = 0.0
+        st.session_state["col_Tx_in"] = 0.0
+
+    else:
+        # old placeholder behavior for other cases
+        _apply_ready_frame_case(case)
+
+    # Invalidate previous results
+    for k in ["beam_df_rows","beam_overall_ok","beam_governing","beam_extras",
+              "col_df_rows","col_overall_ok","col_governing","col_extras"]:
+        st.session_state.pop(k, None)
+
+    st.toast("Case applied — loads transferred to inputs.", icon="✅")
 
 def _swap_yz_in_sr_display(sr_display: dict) -> dict:
     """Return a shallow-copied sr_display with y/z (strong/weak) properties swapped.
