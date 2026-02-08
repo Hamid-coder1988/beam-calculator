@@ -7606,48 +7606,52 @@ def _render_ready_frame_cases():
     
         st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
     
-        # ALWAYS show preview diagrams when selected (no Apply needed)
+        # SHOW PREVIEW DIAGRAMS IMMEDIATELY (no apply needed)
         _render_tm_pr_01_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, P_kN=P_kN)
     
     else:
         st.info("Diagrams not implemented for this case yet.")
+    
+    # ---------------------------------------------------
+    # Apply case (ONLY transfer loads to input fields)
+    # ---------------------------------------------------
+    if st.button("Apply case", key="btn_apply_frame_case"):
+    
+        if case["key"] == "TM-PR-01":
+            L_mm = float(st.session_state.get("tmpr01_L_mm", 6000.0))
+            h_mm = float(st.session_state.get("tmpr01_h_mm", 3000.0))
+            P_kN = float(st.session_state.get("tmpr01_P_kN", 50.0))
+    
+            # Beam maxima
+            Vmax_kN = 0.5 * P_kN
+            Mmax_kNm = (P_kN * (L_mm / 1000.0)) / 4.0
+    
+            # Fill BEAM inputs
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            st.session_state["beam_Tx_in"] = 0.0
+            _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
+    
+            # Fill COLUMN inputs (axial only, per reference assumption)
+            st.session_state["col_L_mm_in"] = h_mm   # UI shows this as h (mm)
+            st.session_state["col_N_in"] = -0.5 * P_kN  # compression negative (+N = tension)
+            st.session_state["col_Vy_in"] = 0.0
+            st.session_state["col_Vz_in"] = 0.0
+            st.session_state["col_My_in"] = 0.0
+            st.session_state["col_Mz_in"] = 0.0
+            st.session_state["col_Tx_in"] = 0.0
+    
+        else:
+            # placeholder for other cases
+            _apply_ready_frame_case(case)
+    
+        # Invalidate previous results
+        for k in ["beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
+                  "col_df_rows", "col_overall_ok", "col_governing", "col_extras"]:
+            st.session_state.pop(k, None)
+    
+        st.toast("Case applied — loads transferred to inputs.", icon="✅")
 
-        if st.button("Apply case", key="btn_apply_frame_case"):
-
-    if case["key"] == "TM-PR-01":
-        L_mm = float(st.session_state.get("tmpr01_L_mm", 6000.0))
-        h_mm = float(st.session_state.get("tmpr01_h_mm", 3000.0))
-        P_kN = float(st.session_state.get("tmpr01_P_kN", 50.0))
-
-        # Beam maxima
-        Vmax_kN = 0.5 * P_kN
-        Mmax_kNm = (P_kN * (L_mm / 1000.0)) / 4.0
-
-        # Fill BEAM inputs
-        st.session_state["beam_L_mm_in"] = L_mm
-        st.session_state["beam_N_in"] = 0.0
-        st.session_state["beam_Tx_in"] = 0.0
-        _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
-
-        # Fill COLUMN inputs (axial only, per reference assumption)
-        st.session_state["col_L_mm_in"] = h_mm  # (your UI already shows this as h)
-        st.session_state["col_N_in"] = -0.5 * P_kN  # compression negative
-        st.session_state["col_Vy_in"] = 0.0
-        st.session_state["col_Vz_in"] = 0.0
-        st.session_state["col_My_in"] = 0.0
-        st.session_state["col_Mz_in"] = 0.0
-        st.session_state["col_Tx_in"] = 0.0
-
-    else:
-        # old placeholder behavior for other cases
-        _apply_ready_frame_case(case)
-
-    # Invalidate previous results
-    for k in ["beam_df_rows","beam_overall_ok","beam_governing","beam_extras",
-              "col_df_rows","col_overall_ok","col_governing","col_extras"]:
-        st.session_state.pop(k, None)
-
-    st.toast("Case applied — loads transferred to inputs.", icon="✅")
 
 def _swap_yz_in_sr_display(sr_display: dict) -> dict:
     """Return a shallow-copied sr_display with y/z (strong/weak) properties swapped.
