@@ -7239,6 +7239,78 @@ def _store_design_forces_from_state_member(member_prefix: str, inputs_key: str):
         K_LT=K_LT,
         K_T=K_T,
     )
+def _axis_is_weak(member_prefix: str) -> bool:
+    sel = st.session_state.get(f"{member_prefix}bend_axis_sel", "Strong axis (yy)")
+    return isinstance(sel, str) and sel.lower().startswith("weak")
+
+def _fill_beam_vm_to_components(member_prefix: str, V_kN: float, M_kNm: float):
+    """Write V/M into (Vy,Vz,My,Mz) based on strong/weak selection for this member."""
+    weak = _axis_is_weak(member_prefix)
+
+    if weak:
+        st.session_state[f"{member_prefix}Vy_in"] = float(V_kN)
+        st.session_state[f"{member_prefix}Vz_in"] = 0.0
+        st.session_state[f"{member_prefix}My_in"] = 0.0
+        st.session_state[f"{member_prefix}Mz_in"] = float(M_kNm)
+    else:
+        st.session_state[f"{member_prefix}Vy_in"] = 0.0
+        st.session_state[f"{member_prefix}Vz_in"] = float(V_kN)
+        st.session_state[f"{member_prefix}My_in"] = float(M_kNm)
+        st.session_state[f"{member_prefix}Mz_in"] = 0.0
+
+def _tm_pr_01_diagrams(L_mm: float, P_kN: float, n: int = 401):
+    """Simply supported beam with central point load P (kN). Returns x(m), V(kN), M(kN·m)."""
+    L_mm = float(L_mm)
+    P_kN = float(P_kN)
+
+    x_m = np.linspace(0.0, L_mm / 1000.0, int(n))
+    L_m = x_m[-1]
+    mid = 0.5 * L_m
+
+    R = 0.5 * P_kN
+
+    V = np.where(x_m <= mid, R, -R)
+    M = np.where(x_m <= mid, R * x_m, R * (L_m - x_m))
+
+    return x_m, V, M
+
+def _render_frame_case_vm(x_m, V_kN, M_kNm, member_prefix="beam_", key_prefix="frame_tmpr01_"):
+    """Plot using same style as your beam tool. Labels follow strong/weak selection."""
+    weak = _axis_is_weak(member_prefix)
+    V_lbl = "Vy (kN)" if weak else "Vz (kN)"
+    M_lbl = "Mz (kN·m)" if weak else "My (kN·m)"
+
+    colV, colM = st.columns(2)
+
+    with colV:
+        small_title(f"Shear force diagram {V_lbl}")
+        fig1, ax1 = plt.subplots()
+        ax1.plot(x_m, V_kN)
+        ax1.axhline(0, linewidth=1)
+        ax1.set_xlabel("x (m)")
+        ax1.set_ylabel(V_lbl)
+        ax1.grid(True)
+
+        buf_v = io.BytesIO()
+        fig1.savefig(buf_v, format="png", dpi=200, bbox_inches="tight")
+        buf_v.seek(0)
+        st.session_state[f"{key_prefix}V_png"] = buf_v.getvalue()
+        st.pyplot(fig1)
+
+    with colM:
+        small_title(f"Bending moment diagram {M_lbl}")
+        fig2, ax2 = plt.subplots()
+        ax2.plot(x_m, M_kNm)
+        ax2.axhline(0, linewidth=1)
+        ax2.set_xlabel("x (m)")
+        ax2.set_ylabel(M_lbl)
+        ax2.grid(True)
+
+        buf_m = io.BytesIO()
+        fig2.savefig(buf_m, format="png", dpi=200, bbox_inches="tight")
+        buf_m.seek(0)
+        st.session_state[f"{key_prefix}M_png"] = buf_m.getvalue()
+        st.pyplot(fig2)
 
 def _apply_ready_frame_case(case: dict):
     """Fill BOTH beam_ and col_ inputs in session_state from a ready frame case."""
@@ -7388,16 +7460,75 @@ def _render_ready_frame_cases():
 
     case = next(c for c in cases if c["key"] == case_key)
     st.markdown(f"**Selected:** {case['key']} — {case['label']}")
+    # --- Case-specific inputs (start with TM-PR-01 only) ---
+    if case["key"] == "TM-PR-01":
+        st.markdown("#### Case inputs (TM-PR-01)")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            L_mm = st.number_input("Span L (mm)", min_value=1.0,
+                                   value=float(st.session_state.get("tmpr01_L_mm", 6000.0)),
+                                   step=10.0, key="tmpr01_L_mm")
+        with c2:
+            h_mm = st.number_input("Column height h (mm)", min_value=1.0,
+                                   value=float(st.session_state.get("tmpr01_h_mm", 3000.0)),
+                                   step=10.0, key="tmpr01_h_mm")
+        with c3:
+            P_kN = st.number_input("Central point load F (kN) (downward)", min_value=0.0,
+                                   value=float(st.session_state.get("tmpr01_P_kN", 50.0)),
+                                   step=1.0, key="tmpr01_P_kN")
+    
+        st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
 
     if st.button("Apply case", key="btn_apply_frame_case"):
-        _apply_ready_frame_case(case)
-        # Invalidate previous results
+    
+        if case["key"] == "TM-PR-01":
+            # Read user inputs
+            L_mm = float(st.session_state.get("tmpr01_L_mm", 6000.0))
+            h_mm = float(st.session_state.get("tmpr01_h_mm", 3000.0))
+            P_kN = float(st.session_state.get("tmpr01_P_kN", 50.0))
+    
+            # --- Fill BEAM member (design forces use maxima) ---
+            Vmax_kN = 0.5 * P_kN
+            Mmax_kNm = (P_kN * (L_mm / 1000.0)) / 4.0
+    
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            st.session_state["beam_Tx_in"] = 0.0
+    
+            # route into My/Mz and Vy/Vz depending on axis selection
+            _fill_beam_vm_to_components("beam_", Vmax_kN, Mmax_kNm)
+    
+            # Keep buckling factors untouched if user set them; otherwise defaults exist
+            for k, default in [("Ky_in", 1.0), ("Kz_in", 1.0), ("KLT_in", 1.0), ("KT_in", 1.0)]:
+                st.session_state.setdefault(f"beam_{k}", default)
+    
+            # --- Fill COLUMN member (axial only in this simplified reference case) ---
+            st.session_state["col_L_mm_in"] = h_mm   # your UI will show "h (mm)"
+            st.session_state["col_N_in"] = -0.5 * P_kN  # compression is negative (you said +N = tension)
+            st.session_state["col_Vy_in"] = 0.0
+            st.session_state["col_Vz_in"] = 0.0
+            st.session_state["col_My_in"] = 0.0
+            st.session_state["col_Mz_in"] = 0.0
+            st.session_state["col_Tx_in"] = 0.0
+    
+            for k, default in [("Ky_in", 1.0), ("Kz_in", 1.0), ("KLT_in", 1.0), ("KT_in", 1.0)]:
+                st.session_state.setdefault(f"col_{k}", default)
+    
+            # --- Diagrams for the BEAM member ---
+            x_m, V, M = _tm_pr_01_diagrams(L_mm=L_mm, P_kN=P_kN)
+            _render_frame_case_vm(x_m, V, M, member_prefix="beam_", key_prefix="frame_tmpr01_")
+    
+            st.toast("TM-PR-01 applied — loads + diagrams generated.", icon="✅")
+    
+        else:
+            # default behavior (placeholders)
+            _apply_ready_frame_case(case)
+            st.toast("Case applied — tweak loads if needed.", icon="✅")
+    
+        # Invalidate previous results (same as your current code)
         for k in ["beam_df_rows","beam_overall_ok","beam_governing","beam_extras",
                   "col_df_rows","col_overall_ok","col_governing","col_extras"]:
             st.session_state.pop(k, None)
-        st.toast("Case applied — tweak loads if needed.", icon="✅")
-
-
 
 def _swap_yz_in_sr_display(sr_display: dict) -> dict:
     """Return a shallow-copied sr_display with y/z (strong/weak) properties swapped.
@@ -7584,44 +7715,49 @@ def _render_member_load_form(member_prefix: str, title: str, family_for_torsion:
 def _render_instability_length_ratios_member(member_prefix: str, title: str):
     st.markdown(f"##### {title}")
 
+    # Beam ratios are relative to span L, Column ratios are relative to height h
+    is_col = (member_prefix == "col_")
+    base_sym = "h" if is_col else "L"
+
     c1, c2, c3, c4 = st.columns(4)
 
     with c1:
         st.number_input(
-            "Lcr,y / L (flexural y–y)",
+            f"Lcr,y / {base_sym} (flexural y–y)",
             min_value=0.05,
             value=float(st.session_state.get(f"{member_prefix}Lcr_y_ratio", 1.0)),
             step=0.05,
             key=f"{member_prefix}Lcr_y_ratio",
-            help="Effective buckling length ratio about strong axis y–y. 1.0 means Lcr,y = L."
+            help=f"Effective buckling length ratio about strong axis y–y. 1.0 means Lcr,y = {base_sym}."
         )
     with c2:
         st.number_input(
-            "Lcr,z / L (flexural z–z)",
+            f"Lcr,z / {base_sym} (flexural z–z)",
             min_value=0.05,
             value=float(st.session_state.get(f"{member_prefix}Lcr_z_ratio", 1.0)),
             step=0.05,
             key=f"{member_prefix}Lcr_z_ratio",
-            help="Effective buckling length ratio about weak axis z–z. 1.0 means Lcr,z = L."
+            help=f"Effective buckling length ratio about weak axis z–z. 1.0 means Lcr,z = {base_sym}."
         )
     with c3:
         st.number_input(
-            "L_LT / L (lateral–torsional)",
+            f"L_LT / {base_sym} (lateral–torsional)",
             min_value=0.05,
             value=float(st.session_state.get(f"{member_prefix}L_LT_ratio", 1.0)),
             step=0.05,
             key=f"{member_prefix}L_LT_ratio",
-            help="Effective lateral–torsional buckling length ratio. 1.0 means L_LT = L."
+            help=f"Effective lateral–torsional buckling length ratio. 1.0 means L_LT = {base_sym}."
         )
     with c4:
         st.number_input(
-            "L_TF / L (torsional / flexural–torsional)",
+            f"L_TF / {base_sym} (torsional / flexural–torsional)",
             min_value=0.05,
             value=float(st.session_state.get(f"{member_prefix}L_TF_ratio", 1.0)),
             step=0.05,
             key=f"{member_prefix}L_TF_ratio",
-            help="Effective torsional / flexural–torsional buckling length ratio. 1.0 means L_TF = L."
+            help=f"Effective torsional / flexural–torsional buckling length ratio. 1.0 means L_TF = {base_sym}."
         )
+
 def _render_member_load_form(member_prefix: str, title: str, family_for_torsion: str, read_only: bool = False):
     """
     Renders ONLY member design forces (ULS) in a 3-columns-per-row grid,
@@ -7634,8 +7770,11 @@ def _render_member_load_form(member_prefix: str, title: str, family_for_torsion:
 
     r1c1, r1c2, r1c3 = st.columns(3)
     with r1c1:
-        st.number_input("L (mm)", value=float(st.session_state.get(f"{member_prefix}L_mm_in", 3000.0)),
+        len_label = "h (mm)" if member_prefix == "col_" else "L (mm)"
+        st.number_input(len_label,
+                        value=float(st.session_state.get(f"{member_prefix}L_mm_in", 3000.0)),
                         step=100.0, disabled=dis, key=f"{member_prefix}L_mm_in")
+
         st.number_input("N (kN)", value=float(st.session_state.get(f"{member_prefix}N_in", 0.0)),
                         step=1.0, disabled=dis, key=f"{member_prefix}N_in")
 
@@ -7717,7 +7856,7 @@ with tab_l:
     # -----------------------------
     # Instability length ratios (expander)
     # -----------------------------
-    with st.expander("Instability length ratios (relative to span L)", expanded=False):
+    with st.expander("Instability length ratios (Beam: relative to L, Column: relative to h)", expanded=False):
         _render_instability_length_ratios_member("beam_", "Beam")
         st.markdown("---")
         _render_instability_length_ratios_member("col_", "Column")
