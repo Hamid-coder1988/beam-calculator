@@ -7743,15 +7743,6 @@ with tab_l:
     with cR:
         _render_member_load_form("col_", "Column design forces (ULS)", col_sr.get("family", ""), read_only=False)
 
-        for k in [
-            "beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
-            "col_df_rows",  "col_overall_ok",  "col_governing",  "col_extras"
-        ]:
-            st.session_state.pop(k, None)
-
-        st.toast("Design forces updated.", icon="🧮")
-
-
 # ----------------------------
 # Beam results tab
 # ----------------------------
