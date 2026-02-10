@@ -7399,7 +7399,7 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
 
     # --- SHEAR ON WHOLE FRAME ---
     with c1:
-        st.markdown(f"#### Whole frame shear diagram ({V_lbl})")
+        st.markdown(f"**Shear force diagram ({V_lbl})**")
         fig, ax = plt.subplots()
 
         # frame geometry (BLUE, thick)
@@ -7435,7 +7435,7 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
 
     # --- MOMENT ON WHOLE FRAME ---
     with c2:
-        st.markdown(f"#### Whole frame moment diagram ({M_lbl})")
+        st.markdown(f"**Bending moment diagram ({M_lbl})**")
         fig, ax = plt.subplots()
 
         # frame geometry (BLUE, thick)
