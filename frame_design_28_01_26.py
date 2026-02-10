@@ -7467,21 +7467,32 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
         ax.legend(loc="upper right")
         
         st.pyplot(fig)
+        
+    st.markdown("### Support forces")
+    st.caption("Positive is upward.")
+    
+    # reactions
+    RA_kN = 0.5 * P_kN
+    RE_kN = 0.5 * P_kN
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.number_input(
+            "RA (kN)",
+            value=float(RA_kN),
+            step=0.1,
+            disabled=True,
+            key="tmpr01_RA_out"
+        )
+    with c2:
+        st.number_input(
+            "RE (kN)",
+            value=float(RE_kN),
+            step=0.1,
+            disabled=True,
+            key="tmpr01_RE_out"
+        )
 
-    st.markdown("#### Support forces")
-    left_col, right_col = st.columns(2)
-    
-    with left_col:
-        st.markdown("**Left support (A)**")
-        st.metric("RA (kN)", f"{RA_kN:.2f}")
-        st.metric("HA (kN)", f"{HA_kN:.2f}")
-        st.metric("Column axial N (kN)", f"{Ncol:.2f}")
-    
-    with right_col:
-        st.markdown("**Right support (E)**")
-        st.metric("RE (kN)", f"{RE_kN:.2f}")
-        st.metric("HE (kN)", f"{0.0:.2f}")  # roller/pin horizontal = 0 in this case
-        st.metric("Column axial N (kN)", f"{Ncol:.2f}")
     
 def _render_ready_frame_cases():
     st.markdown("### Ready frame cases")
