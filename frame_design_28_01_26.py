@@ -7414,9 +7414,6 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
         # beam axis baseline
         ax.plot([0, L], [h, h], color="0.6", linewidth=AXIS_LW)
 
-        ax.text(0.02 * L, 0.05 * h, f"N_left = {Ncol:.2f} kN", fontsize=10)
-        ax.text(0.55 * L, 0.05 * h, f"N_right = {Ncol:.2f} kN", fontsize=10)
-
         ax.set_aspect("equal", adjustable="box")
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
@@ -7449,10 +7446,6 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
         
         # beam axis baseline
         ax.plot([0, L], [h, h], color="0.6", linewidth=AXIS_LW)
-
-
-        ax.text(0.02 * L, 0.05 * h, f"N_left = {Ncol:.2f} kN", fontsize=10)
-        ax.text(0.55 * L, 0.05 * h, f"N_right = {Ncol:.2f} kN", fontsize=10)
 
         ax.set_aspect("equal", adjustable="box")
         ax.set_xlabel("x (m)")
