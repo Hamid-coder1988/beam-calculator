@@ -7394,6 +7394,11 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
     M_lbl = "Mz (kN·m)" if weak else "My (kN·m)"
 
     Ncol = -0.5 * P_kN  # compression negative (your app: +N = tension)
+    
+    RA_kN = 0.5 * P_kN   # vertical reaction at left support (upwards)
+    RE_kN = 0.5 * P_kN   # vertical reaction at right support (upwards)
+    HA_kN = 0.0          # horizontal reaction (per reference)
+
 
     c1, c2 = st.columns(2)
 
@@ -7463,7 +7468,21 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
         
         st.pyplot(fig)
 
-
+    st.markdown("#### Support forces")
+    left_col, right_col = st.columns(2)
+    
+    with left_col:
+        st.markdown("**Left support (A)**")
+        st.metric("RA (kN)", f"{RA_kN:.2f}")
+        st.metric("HA (kN)", f"{HA_kN:.2f}")
+        st.metric("Column axial N (kN)", f"{Ncol:.2f}")
+    
+    with right_col:
+        st.markdown("**Right support (E)**")
+        st.metric("RE (kN)", f"{RE_kN:.2f}")
+        st.metric("HE (kN)", f"{0.0:.2f}")  # roller/pin horizontal = 0 in this case
+        st.metric("Column axial N (kN)", f"{Ncol:.2f}")
+    
 def _render_ready_frame_cases():
     st.markdown("### Ready frame cases")
     st.caption(
