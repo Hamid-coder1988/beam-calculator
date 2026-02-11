@@ -7793,7 +7793,7 @@ def _render_ready_frame_cases():
             with c2:
                 h_mm = st.number_input("Column height h (mm)", min_value=1.0, value=3000.0, step=10.0, key="tmpr02_h_mm")
             with c3:
-                F_kN = st.number_input("Side top point load F (kN) (to the right)", min_value=0.0, value=50.0, step=1.0, key="tmpr02_F_kN")
+                F_kN = st.number_input("Side top point load F (kN) (to the right)", min_value=0.0,  value=float(st.session_state.get("tmpr02_F_kN", 50.0)), step=1.0, key="tmpr02_F_kN")
     
             st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
             _render_tm_pr_02_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, F_kN=F_kN)
@@ -7836,18 +7836,27 @@ def _render_ready_frame_cases():
     
             L_m = L_mm / 1000.0
             h_m = h_mm / 1000.0
-    
-            # Support reactions from reference (upward +)
+            
+            # -------------------------
+            # Reactions (upward +, rightward +)
+            # -------------------------
+            # If F is negative (to the left), reactions automatically change sign.
             RA_kN = -(F_kN * h_m) / L_m
             RE_kN = +(F_kN * h_m) / L_m
-    
-            # Moment magnitude from reference
+            
+            # -------------------------
+            # Moment (signed)
+            # -------------------------
+            # Positive F (to the right) gives positive M at joint B
+            # Negative F flips the diagram automatically
             Mmax_kNm = F_kN * h_m
-    
-            # ---- BEAM forces to inputs ----
-            # Use vertical reaction magnitude as a simple shear magnitude for the beam design input
-            V_beam_kN = abs(RE_kN)
-    
+            
+            # -------------------------
+            # Beam shear (signed)
+            # -------------------------
+            # Do NOT use abs() — keep direction
+            V_beam_kN = RE_kN
+
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
             _fill_VM_into_member_inputs("beam_", V_beam_kN, Mmax_kNm)
