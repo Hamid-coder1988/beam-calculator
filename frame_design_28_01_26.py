@@ -7773,7 +7773,6 @@ def _render_ready_frame_cases():
     if case["key"] in ["TM-PR-01", "TM-PR-02"]:
     
         if case["key"] == "TM-PR-01":
-            st.markdown("#### Case inputs (TM-PR-01)")
             c1, c2, c3 = st.columns(3)
             with c1:
                 L_mm = st.number_input("Span L (mm)", min_value=1.0, value=6000.0, step=10.0, key="tmpr01_L_mm")
@@ -7792,7 +7791,6 @@ def _render_ready_frame_cases():
             _render_tm_pr_01_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, P_kN=P_kN)
     
         if case["key"] == "TM-PR-02":
-            st.markdown("#### Case inputs (TM-PR-02)")
             c1, c2, c3 = st.columns(3)
             with c1:
                 L_mm = st.number_input("Span L (mm)", min_value=1.0, value=6000.0, step=10.0, key="tmpr02_L_mm")
