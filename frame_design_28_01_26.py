@@ -7123,18 +7123,6 @@ def _render_member_section_panel(member_prefix: str, title: str):
             key_prefix=f"db_{prefix_id}"
         )
 
-def _add_frame_inset(ax, L_m: float, h_m: float, loc="upper center"):
-    """
-    Draw a small frame sketch as an inset so main axis can stay V/M units.
-    """
-    # inset box [x0,y0,w,h] in axis fraction coords
-    if loc == "upper center":
-        iax = ax.inset_axes([0.28, 0.62, 0.44, 0.33])  # centered top
-    else:
-        iax = ax.inset_axes([0.70, 0.62, 0.28, 0.33])  # right top
-
-    iax.set_axis_off()
-
     # normalize to 0..1 inside inset
     L = float(L_m)
     h = float(h_m)
@@ -7224,6 +7212,7 @@ def _render_design_settings():
             st.session_state["manual_forces_type"] = "Characteristic"
         else:
             st.session_state["manual_forces_type"] = "Design"
+            
 
 def _store_design_forces_from_state_member(member_prefix: str, inputs_key: str):
     """Compute design ULS forces from member-prefixed Loads inputs and store into st.session_state[inputs_key]."""
@@ -7289,6 +7278,23 @@ def _fill_beam_vm_to_components(member_prefix: str, V_kN: float, M_kNm: float):
         st.session_state[f"{member_prefix}Vz_in"] = float(V_kN)
         st.session_state[f"{member_prefix}My_in"] = float(M_kNm)
         st.session_state[f"{member_prefix}Mz_in"] = 0.0
+
+def _add_frame_inset(ax, L_m: float, h_m: float):
+    """Small frame sketch inset so main plot y-axis can stay V/M units."""
+    iax = ax.inset_axes([0.30, 0.62, 0.40, 0.33])  # [x0,y0,w,h] in axes fraction
+    iax.set_axis_off()
+
+    if L_m <= 0 or h_m <= 0:
+        return
+
+    FRAME_COLOR = "#1f77b4"
+    LW = 3.0
+
+    # normalized inset coordinates
+    iax.plot([0, 0], [0, 1], color=FRAME_COLOR, linewidth=LW)
+    iax.plot([1, 1], [0, 1], color=FRAME_COLOR, linewidth=LW)
+    iax.plot([0, 1], [1, 1], color=FRAME_COLOR, linewidth=LW)
+
 
 def _tm_pr_01_diagrams(L_mm: float, P_kN: float, n: int = 401):
     """Simply supported beam with central point load P (kN). Returns x(m), V(kN), M(kN·m)."""
@@ -7391,82 +7397,86 @@ def _tm_pr_01_beam_diagrams(L_mm: float, P_kN: float, n: int = 401):
     return x, V, M
 
 def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float):
-
+    """
+    TM-PR-01: Pin/Roller, central vertical point load at midspan on top beam.
+    Plot real V(x) and M(x) with correct y-axis units.
+    Frame shown only as an inset sketch (so axis isn't y(m)).
+    """
     L_mm = float(L_mm)
     h_mm = float(h_mm)
     P_kN = float(P_kN)
 
-    # --- beam diagrams (real values) ---
+    # Real beam diagrams (x in m, V in kN, M in kN·m)
     x_m, V_kN, M_kNm = _tm_pr_01_beam_diagrams(L_mm=L_mm, P_kN=P_kN)
-    # x_m in meters, V_kN in kN, M_kNm in kN·m
 
-    L = L_mm / 1000.0
-    h = h_mm / 1000.0
-    # ---- styling ----
-    FRAME_COLOR = "#1f77b4"   # blue
-    DIAG_COLOR  = "#d62728"   # red
-    
-    FRAME_LW = 3.0            # thicker frame
-    DIAG_LW  = 2.0            # thinner M/V
-    AXIS_LW  = 1.0            # beam axis baseline
+    L_m = L_mm / 1000.0
+    h_m = h_mm / 1000.0
 
-
-    # scale so diagrams fit nicely around the beam line
-    Vmax = max(1e-9, float(np.max(np.abs(V))))
-    Mmax = max(1e-9, float(np.max(np.abs(M))))
-    sv = 0.35 * h / Vmax
-    sm = 0.35 * h / Mmax
-
-    # Determine labels based on beam axis selection
+    # Axis labels depend on beam bending axis selection
     weak = _axis_is_weak("beam_")
     V_lbl = "Vy (kN)" if weak else "Vz (kN)"
     M_lbl = "Mz (kN·m)" if weak else "My (kN·m)"
 
-    Ncol = -0.5 * P_kN  # compression negative (your app: +N = tension)
-    
-    RA_kN = 0.5 * P_kN   # vertical reaction at left support (upwards)
-    RE_kN = 0.5 * P_kN   # vertical reaction at right support (upwards)
-    HA_kN = 0.0          # horizontal reaction (per reference)
-
-
     c1, c2 = st.columns(2)
 
-    # --- SHEAR ON WHOLE FRAME ---
+    # --- SHEAR ---
     with c1:
         st.markdown(f"**Shear force diagram ({V_lbl})**")
         fig, ax = plt.subplots()
-        
-        ax.plot(x_m, V_kN, linewidth=2)   # <-- real V values
-        ax.axhline(0, linewidth=1)
+
+        ax.plot(x_m, V_kN, linewidth=2)
+        ax.axhline(0.0, linewidth=1)
+
         ax.set_xlabel("x (m)")
         ax.set_ylabel(V_lbl)
         ax.grid(True)
-        
-        # add frame inset sketch (doesn't affect axes scale)
-        _add_frame_inset(ax, L_m=x_m[-1], h_m=h_mm/1000.0)
-        
+
+        _add_frame_inset(ax, L_m=L_m, h_m=h_m)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+        buf.seek(0)
+        st.session_state["frame_tmpr01_V_png"] = buf.getvalue()
+
         st.pyplot(fig)
-    # --- MOMENT ON WHOLE FRAME ---
+
+    # --- MOMENT ---
     with c2:
         st.markdown(f"**Bending moment diagram ({M_lbl})**")
         fig, ax = plt.subplots()
-        
-        ax.plot(x_m, M_kNm, linewidth=2)  # <-- real M values
-        ax.axhline(0, linewidth=1)
+
+        ax.plot(x_m, M_kNm, linewidth=2)
+        ax.axhline(0.0, linewidth=1)
+
         ax.set_xlabel("x (m)")
         ax.set_ylabel(M_lbl)
         ax.grid(True)
-        
-        _add_frame_inset(ax, L_m=x_m[-1], h_m=h_mm/1000.0)
-        
+
+        _add_frame_inset(ax, L_m=L_m, h_m=h_m)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+        buf.seek(0)
+        st.session_state["frame_tmpr01_M_png"] = buf.getvalue()
+
         st.pyplot(fig)
 
-    st.markdown("### Support forces")
-    st.caption("Positive is upward.")
-    
-    # reactions
+    # --- Support forces (compact like beam inputs) ---
     RA_kN = 0.5 * P_kN
     RE_kN = 0.5 * P_kN
+
+    st.markdown("### Support forces")
+    st.caption("Upward positive.")
+
+    st.session_state["tmpr01_RA_out"] = float(RA_kN)
+    st.session_state["tmpr01_RE_out"] = float(RE_kN)
+
+    s1, s2 = st.columns(2)
+    with s1:
+        st.number_input("RA (kN)", disabled=True, step=0.1, key="tmpr01_RA_out")
+    with s2:
+        st.number_input("RE (kN)", disabled=True, step=0.1, key="tmpr01_RE_out")
+
     
     c1, c2 = st.columns(2)
     with c1:
