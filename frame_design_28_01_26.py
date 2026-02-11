@@ -7492,6 +7492,138 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
             disabled=True,
             key="tmpr01_RE_out"
         )
+def _render_tm_pr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    """
+    TM-PR-02: Pin/Roller, horizontal point load at top-right.
+    Whole frame preview:
+      - Shear plot: show column shear (horizontal) on left column as red "N-like" offset (visual cue)
+      - Moment plot: show M on left column + beam (per reference BMD)
+    """
+    L_mm = float(L_mm)
+    h_mm = float(h_mm)
+    F_kN = float(F_kN)
+
+    L = L_mm / 1000.0
+    h = h_mm / 1000.0
+
+    # --- styling ---
+    FRAME_COLOR = "#1f77b4"   # blue
+    DIAG_COLOR  = "#d62728"   # red
+    FRAME_LW = 3.0
+    DIAG_LW  = 2.0
+    AXIS_LW  = 1.0
+
+    # Reactions (upward +)
+    RA_kN = -(F_kN * h) / L
+    RE_kN = +(F_kN * h) / L
+    HA_kN = F_kN  # (not shown if you want only RA/RE)
+
+    # Moment magnitude
+    Mmax_kNm = F_kN * h  # kN*m
+
+    # Build "diagram" coordinates
+    # Left column moment: 0 at A -> Mmax at B
+    # Beam moment: Mmax at B -> 0 at top-right
+    # Right column: 0 (simplified per reference)
+    # Scale moment diagram vertically above frame
+    sm = 0.35 * h / max(1e-9, abs(Mmax_kNm))
+
+    # For moment plot: create piecewise polyline along members
+    # Left column polyline (x=0)
+    y_col = np.linspace(0.0, h, 60)
+    M_col = (Mmax_kNm / h) * y_col  # linear
+    x_col = 0.0 + sm * M_col        # offset in x-direction for visibility (red diagram)
+    # Beam polyline (y=h)
+    x_beam = np.linspace(0.0, L, 120)
+    M_beam = Mmax_kNm * (1.0 - x_beam / L)  # linear down to 0
+    y_beam = h + sm * M_beam                # offset in y-direction
+
+    # Shear cue (left column horizontal shear ~ F): show as small x-offset rectangle on left column
+    # (This is just a visual cue; the important one is the bending diagram.)
+    sv = 0.10 * L / max(1e-9, abs(F_kN))
+    dx = sv * F_kN
+
+    c1, c2 = st.columns(2)
+
+    # --- SHEAR / FORCE CUE (whole frame) ---
+    with c1:
+        st.markdown("**Shear/force diagram — whole frame (visual cue)**")
+        fig, ax = plt.subplots()
+
+        # Frame (BLUE)
+        ax.plot([0, 0], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+        ax.plot([L, L], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+        ax.plot([0, L], [h, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+
+        # Red shear cue on LEFT column (rectangle offset)
+        ax.plot([0, dx], [0, 0], color=DIAG_COLOR, linewidth=DIAG_LW)
+        ax.plot([dx, dx], [0, h], color=DIAG_COLOR, linewidth=DIAG_LW)
+        ax.plot([dx, 0], [h, h], color=DIAG_COLOR, linewidth=DIAG_LW)
+
+        # baseline
+        ax.plot([0, L], [h, h], color="0.6", linewidth=AXIS_LW)
+
+        ax.plot([], [], color=FRAME_COLOR, linewidth=FRAME_LW, label="Frame")
+        ax.plot([], [], color=DIAG_COLOR, linewidth=DIAG_LW, label="Diagram")
+        ax.legend(loc="upper right")
+
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("y (m)")
+        ax.grid(True)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+        buf.seek(0)
+        st.session_state["frame_tmpr02_whole_V_png"] = buf.getvalue()
+
+        st.pyplot(fig)
+
+    # --- MOMENT (whole frame) ---
+    with c2:
+        st.markdown("**Bending moment diagram — whole frame**")
+        fig, ax = plt.subplots()
+
+        # Frame (BLUE)
+        ax.plot([0, 0], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+        ax.plot([L, L], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+        ax.plot([0, L], [h, h], color=FRAME_COLOR, linewidth=FRAME_LW)
+
+        # Red M diagram:
+        # left column: plot (x_col, y_col)
+        ax.plot(x_col, y_col, color=DIAG_COLOR, linewidth=DIAG_LW)
+        # beam: plot (x_beam, y_beam)
+        ax.plot(x_beam, y_beam, color=DIAG_COLOR, linewidth=DIAG_LW)
+
+        # baseline
+        ax.plot([0, L], [h, h], color="0.6", linewidth=AXIS_LW)
+
+        ax.plot([], [], color=FRAME_COLOR, linewidth=FRAME_LW, label="Frame")
+        ax.plot([], [], color=DIAG_COLOR, linewidth=DIAG_LW, label="Diagram")
+        ax.legend(loc="upper right")
+
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("y (m)")
+        ax.grid(True)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+        buf.seek(0)
+        st.session_state["frame_tmpr02_whole_M_png"] = buf.getvalue()
+
+        st.pyplot(fig)
+
+    # Support forces (same compact “beam style”, only RA/RE)
+    st.markdown("### Support forces")
+    st.caption("Upward positive.")
+    s1, s2 = st.columns(2)
+    st.session_state["tmpr02_RA_out"] = float(RA_kN)
+    st.session_state["tmpr02_RE_out"] = float(RE_kN)
+    with s1:
+        st.number_input("RA (kN)", step=0.1, disabled=True, key="tmpr02_RA_out")
+    with s2:
+        st.number_input("RE (kN)", step=0.1, disabled=True, key="tmpr02_RE_out")
 
     
 def _render_ready_frame_cases():
@@ -7638,23 +7770,37 @@ def _render_ready_frame_cases():
     # ---------------------------------------------------
     # Case preview inputs + diagrams (like beam tool)
     # ---------------------------------------------------
-    if case["key"] == "TM-PR-01":
-        st.markdown("#### Case inputs (TM-PR-01)")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            L_mm = st.number_input("Span L (mm)", min_value=1.0, value=6000.0, step=10.0, key="tmpr01_L_mm")
-        with c2:
-            h_mm = st.number_input("Column height h (mm)", min_value=1.0, value=3000.0, step=10.0, key="tmpr01_h_mm")
-        with c3:
-            P_kN = st.number_input("Central point load F (kN) (downward)", min_value=0.0, value=50.0, step=1.0, key="tmpr01_P_kN")
+    if case["key"] in ["TM-PR-01", "TM-PR-02"]:
     
-        st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
+        if case["key"] == "TM-PR-01":
+            st.markdown("#### Case inputs (TM-PR-01)")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                L_mm = st.number_input("Span L (mm)", min_value=1.0, value=6000.0, step=10.0, key="tmpr01_L_mm")
+            with c2:
+                h_mm = st.number_input("Column height h (mm)", min_value=1.0, value=3000.0, step=10.0, key="tmpr01_h_mm")
+            with c3:
+                P_kN = st.number_input("Central point load F (kN) (downward)", min_value=0.0, value=50.0, step=1.0, key="tmpr01_P_kN")
     
-        # SHOW PREVIEW DIAGRAMS IMMEDIATELY (no apply needed)
-        _render_tm_pr_01_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, P_kN=P_kN)
+            st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
+            _render_tm_pr_01_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, P_kN=P_kN)
+    
+        if case["key"] == "TM-PR-02":
+            st.markdown("#### Case inputs (TM-PR-02)")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                L_mm = st.number_input("Span L (mm)", min_value=1.0, value=6000.0, step=10.0, key="tmpr02_L_mm")
+            with c2:
+                h_mm = st.number_input("Column height h (mm)", min_value=1.0, value=3000.0, step=10.0, key="tmpr02_h_mm")
+            with c3:
+                F_kN = st.number_input("Side top point load F (kN) (to the right)", min_value=0.0, value=50.0, step=1.0, key="tmpr02_F_kN")
+    
+            st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
+            _render_tm_pr_02_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, F_kN=F_kN)
     
     else:
         st.info("Diagrams not implemented for this case yet.")
+
     
     # ---------------------------------------------------
     # Apply case (ONLY transfer loads to input fields)
@@ -7673,7 +7819,6 @@ def _render_ready_frame_cases():
             # Fill BEAM inputs
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            st.session_state["beam_Tx_in"] = 0.0
             _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
     
             # Fill COLUMN inputs (axial only, per reference assumption)
@@ -7683,7 +7828,36 @@ def _render_ready_frame_cases():
             st.session_state["col_Vz_in"] = 0.0
             st.session_state["col_My_in"] = 0.0
             st.session_state["col_Mz_in"] = 0.0
-            st.session_state["col_Tx_in"] = 0.0
+    
+        elif case["key"] == "TM-PR-02":
+            L_mm = float(st.session_state.get("tmpr02_L_mm", 6000.0))
+            h_mm = float(st.session_state.get("tmpr02_h_mm", 3000.0))
+            F_kN = float(st.session_state.get("tmpr02_F_kN", 50.0))  # horizontal load
+    
+            L_m = L_mm / 1000.0
+            h_m = h_mm / 1000.0
+    
+            # Support reactions from reference (upward +)
+            RA_kN = -(F_kN * h_m) / L_m
+            RE_kN = +(F_kN * h_m) / L_m
+    
+            # Moment magnitude from reference
+            Mmax_kNm = F_kN * h_m
+    
+            # ---- BEAM forces to inputs ----
+            # Use vertical reaction magnitude as a simple shear magnitude for the beam design input
+            V_beam_kN = abs(RE_kN)
+    
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_VM_into_member_inputs("beam_", V_beam_kN, Mmax_kNm)
+    
+            # ---- COLUMN forces to inputs ----
+            # Column length is h (shown as h in UI)
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = 0.0
+            # Use horizontal load magnitude as a shear magnitude for column input (visual/design placeholder)
+            _fill_VM_into_member_inputs("col_", abs(F_kN), Mmax_kNm)
     
         else:
             # placeholder for other cases
