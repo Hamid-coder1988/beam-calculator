@@ -7123,6 +7123,38 @@ def _render_member_section_panel(member_prefix: str, title: str):
             key_prefix=f"db_{prefix_id}"
         )
 
+def _add_frame_inset(ax, L_m: float, h_m: float, loc="upper center"):
+    """
+    Draw a small frame sketch as an inset so main axis can stay V/M units.
+    """
+    # inset box [x0,y0,w,h] in axis fraction coords
+    if loc == "upper center":
+        iax = ax.inset_axes([0.28, 0.62, 0.44, 0.33])  # centered top
+    else:
+        iax = ax.inset_axes([0.70, 0.62, 0.28, 0.33])  # right top
+
+    iax.set_axis_off()
+
+    # normalize to 0..1 inside inset
+    L = float(L_m)
+    h = float(h_m)
+    if L <= 0 or h <= 0:
+        return
+
+    # frame lines (blue)
+    FRAME_COLOR = "#1f77b4"
+    LW = 3.0
+    iax.plot([0, 0], [0, 1], color=FRAME_COLOR, linewidth=LW)      # left col
+    iax.plot([1, 1], [0, 1], color=FRAME_COLOR, linewidth=LW)      # right col
+    iax.plot([0, 1], [1, 1], color=FRAME_COLOR, linewidth=LW)      # top beam
+
+    # small labels (optional)
+    iax.text(0.0, -0.08, "A", fontsize=9)
+    iax.text(0.0,  1.02, "B", fontsize=9)
+    iax.text(1.0, -0.08, "E", fontsize=9)
+    iax.text(1.0,  1.02, "D", fontsize=9)
+
+
 def _render_design_settings():
     """
     Beam-app style Design settings (ULS) box.
@@ -7406,68 +7438,32 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
     with c1:
         st.markdown(f"**Shear force diagram ({V_lbl})**")
         fig, ax = plt.subplots()
-
-        # frame geometry (BLUE, thick)
-        ax.plot([0, 0], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
-        ax.plot([L, L], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
-        ax.plot([0, L], [h, h], color=FRAME_COLOR, linewidth=FRAME_LW)
         
-        # shear diagram (RED, thinner)
-        yV = h + sv * V
-        ax.plot(x, yV, color=DIAG_COLOR, linewidth=DIAG_LW)
-        
-        # beam axis baseline
-        ax.plot([0, L], [h, h], color="0.6", linewidth=AXIS_LW)
-
-        ax.set_aspect("equal", adjustable="box")
+        ax.plot(x_m, V_kN, linewidth=2)   # <-- real V values
+        ax.axhline(0, linewidth=1)
         ax.set_xlabel("x (m)")
-        ax.set_ylabel("y (m)")
+        ax.set_ylabel(V_lbl)
         ax.grid(True)
-
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
-        buf.seek(0)
-        st.session_state["frame_tmpr01_whole_V_png"] = buf.getvalue()
-
-        ax.plot([], [], color=FRAME_COLOR, linewidth=FRAME_LW, label="Frame")
-        ax.plot([], [], color=DIAG_COLOR, linewidth=DIAG_LW, label="Diagram")
-        ax.legend(loc="upper right")
-
+        
+        # add frame inset sketch (doesn't affect axes scale)
+        _add_frame_inset(ax, L_m=x_m[-1], h_m=h_mm/1000.0)
+        
         st.pyplot(fig)
-
     # --- MOMENT ON WHOLE FRAME ---
     with c2:
         st.markdown(f"**Bending moment diagram ({M_lbl})**")
         fig, ax = plt.subplots()
-
-        # frame geometry (BLUE, thick)
-        ax.plot([0, 0], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
-        ax.plot([L, L], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
-        ax.plot([0, L], [h, h], color=FRAME_COLOR, linewidth=FRAME_LW)
         
-        # moment diagram (RED, thinner)
-        yM = h + sm * M
-        ax.plot(x, yM, color=DIAG_COLOR, linewidth=DIAG_LW)
-        
-        # beam axis baseline
-        ax.plot([0, L], [h, h], color="0.6", linewidth=AXIS_LW)
-
-        ax.set_aspect("equal", adjustable="box")
+        ax.plot(x_m, M_kNm, linewidth=2)  # <-- real M values
+        ax.axhline(0, linewidth=1)
         ax.set_xlabel("x (m)")
-        ax.set_ylabel("y (m)")
+        ax.set_ylabel(M_lbl)
         ax.grid(True)
-
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
-        buf.seek(0)
-        st.session_state["frame_tmpr01_whole_M_png"] = buf.getvalue()
-
-        ax.plot([], [], color=FRAME_COLOR, linewidth=FRAME_LW, label="Frame")
-        ax.plot([], [], color=DIAG_COLOR, linewidth=DIAG_LW, label="Diagram")
-        ax.legend(loc="upper right")
+        
+        _add_frame_inset(ax, L_m=x_m[-1], h_m=h_mm/1000.0)
         
         st.pyplot(fig)
-        
+
     st.markdown("### Support forces")
     st.caption("Positive is upward.")
     
