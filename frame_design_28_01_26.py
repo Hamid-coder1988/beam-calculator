@@ -7391,17 +7391,14 @@ def _tm_pr_01_beam_diagrams(L_mm: float, P_kN: float, n: int = 401):
     return x, V, M
 
 def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float):
-    """
-    Draw TWO combined diagrams (whole frame):
-      - Shear (on top beam only) + axial in columns as text
-      - Moment (on top beam only) + axial in columns as text
-    This matches the reference assumption (columns axial only).
-    """
+
     L_mm = float(L_mm)
     h_mm = float(h_mm)
     P_kN = float(P_kN)
 
-    x, V, M = _tm_pr_01_beam_diagrams(L_mm=L_mm, P_kN=P_kN)
+    # --- beam diagrams (real values) ---
+    x_m, V_kN, M_kNm = _tm_pr_01_beam_diagrams(L_mm=L_mm, P_kN=P_kN)
+    # x_m in meters, V_kN in kN, M_kNm in kN·m
 
     L = L_mm / 1000.0
     h = h_mm / 1000.0
