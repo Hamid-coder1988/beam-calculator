@@ -7793,7 +7793,13 @@ def _render_ready_frame_cases():
             with c2:
                 h_mm = st.number_input("Column height h (mm)", min_value=1.0, value=3000.0, step=10.0, key="tmpr02_h_mm")
             with c3:
-                F_kN = st.number_input("Side top point load F (kN) (to the right)", min_value=0.0,  value=float(st.session_state.get("tmpr02_F_kN", 50.0)), step=1.0, key="tmpr02_F_kN")
+                F_kN = st.number_input(
+                    "Side top point load F (kN)  (+ = to the right, − = to the left)",
+                    value=float(st.session_state.get("tmpr02_F_kN", 50.0)),
+                    step=1.0,
+                    key="tmpr02_F_kN"
+)
+
     
             st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
             _render_tm_pr_02_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, F_kN=F_kN)
