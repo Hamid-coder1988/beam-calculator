@@ -7780,7 +7780,13 @@ def _render_ready_frame_cases():
             with c2:
                 h_mm = st.number_input("Column height h (mm)", min_value=1.0, value=3000.0, step=10.0, key="tmpr01_h_mm")
             with c3:
-                P_kN = st.number_input("Central point load F (kN) (downward)", min_value=0.0, value=50.0, step=1.0, key="tmpr01_P_kN")
+                P_kN = st.number_input(
+                    "Central point load F (kN) (downward)",
+                    value=-50.0,          # default negative (downward)
+                    step=1.0,
+                    key="tmpr01_P_kN"
+                )
+
     
             st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
             _render_tm_pr_01_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, P_kN=P_kN)
