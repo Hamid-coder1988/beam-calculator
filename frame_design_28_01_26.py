@@ -7468,13 +7468,21 @@ def _fill_beam_vm_to_components(member_prefix: str, V_kN: float, M_kNm: float) -
     """
     _fill_VM_into_member_inputs(member_prefix, V_kN, M_kNm)
 
-
-def _render_support_forces(case_key: str, RA_kN: float, RE_kN: float, HA_kN: Optional[float] = None) -> None:
+def _render_support_forces(
+    case_key: str,
+    RA_kN: float,
+    RE_kN: float,
+    HA_kN: Optional[float] = None,
+    HE_kN: Optional[float] = None,
+    HD_kN: Optional[float] = None,
+) -> None:
     """
     Support forces box for frame cases.
+
     Conventions:
       - RA, RE: vertical reactions (kN), upward positive
-      - HA: horizontal reaction at A (kN), positive to the RIGHT
+      - H*: horizontal reactions (kN), positive to the RIGHT
+        (use HA at A, HE at E, HD if your diagram uses D)
     """
     st.markdown("### Support forces")
     st.caption("Upward positive for R. Positive to the right for H.")
@@ -7482,22 +7490,26 @@ def _render_support_forces(case_key: str, RA_kN: float, RE_kN: float, HA_kN: Opt
     st.session_state[f"{case_key}_RA_out"] = float(RA_kN)
     st.session_state[f"{case_key}_RE_out"] = float(RE_kN)
 
-    if HA_kN is None:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.number_input("RA (kN)", disabled=True, step=0.1, key=f"{case_key}_RA_out")
-        with c2:
-            st.number_input("RE (kN)", disabled=True, step=0.1, key=f"{case_key}_RE_out")
-    else:
+    # Collect optional horizontal reactions in display order
+    H_items = []
+    if HA_kN is not None:
         st.session_state[f"{case_key}_HA_out"] = float(HA_kN)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.number_input("RA (kN)", disabled=True, step=0.1, key=f"{case_key}_RA_out")
-        with c2:
-            st.number_input("RE (kN)", disabled=True, step=0.1, key=f"{case_key}_RE_out")
-        with c3:
-            st.number_input("HA (kN)", disabled=True, step=0.1, key=f"{case_key}_HA_out")
+        H_items.append(("HA (kN)", f"{case_key}_HA_out"))
+    if HE_kN is not None:
+        st.session_state[f"{case_key}_HE_out"] = float(HE_kN)
+        H_items.append(("HE (kN)", f"{case_key}_HE_out"))
+    if HD_kN is not None:
+        st.session_state[f"{case_key}_HD_out"] = float(HD_kN)
+        H_items.append(("HD (kN)", f"{case_key}_HD_out"))
 
+    # Layout
+    base_items = [("RA (kN)", f"{case_key}_RA_out"), ("RE (kN)", f"{case_key}_RE_out")]
+    all_items = base_items + H_items
+
+    cols = st.columns(len(all_items))
+    for col, (label, key) in zip(cols, all_items):
+        with col:
+            st.number_input(label, disabled=True, step=0.1, key=key)
 
 def _member_I_m4(member_prefix: str) -> float:
     """
