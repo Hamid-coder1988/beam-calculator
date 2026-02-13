@@ -7420,31 +7420,39 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
     # Beam diagrams (true)
     x_b, V_b, M_b = _tm_pr_01_diagrams(L_mm=L_mm, P_kN=P_kN, n=401)
 
-    st.markdown("#### Beam diagrams")
-    _render_member_vm(
-        x_m=x_b,
-        V_kN=V_b,
-        M_kNm=M_b,
-        member_prefix="beam_",
-        key_prefix="tmpr01_beam_",
-        x_label="x (m)",
-    )
+    # ------------------------------
+    # Beam diagrams (collapsed)
+    # ------------------------------
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(
+            x_m=x_b,
+            V_kN=V_b,
+            M_kNm=M_b,
+            member_prefix="beam_",
+            key_prefix="tmpr01_beam_",
+            x_label="x (m)",
+        )
 
     # Column diagrams (per your current assumption: axial only)
     y_c = np.linspace(0.0, h_mm / 1000.0, 200)
     V_c = np.zeros_like(y_c)
     M_c = np.zeros_like(y_c)
 
-    st.markdown("#### Column diagrams")
-    _render_member_vm(
-        x_m=y_c,
-        V_kN=V_c,
-        M_kNm=M_c,
-        member_prefix="col_",
-        key_prefix="tmpr01_col_",
-        x_label="y (m)",
-    )
-
+    # ------------------------------
+    # Column diagrams (collapsed)
+    # ------------------------------
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(
+            x_m=y_c,
+            V_kN=V_c,
+            M_kNm=M_c,
+            member_prefix="col_",
+            key_prefix="tmpr01_col_",
+            x_label="y (m)",
+        )
+    
     # Support forces (compact)
     RA_kN = 0.5 * P_kN
     RE_kN = 0.5 * P_kN
@@ -7490,30 +7498,32 @@ def _render_tm_pr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     V_b = np.full_like(x_b, RA_kN)                 # constant
     M_b = (F_kN * h) * (1.0 - x_b / L)             # linear to 0 at right
 
-    st.markdown("#### Beam diagrams")
-    _render_member_vm(
-        x_m=x_b,
-        V_kN=V_b,
-        M_kNm=M_b,
-        member_prefix="beam_",
-        key_prefix="tmpr02_beam_",
-        x_label="x (m)",
-    )
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(
+            x_m=x_b,
+            V_kN=V_b,
+            M_kNm=M_b,
+            member_prefix="beam_",
+            key_prefix="tmpr02_beam_",
+            x_label="x (m)",
+        )
 
     # Column diagrams (left column)
     y_c = np.linspace(0.0, h, 250)
     V_c = np.full_like(y_c, F_kN)                  # constant shear (sign follows F)
     M_c = F_kN * y_c                               # linear, max at top = F*h
 
-    st.markdown("#### Column diagrams")
-    _render_member_vm(
-        x_m=y_c,
-        V_kN=V_c,
-        M_kNm=M_c,
-        member_prefix="col_",
-        key_prefix="tmpr02_col_",
-        x_label="y (m)",
-    )
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(
+            x_m=y_c,
+            V_kN=V_c,
+            M_kNm=M_c,
+            member_prefix="col_",
+            key_prefix="tmpr02_col_",
+            x_label="y (m)",
+        )
 
     # Support forces (ONLY RA/RE as you requested)
     st.markdown("### Support forces")
