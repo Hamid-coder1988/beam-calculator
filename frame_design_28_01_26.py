@@ -7424,7 +7424,7 @@ def _render_member_vm(
 
 
 # -----------------------------
-# Apply helper for "ready case" dicts
+# Apply helper for "ready case" dicts  (NO UI HERE)
 # -----------------------------
 def _apply_ready_frame_case(case: dict) -> None:
     """
@@ -7432,19 +7432,54 @@ def _apply_ready_frame_case(case: dict) -> None:
       case["beam"] -> st.session_state["beam_<k>"] = v
       case["col"]  -> st.session_state["col_<k>"]  = v
     """
+    if not isinstance(case, dict):
+        return
+
     for pref in ("beam_", "col_"):
-        data = case.get("beam" if pref == "beam_" else "col", {})
+        data = case.get("beam" if pref == "beam_" else "col", {}) or {}
         for k, v in data.items():
             st.session_state[f"{pref}{k}"] = v
 
 
+# -----------------------------
+# Ready frame cases UI (catalog + preview + apply)
+# -----------------------------
+def _render_ready_frame_cases() -> None:
+    st.markdown("### Ready frame cases")
+    st.caption(
+        "Pick a catalog + case to prefill **both** beam and column forces. "
+        "Then you can tweak any value below."
+    )
+
     # -----------------------------
-    # FRAME CATALOG (layout only)
+    # Helper: build placeholder cases
     # -----------------------------
-    beam0 = {"L_mm_in": 8000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
-             "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0}
-    col0  = {"L_mm_in": 4000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
-             "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0}
+    def make_frame_cases(prefix: str, n: int, beam_defaults: dict, col_defaults: dict):
+        out = []
+        for i in range(1, int(n) + 1):
+            key = f"{prefix}-{i:02d}"
+            out.append({
+                "key": key,
+                "label": f"Case {i}",
+                "img_path": f"assets/frame_cases/{key}.png",
+                "beam": dict(beam_defaults),
+                "col":  dict(col_defaults),
+            })
+        return out
+
+    # -----------------------------
+    # FRAME CATALOG (layout defaults only)
+    # -----------------------------
+    beam0 = {
+        "L_mm_in": 8000.0, "N_in": 0.0,
+        "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
+        "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0
+    }
+    col0 = {
+        "L_mm_in": 4000.0, "N_in": 0.0,
+        "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
+        "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0
+    }
 
     FRAME_CATALOG = {
         "Three Member Frames (Pin / Roller) (8 cases)": make_frame_cases("TM-PR", 8, beam0, col0),
@@ -7486,10 +7521,10 @@ def _apply_ready_frame_case(case: dict) -> None:
                     st.write("")
                     continue
 
-                case = row_cases[j]
+                c = row_cases[j]
 
-                if case.get("img_path"):
-                    shown = safe_image(case["img_path"], use_container_width=True)
+                if c.get("img_path"):
+                    shown = safe_image(c["img_path"], use_container_width=True)
                     if not shown:
                         st.markdown(
                             "<div style='height:110px;border:1px dashed #bbb;"
@@ -7507,9 +7542,9 @@ def _apply_ready_frame_case(case: dict) -> None:
                         unsafe_allow_html=True
                     )
 
-                st.caption(case["key"])
-                if st.button("Select", key=f"frame_select_{cat}_{case['key']}"):
-                    clicked = case["key"]
+                st.caption(c["key"])
+                if st.button("Select", key=f"frame_select_{cat}_{c['key']}"):
+                    clicked = c["key"]
 
     if clicked:
         st.session_state["frame_case_key"] = clicked
@@ -7542,7 +7577,7 @@ def _apply_ready_frame_case(case: dict) -> None:
         return st.number_input(label, value=float(default), **kwargs)
 
     # -----------------------------
-    # Case configs (add more here later; UI stays same)
+    # Case configs
     # -----------------------------
     CASE_CFG = {
         "TM-PR-01": {
@@ -7554,7 +7589,6 @@ def _apply_ready_frame_case(case: dict) -> None:
             "preview": lambda v: _render_tm_pr_01_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], P_kN=v["F_kN"]),
             "apply": "apply_tmpr01",
         },
-    
         "TM-PR-02": {
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
@@ -7564,7 +7598,6 @@ def _apply_ready_frame_case(case: dict) -> None:
             "preview": lambda v: _render_tm_pr_02_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
             "apply": "apply_tmpr02",
         },
-    
         "TM-PR-03": {
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
@@ -7574,7 +7607,6 @@ def _apply_ready_frame_case(case: dict) -> None:
             "preview": lambda v: _render_tm_pr_03_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
             "apply": "apply_tmpr03",
         },
-    
         "TM-PR-04": {
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
@@ -7584,7 +7616,6 @@ def _apply_ready_frame_case(case: dict) -> None:
             "preview": lambda v: _render_tm_pr_04_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], Mc_kNm=v["Mc_kNm"]),
             "apply": "apply_tmpr04",
         },
-    
         "TM-PR-05": {
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
@@ -7594,7 +7625,6 @@ def _apply_ready_frame_case(case: dict) -> None:
             "preview": lambda v: _render_tm_pr_05_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], Mc_kNm=v["Mc_kNm"]),
             "apply": "apply_tmpr05",
         },
-    
         "TM-PR-06": {
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
@@ -7604,7 +7634,6 @@ def _apply_ready_frame_case(case: dict) -> None:
             "preview": lambda v: _render_tm_pr_06_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
             "apply": "apply_tmpr06",
         },
-    
         "TM-PR-07": {
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
@@ -7614,7 +7643,6 @@ def _apply_ready_frame_case(case: dict) -> None:
             "preview": lambda v: _render_tm_pr_07_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
             "apply": "apply_tmpr07",
         },
-    
         "TM-PR-08": {
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
@@ -7625,7 +7653,6 @@ def _apply_ready_frame_case(case: dict) -> None:
             "apply": "apply_tmpr08",
         },
     }
-
 
     if case_key not in CASE_CFG:
         st.info("Diagrams not implemented for this case yet.")
@@ -7681,11 +7708,12 @@ def _apply_ready_frame_case(case: dict) -> None:
             L_m = L_mm / 1000.0
             h_m = h_mm / 1000.0
 
+            # keep your sign convention as-is
             RA_kN = -(F_kN * h_m) / L_m
             RE_kN = +(F_kN * h_m) / L_m
 
             Mmax_kNm = F_kN * h_m
-            V_beam_kN = RE_kN  # signed
+            V_beam_kN = RE_kN
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
@@ -7694,24 +7722,20 @@ def _apply_ready_frame_case(case: dict) -> None:
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
             _fill_VM_into_member_inputs("col_", F_kN, Mmax_kNm)
-            
+
         elif cfg["apply"] == "apply_tmpr03":
             L_mm = float(vals["L_mm"])
             h_mm = float(vals["h_mm"])
             F_kN = float(vals["F_kN"])
-
-            L_m = L_mm / 1000.0
             h_m = h_mm / 1000.0
 
-            # Beam: V=0, M=F*h
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=F_kN * h_m)
+            _fill_VM_into_member_inputs("beam_", 0.0, F_kN * h_m)
 
-            # Column: V=F, Mmax=F*h
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=F_kN, M_kNm=F_kN * h_m)
+            _fill_VM_into_member_inputs("col_", F_kN, F_kN * h_m)
 
         elif cfg["apply"] == "apply_tmpr04":
             L_mm = float(vals["L_mm"])
@@ -7719,21 +7743,18 @@ def _apply_ready_frame_case(case: dict) -> None:
             Mc_kNm = float(vals["Mc_kNm"])
 
             L_m = L_mm / 1000.0
-            h_m = h_mm / 1000.0
             if L_m <= 0:
                 L_m = 1.0
 
             RA_kN = Mc_kNm / L_m
 
-            # Beam: V ~ RA, Mmax ~ Mc
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mc_kNm)
+            _fill_VM_into_member_inputs("beam_", RA_kN, Mc_kNm)
 
-            # Column: take same moment envelope (safe)
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=Mc_kNm)
+            _fill_VM_into_member_inputs("col_", 0.0, Mc_kNm)
 
         elif cfg["apply"] == "apply_tmpr05":
             L_mm = float(vals["L_mm"])
@@ -7749,12 +7770,11 @@ def _apply_ready_frame_case(case: dict) -> None:
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
+            _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
 
-            # Columns simplified as no bending for this case
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
+            _fill_VM_into_member_inputs("col_", 0.0, 0.0)
 
         elif cfg["apply"] == "apply_tmpr06":
             L_mm = float(vals["L_mm"])
@@ -7770,13 +7790,11 @@ def _apply_ready_frame_case(case: dict) -> None:
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
+            _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
 
-            # Columns: axial compression from reaction (sign: compression negative in your app)
-            Ncol_kN = -abs(w) * L_m / 2.0
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = Ncol_kN
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
+            st.session_state["col_N_in"] = -abs(w) * L_m / 2.0
+            _fill_VM_into_member_inputs("col_", 0.0, 0.0)
 
         elif cfg["apply"] == "apply_tmpr07":
             L_mm = float(vals["L_mm"])
@@ -7794,11 +7812,11 @@ def _apply_ready_frame_case(case: dict) -> None:
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
+            _fill_VM_into_member_inputs("beam_", RA_kN, Mmax_kNm)
 
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=Vcol_kN, M_kNm=Mmax_kNm)
+            _fill_VM_into_member_inputs("col_", Vcol_kN, Mmax_kNm)
 
         elif cfg["apply"] == "apply_tmpr08":
             L_mm = float(vals["L_mm"])
@@ -7811,27 +7829,23 @@ def _apply_ready_frame_case(case: dict) -> None:
                 L_m = 1.0
 
             RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
-            Mmax_kNm = abs(w) * h_m**2      # per your reference (at B)
+            Mmax_kNm = abs(w) * h_m**2
             Vcol_kN = abs(w) * h_m
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
+            _fill_VM_into_member_inputs("beam_", RA_kN, Mmax_kNm)
 
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=Vcol_kN, M_kNm=0.5 * abs(w) * h_m**2)  # Mc = w h^2/2
+            _fill_VM_into_member_inputs("col_", Vcol_kN, 0.5 * abs(w) * h_m**2)
 
-
-        else:
-            _apply_ready_frame_case(case)
-
+        # Invalidate previous results
         for k in ["beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
                   "col_df_rows", "col_overall_ok", "col_governing", "col_extras"]:
             st.session_state.pop(k, None)
 
         st.toast("Case applied — loads transferred to inputs.", icon="✅")
-
 
 def _swap_yz_in_sr_display(sr_display: dict) -> dict:
     """Return a shallow-copied sr_display with y/z (strong/weak) properties swapped.
