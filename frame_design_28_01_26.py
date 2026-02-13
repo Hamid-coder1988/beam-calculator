@@ -7312,8 +7312,15 @@ def _tm_pr_01_diagrams(L_mm: float, P_kN: float, n: int = 401):
 
     return x_m, V, M
 
-def _render_frame_case_vm(x_m, V_kN, M_kNm, member_prefix="beam_", key_prefix="frame_tmpr01_"):
-    """Plot using same style as your beam tool. Labels follow strong/weak selection."""
+def _render_member_vm(
+    x_m,
+    V_kN,
+    M_kNm,
+    member_prefix="beam_",
+    key_prefix="frame_vm_",
+    x_label="x (m)",
+):
+    """Plot V and M like beam tool. Labels follow strong/weak selection per member."""
     weak = _axis_is_weak(member_prefix)
     V_lbl = "Vy (kN)" if weak else "Vz (kN)"
     M_lbl = "Mz (kN·m)" if weak else "My (kN·m)"
@@ -7323,9 +7330,9 @@ def _render_frame_case_vm(x_m, V_kN, M_kNm, member_prefix="beam_", key_prefix="f
     with colV:
         small_title(f"Shear force diagram {V_lbl}")
         fig1, ax1 = plt.subplots()
-        ax1.plot(x_m, V_kN)
+        ax1.plot(x_m, V_kN, linewidth=2)
         ax1.axhline(0, linewidth=1)
-        ax1.set_xlabel("x (m)")
+        ax1.set_xlabel(x_label)
         ax1.set_ylabel(V_lbl)
         ax1.grid(True)
 
@@ -7333,14 +7340,15 @@ def _render_frame_case_vm(x_m, V_kN, M_kNm, member_prefix="beam_", key_prefix="f
         fig1.savefig(buf_v, format="png", dpi=200, bbox_inches="tight")
         buf_v.seek(0)
         st.session_state[f"{key_prefix}V_png"] = buf_v.getvalue()
+
         st.pyplot(fig1)
 
     with colM:
         small_title(f"Bending moment diagram {M_lbl}")
         fig2, ax2 = plt.subplots()
-        ax2.plot(x_m, M_kNm)
+        ax2.plot(x_m, M_kNm, linewidth=2)
         ax2.axhline(0, linewidth=1)
-        ax2.set_xlabel("x (m)")
+        ax2.set_xlabel(x_label)
         ax2.set_ylabel(M_lbl)
         ax2.grid(True)
 
@@ -7348,7 +7356,9 @@ def _render_frame_case_vm(x_m, V_kN, M_kNm, member_prefix="beam_", key_prefix="f
         fig2.savefig(buf_m, format="png", dpi=200, bbox_inches="tight")
         buf_m.seek(0)
         st.session_state[f"{key_prefix}M_png"] = buf_m.getvalue()
+
         st.pyplot(fig2)
+
 
 def _apply_ready_frame_case(case: dict):
     """Fill BOTH beam_ and col_ inputs in session_state from a ready frame case."""
@@ -7398,70 +7408,44 @@ def _tm_pr_01_beam_diagrams(L_mm: float, P_kN: float, n: int = 401):
 
 def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float):
     """
-    TM-PR-01: Pin/Roller, central vertical point load at midspan on top beam.
-    Plot real V(x) and M(x) with correct y-axis units.
-    Frame shown only as an inset sketch (so axis isn't y(m)).
+    TM-PR-01: pin/roller, vertical central point load on beam.
+    We show REAL V/M diagrams for:
+      - Beam: simply supported with central point load
+      - Columns: (your assumption) no bending/shear => V=0, M=0
     """
     L_mm = float(L_mm)
     h_mm = float(h_mm)
     P_kN = float(P_kN)
 
-    # Real beam diagrams (x in m, V in kN, M in kN·m)
-    x_m, V_kN, M_kNm = _tm_pr_01_beam_diagrams(L_mm=L_mm, P_kN=P_kN)
+    # Beam diagrams (true)
+    x_b, V_b, M_b = _tm_pr_01_diagrams(L_mm=L_mm, P_kN=P_kN, n=401)
 
-    L_m = L_mm / 1000.0
-    h_m = h_mm / 1000.0
+    st.markdown("#### Beam diagrams")
+    _render_member_vm(
+        x_m=x_b,
+        V_kN=V_b,
+        M_kNm=M_b,
+        member_prefix="beam_",
+        key_prefix="tmpr01_beam_",
+        x_label="x (m)",
+    )
 
-    # Axis labels depend on beam bending axis selection
-    weak = _axis_is_weak("beam_")
-    V_lbl = "Vy (kN)" if weak else "Vz (kN)"
-    M_lbl = "Mz (kN·m)" if weak else "My (kN·m)"
+    # Column diagrams (per your current assumption: axial only)
+    y_c = np.linspace(0.0, h_mm / 1000.0, 200)
+    V_c = np.zeros_like(y_c)
+    M_c = np.zeros_like(y_c)
 
-    c1, c2 = st.columns(2)
+    st.markdown("#### Column diagrams")
+    _render_member_vm(
+        x_m=y_c,
+        V_kN=V_c,
+        M_kNm=M_c,
+        member_prefix="col_",
+        key_prefix="tmpr01_col_",
+        x_label="y (m)",
+    )
 
-    # --- SHEAR ---
-    with c1:
-        st.markdown(f"**Shear force diagram ({V_lbl})**")
-        fig, ax = plt.subplots()
-
-        ax.plot(x_m, V_kN, linewidth=2)
-        ax.axhline(0.0, linewidth=1)
-
-        ax.set_xlabel("x (m)")
-        ax.set_ylabel(V_lbl)
-        ax.grid(True)
-
-        _add_frame_inset(ax, L_m=L_m, h_m=h_m)
-
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
-        buf.seek(0)
-        st.session_state["frame_tmpr01_V_png"] = buf.getvalue()
-
-        st.pyplot(fig)
-
-    # --- MOMENT ---
-    with c2:
-        st.markdown(f"**Bending moment diagram ({M_lbl})**")
-        fig, ax = plt.subplots()
-
-        ax.plot(x_m, M_kNm, linewidth=2)
-        ax.axhline(0.0, linewidth=1)
-
-        ax.set_xlabel("x (m)")
-        ax.set_ylabel(M_lbl)
-        ax.grid(True)
-
-        _add_frame_inset(ax, L_m=L_m, h_m=h_m)
-
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
-        buf.seek(0)
-        st.session_state["frame_tmpr01_M_png"] = buf.getvalue()
-
-        st.pyplot(fig)
-
-    # --- Support forces (compact like beam inputs) ---
+    # Support forces (compact)
     RA_kN = 0.5 * P_kN
     RE_kN = 0.5 * P_kN
 
@@ -7477,30 +7461,16 @@ def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
     with s2:
         st.number_input("RE (kN)", disabled=True, step=0.1, key="tmpr01_RE_out")
 
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        st.number_input(
-            "RA (kN)",
-            value=float(RA_kN),
-            step=0.1,
-            disabled=True,
-            key="tmpr01_RA_out"
-        )
-    with c2:
-        st.number_input(
-            "RE (kN)",
-            value=float(RE_kN),
-            step=0.1,
-            disabled=True,
-            key="tmpr01_RE_out"
-        )
 def _render_tm_pr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
     """
-    TM-PR-02: Pin/Roller, horizontal point load at top-right.
-    Whole frame preview:
-      - Shear plot: show column shear (horizontal) on left column as red "N-like" offset (visual cue)
-      - Moment plot: show M on left column + beam (per reference BMD)
+    TM-PR-02: pin/roller, horizontal point load at top-right (to the right).
+    Reference (your image) gives:
+      RA = RE = (F*h)/L   (upward +)
+      HA = F              (not shown in your simplified output)
+      Mmax(at top-left) = F*h
+    We plot REAL member diagrams:
+      - Column (left): shear ~ F (constant), moment M(y)=F*y
+      - Beam (top): shear ~ RA (constant), moment M(x)=F*h*(1-x/L)
     """
     L_mm = float(L_mm)
     h_mm = float(h_mm)
@@ -7508,125 +7478,56 @@ def _render_tm_pr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
 
     L = L_mm / 1000.0
     h = h_mm / 1000.0
-
-    # --- styling ---
-    FRAME_COLOR = "#1f77b4"   # blue
-    DIAG_COLOR  = "#d62728"   # red
-    FRAME_LW = 3.0
-    DIAG_LW  = 2.0
-    AXIS_LW  = 1.0
+    if L <= 0 or h <= 0:
+        return
 
     # Reactions (upward +)
-    RA_kN = -(F_kN * h) / L
-    RE_kN = +(F_kN * h) / L
-    HA_kN = F_kN  # (not shown if you want only RA/RE)
+    RA_kN = (F_kN * h) / L
+    RE_kN = (F_kN * h) / L
 
-    # Moment magnitude
-    Mmax_kNm = F_kN * h  # kN*m
+    # Beam diagrams
+    x_b = np.linspace(0.0, L, 401)
+    V_b = np.full_like(x_b, RA_kN)                 # constant
+    M_b = (F_kN * h) * (1.0 - x_b / L)             # linear to 0 at right
 
-    # Build "diagram" coordinates
-    # Left column moment: 0 at A -> Mmax at B
-    # Beam moment: Mmax at B -> 0 at top-right
-    # Right column: 0 (simplified per reference)
-    # Scale moment diagram vertically above frame
-    sm = 0.35 * h / max(1e-9, abs(Mmax_kNm))
+    st.markdown("#### Beam diagrams")
+    _render_member_vm(
+        x_m=x_b,
+        V_kN=V_b,
+        M_kNm=M_b,
+        member_prefix="beam_",
+        key_prefix="tmpr02_beam_",
+        x_label="x (m)",
+    )
 
-    # For moment plot: create piecewise polyline along members
-    # Left column polyline (x=0)
-    y_col = np.linspace(0.0, h, 60)
-    M_col = (Mmax_kNm / h) * y_col  # linear
-    x_col = 0.0 + sm * M_col        # offset in x-direction for visibility (red diagram)
-    # Beam polyline (y=h)
-    x_beam = np.linspace(0.0, L, 120)
-    M_beam = Mmax_kNm * (1.0 - x_beam / L)  # linear down to 0
-    y_beam = h + sm * M_beam                # offset in y-direction
+    # Column diagrams (left column)
+    y_c = np.linspace(0.0, h, 250)
+    V_c = np.full_like(y_c, F_kN)                  # constant shear (sign follows F)
+    M_c = F_kN * y_c                               # linear, max at top = F*h
 
-    # Shear cue (left column horizontal shear ~ F): show as small x-offset rectangle on left column
-    # (This is just a visual cue; the important one is the bending diagram.)
-    sv = 0.10 * L / max(1e-9, abs(F_kN))
-    dx = sv * F_kN
+    st.markdown("#### Column diagrams")
+    _render_member_vm(
+        x_m=y_c,
+        V_kN=V_c,
+        M_kNm=M_c,
+        member_prefix="col_",
+        key_prefix="tmpr02_col_",
+        x_label="y (m)",
+    )
 
-    c1, c2 = st.columns(2)
-
-    # --- SHEAR / FORCE CUE (whole frame) ---
-    with c1:
-        st.markdown("**Shear/force diagram — whole frame (visual cue)**")
-        fig, ax = plt.subplots()
-
-        # Frame (BLUE)
-        ax.plot([0, 0], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
-        ax.plot([L, L], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
-        ax.plot([0, L], [h, h], color=FRAME_COLOR, linewidth=FRAME_LW)
-
-        # Red shear cue on LEFT column (rectangle offset)
-        ax.plot([0, dx], [0, 0], color=DIAG_COLOR, linewidth=DIAG_LW)
-        ax.plot([dx, dx], [0, h], color=DIAG_COLOR, linewidth=DIAG_LW)
-        ax.plot([dx, 0], [h, h], color=DIAG_COLOR, linewidth=DIAG_LW)
-
-        # baseline
-        ax.plot([0, L], [h, h], color="0.6", linewidth=AXIS_LW)
-
-        ax.plot([], [], color=FRAME_COLOR, linewidth=FRAME_LW, label="Frame")
-        ax.plot([], [], color=DIAG_COLOR, linewidth=DIAG_LW, label="Diagram")
-        ax.legend(loc="upper right")
-
-        ax.set_aspect("equal", adjustable="box")
-        ax.set_xlabel("x (m)")
-        ax.set_ylabel("y (m)")
-        ax.grid(True)
-
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
-        buf.seek(0)
-        st.session_state["frame_tmpr02_whole_V_png"] = buf.getvalue()
-
-        st.pyplot(fig)
-
-    # --- MOMENT (whole frame) ---
-    with c2:
-        st.markdown("**Bending moment diagram — whole frame**")
-        fig, ax = plt.subplots()
-
-        # Frame (BLUE)
-        ax.plot([0, 0], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
-        ax.plot([L, L], [0, h], color=FRAME_COLOR, linewidth=FRAME_LW)
-        ax.plot([0, L], [h, h], color=FRAME_COLOR, linewidth=FRAME_LW)
-
-        # Red M diagram:
-        # left column: plot (x_col, y_col)
-        ax.plot(x_col, y_col, color=DIAG_COLOR, linewidth=DIAG_LW)
-        # beam: plot (x_beam, y_beam)
-        ax.plot(x_beam, y_beam, color=DIAG_COLOR, linewidth=DIAG_LW)
-
-        # baseline
-        ax.plot([0, L], [h, h], color="0.6", linewidth=AXIS_LW)
-
-        ax.plot([], [], color=FRAME_COLOR, linewidth=FRAME_LW, label="Frame")
-        ax.plot([], [], color=DIAG_COLOR, linewidth=DIAG_LW, label="Diagram")
-        ax.legend(loc="upper right")
-
-        ax.set_aspect("equal", adjustable="box")
-        ax.set_xlabel("x (m)")
-        ax.set_ylabel("y (m)")
-        ax.grid(True)
-
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
-        buf.seek(0)
-        st.session_state["frame_tmpr02_whole_M_png"] = buf.getvalue()
-
-        st.pyplot(fig)
-
-    # Support forces (same compact “beam style”, only RA/RE)
+    # Support forces (ONLY RA/RE as you requested)
     st.markdown("### Support forces")
     st.caption("Upward positive.")
-    s1, s2 = st.columns(2)
+
     st.session_state["tmpr02_RA_out"] = float(RA_kN)
     st.session_state["tmpr02_RE_out"] = float(RE_kN)
+
+    s1, s2 = st.columns(2)
     with s1:
-        st.number_input("RA (kN)", step=0.1, disabled=True, key="tmpr02_RA_out")
+        st.number_input("RA (kN)", disabled=True, step=0.1, key="tmpr02_RA_out")
     with s2:
-        st.number_input("RE (kN)", step=0.1, disabled=True, key="tmpr02_RE_out")
+        st.number_input("RE (kN)", disabled=True, step=0.1, key="tmpr02_RE_out")
+
 
     
 def _render_ready_frame_cases():
@@ -7782,14 +7683,8 @@ def _render_ready_frame_cases():
             with c2:
                 h_mm = st.number_input("Column height h (mm)", min_value=1.0, value=3000.0, step=10.0, key="tmpr01_h_mm")
             with c3:
-                P_kN = st.number_input(
-                    "Central point load F (kN) (downward)",
-                    value=-50.0,          # default negative (downward)
-                    step=1.0,
-                    key="tmpr01_P_kN"
-                )
+                P_kN = st.number_input("Central point load F (kN) (downward)", value=-50.0, step=1.0, key="tmpr01_P_kN")
 
-    
             st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
             _render_tm_pr_01_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, P_kN=P_kN)
     
