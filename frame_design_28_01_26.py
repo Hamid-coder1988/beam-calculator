@@ -7775,6 +7775,584 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 # -----------------------------
 # Gallery UI (TOP-LEVEL FUNCTION)
 # -----------------------------
+
+# ============================================================
+# Three-Member Frames (TM-PP and TM-FF) — equation-based cases
+# Conventions in this app:
+# - Supports: A (left), E (right)
+# - Top beam: B—C—D (C at midspan)
+# - L = span (beam), h = column height
+# - β = I_beam / I_col, e = h / L   (per your reference images)
+# - Only envelope (|V|max, |M|max, |N|max) is applied to member checks.
+# ============================================================
+
+def _tm_beta_e(L_m: float, h_m: float) -> tuple[float, float]:
+    """Return (beta, e) where beta = I_beam/I_col and e = h/L."""
+    L_m = max(float(L_m), 1e-12)
+    h_m = max(float(h_m), 1e-12)
+    I_beam = _member_I_m4("beam_")
+    I_col  = _member_I_m4("col_")
+    beta = (I_beam / I_col) if (I_col and I_col > 0) else 0.0
+    e = h_m / L_m
+    return float(beta), float(e)
+
+
+def _beam_deflection_from_M(L_m: float, M_kNm: np.ndarray, x_m: np.ndarray) -> float:
+    """
+    Numeric deflection from bending moment diagram:
+    y'' = M/(E*I). Enforce y(0)=0 and y(L)=0 via linear correction.
+    Returns max |y| in meters.
+    """
+    L_m = float(L_m)
+    if L_m <= 0:
+        return 0.0
+
+    E = get_E_Pa()
+    I = _member_I_m4("beam_")
+    if not (I and I > 0):
+        return 0.0
+
+    M_Nm = np.asarray(M_kNm, dtype=float) * 1000.0
+    x = np.asarray(x_m, dtype=float)
+    if x.size < 2:
+        return 0.0
+
+    kappa = M_Nm / (E * I)
+    dx = float(x[1] - x[0])
+    theta = np.cumsum(kappa) * dx
+    y = np.cumsum(theta) * dx
+    # enforce y(L)=0 (and y(0)=0 already)
+    y = y - (y[-1] / max(L_m, 1e-12)) * x
+    return float(np.nanmax(np.abs(y)))
+
+
+def _beam_M_from_points(L_m: float, x_pts: list[float], M_pts: list[float], n: int = 801) -> tuple[np.ndarray, np.ndarray]:
+    """Piecewise-linear M(x) through given (x,M) points."""
+    L_m = float(L_m)
+    x = np.linspace(0.0, L_m, int(n))
+    xp = np.array(x_pts, dtype=float)
+    Mp = np.array(M_pts, dtype=float)
+    # ensure monotonic x points
+    idx = np.argsort(xp)
+    xp = xp[idx]; Mp = Mp[idx]
+    M = np.interp(x, xp, Mp)
+    return x, M
+
+
+# -------------------------
+# TM-PP-01: Pin/Pin — Top Point Load at C (mid)
+# -------------------------
+def tmpp01_case(L_mm: float, h_mm: float, F_kN: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return 0.0, 0.0, 0.0, 0.0, 0.0
+
+    beta, e = _tm_beta_e(L, h)
+    x = L / 2.0
+
+    RA = P * (L - x) / L
+    RE = P * x / L
+    denom = (2.0 * beta * e + 3.0)
+    HA = (3.0 * P * x * (L - x)) / (2.0 * h * L * denom) if denom != 0 else 0.0
+
+    MB = (3.0 * P * x * (L - x)) / (2.0 * L * denom) if denom != 0 else 0.0
+    MC = (P * x * (L - x)) / (2.0 * L) * ((4.0 * beta * e + 3.0) / denom) if denom != 0 else 0.0
+
+    Vb = max(abs(RA), abs(RE))
+    Mb = max(abs(MB), abs(MC))
+
+    # Apply: beam = (V, M), column = (H, Mtop) and N from vertical reaction
+    Ncol = -max(abs(RA), abs(RE))
+    return (Ncol, Mb, 0.0, Vb, 0.0)
+
+
+def _render_tm_pp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _tm_beta_e(L, h)
+    xC = L / 2.0
+
+    denom = (2.0 * beta * e + 3.0)
+    RA = P / 2.0
+    RE = P / 2.0
+    HA = (3.0 * P * xC * (L - xC)) / (2.0 * h * L * denom) if denom != 0 else 0.0
+
+    MB = (3.0 * P * xC * (L - xC)) / (2.0 * L * denom) if denom != 0 else 0.0
+    MC = (P * xC * (L - xC)) / (2.0 * L) * ((4.0 * beta * e + 3.0) / denom) if denom != 0 else 0.0
+
+    xb, Mb = _beam_M_from_points(L, [0.0, xC, L], [MB, MC, MB])
+    Vb = np.where(xb <= xC, RA, -RE)  # simple envelope sign
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=xb, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmpp01_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    Mcol = MB * (y / h)
+    Vcol = np.full_like(y, HA)
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmpp01_col_", x_label="y (m)")
+
+    _render_support_forces("tmpp01", RA_kN=RA, RE_kN=RE, HA_kN=HA)
+
+    delta_max = _beam_deflection_from_M(L, Mb, xb)
+    _set_deflection_summary(delta_max, L_ref_m=L)
+
+
+# -------------------------
+# TM-PP-02: Pin/Pin — Top Horizontal Point Load (at B)
+# -------------------------
+def tmpp02_case(L_mm: float, h_mm: float, F_kN: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return 0.0, 0.0, 0.0, 0.0, 0.0
+
+    RA = (P * h) / L
+    RE = (P * h) / L
+    HA = P / 2.0
+    MB = P * h / 2.0  # = MC in reference
+
+    Vb = abs(RA)
+    Mb = abs(MB)
+    Ncol = -abs(RA)
+
+    return (Ncol, Mb, 0.0, Vb, 0.0)
+
+
+def _render_tm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = (P * h) / L
+    RE = (P * h) / L
+    HA = P / 2.0
+    MB = P * h / 2.0
+
+    xb, Mb = _beam_M_from_points(L, [0.0, L], [MB, MB])
+    Vb = np.full_like(xb, RA)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=xb, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmpp02_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    Mcol = MB * (y / h)
+    Vcol = np.full_like(y, HA)
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmpp02_col_", x_label="y (m)")
+
+    _render_support_forces("tmpp02", RA_kN=RA, RE_kN=RE, HA_kN=HA)
+    delta_max = _beam_deflection_from_M(L, Mb, xb)
+    _set_deflection_summary(delta_max, L_ref_m=L)
+
+
+# -------------------------
+# TM-PP-03: Pin/Pin — Side Point Load (at mid-height)
+# (Reference uses y from top; here y = h/2 to keep inputs to F,w,L,h only.)
+# -------------------------
+def tmpp03_case(L_mm: float, h_mm: float, F_kN: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return 0.0, 0.0, 0.0, 0.0, 0.0
+
+    beta, e = _tm_beta_e(L, h)
+    y = h / 2.0  # from TOP per reference
+
+    RA = P * (h - y) / L
+    RE = RA
+
+    denom = (2.0 * h * beta + 3.0 * L)
+    phi = (y * beta * (2.0 * h - y)) / (h * denom) if denom != 0 else 0.0
+
+    HA = (P / (2.0 * h)) * (h + y - (h - y) * phi)
+    HE = (P * (h - y) / (2.0 * h)) * (1.0 + phi)
+
+    MB = (P * (h - y) / (2.0 * h)) * (h + y - (h - y) * phi)
+    MC = (P * (h - y) / 2.0) * (1.0 - phi)
+    MD = (P * (h - y) / 2.0) * (1.0 + phi)
+
+    Vb = abs(RA)
+    Mb = max(abs(MB), abs(MC), abs(MD))
+    Ncol = -abs(RA)
+
+    return (Ncol, Mb, 0.0, Vb, 0.0)
+
+
+def _render_tm_pp_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _tm_beta_e(L, h)
+    yload = h / 2.0
+
+    RA = P * (h - yload) / L
+    RE = RA
+    denom = (2.0 * h * beta + 3.0 * L)
+    phi = (yload * beta * (2.0 * h - yload)) / (h * denom) if denom != 0 else 0.0
+
+    MB = (P * (h - yload) / (2.0 * h)) * (h + yload - (h - yload) * phi)
+    MC = (P * (h - yload) / 2.0) * (1.0 - phi)
+    MD = (P * (h - yload) / 2.0) * (1.0 + phi)
+
+    xb, Mb = _beam_M_from_points(L, [0.0, L/2.0, L], [MB, MC, MD])
+    Vb = np.full_like(xb, RA)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=xb, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmpp03_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    # moment in left column rises to MB at top; crude envelope
+    Mcol = MB * (y / h)
+    Vcol = np.full_like(y, (P / (2.0 * h)) * (h + yload - (h - yload) * phi))
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmpp03_col_", x_label="y (m)")
+
+    _render_support_forces("tmpp03", RA_kN=RA, RE_kN=RE, HA_kN=(P / (2.0 * h)) * (h + yload - (h - yload) * phi))
+
+    delta_max = _beam_deflection_from_M(L, Mb, xb)
+    _set_deflection_summary(delta_max, L_ref_m=L)
+
+
+# -------------------------
+# TM-PP-04: Pin/Pin — Top UDL
+# -------------------------
+def tmpp04_case(L_mm: float, h_mm: float, w_kNpm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNpm)
+    if L <= 0 or h <= 0:
+        return 0.0, 0.0, 0.0, 0.0, 0.0
+
+    beta, e = _tm_beta_e(L, h)
+    denom = (2.0 * beta * e + 3.0)
+
+    RA = w * L / 2.0
+    RE = RA
+    HA = (w * L) / (4.0 * e * denom) if (e != 0 and denom != 0) else 0.0
+
+    MB = (w * L**2) / (4.0 * denom) if denom != 0 else 0.0
+    MC = (w * L**2) / 8.0 * ((2.0 * beta * e + 1.0) / denom) if denom != 0 else 0.0
+
+    Vb = abs(RA)
+    Mb = max(abs(MB), abs(MC))
+    Ncol = -abs(RA)
+    return (Ncol, Mb, 0.0, Vb, 0.0)
+
+
+def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNpm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNpm)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _tm_beta_e(L, h)
+    denom = (2.0 * beta * e + 3.0)
+
+    RA = w * L / 2.0
+    RE = RA
+    HA = (w * L) / (4.0 * e * denom) if (e != 0 and denom != 0) else 0.0
+
+    MB = (w * L**2) / (4.0 * denom) if denom != 0 else 0.0
+    MC = (w * L**2) / 8.0 * ((2.0 * beta * e + 1.0) / denom) if denom != 0 else 0.0
+
+    xb, Mb = _beam_M_from_points(L, [0.0, L/2.0, L], [MB, MC, MB])
+    Vb = RA - w * xb  # simple SS-ish shear plot
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=xb, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmpp04_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    Mcol = MB * (y / h)
+    Vcol = np.full_like(y, HA)
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmpp04_col_", x_label="y (m)")
+
+    _render_support_forces("tmpp04", RA_kN=RA, RE_kN=RE, HA_kN=HA)
+    delta_max = _beam_deflection_from_M(L, Mb, xb)
+    _set_deflection_summary(delta_max, L_ref_m=L)
+
+
+# -------------------------
+# TM-PP-05: Pin/Pin — Side UDL
+# -------------------------
+def tmpp05_case(L_mm: float, h_mm: float, w_kNpm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNpm)
+    if L <= 0 or h <= 0:
+        return 0.0, 0.0, 0.0, 0.0, 0.0
+
+    beta, e = _tm_beta_e(L, h)
+    denom = (2.0 * beta * e + 3.0)
+
+    RA = w * h**2 / (2.0 * L)
+    RE = RA
+    HA = (w * h / 8.0) * ((11.0 * beta * e + 18.0) / denom) if denom != 0 else 0.0
+
+    MB = (3.0 * w * h**2 / 8.0) * ((beta * e + 2.0) / denom) if denom != 0 else 0.0
+    MC = (w * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
+
+    Vb = abs(RA)
+    Mb = max(abs(MB), abs(MC))
+    Ncol = -abs(RA)
+    return (Ncol, Mb, 0.0, Vb, 0.0)
+
+
+def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNpm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNpm)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _tm_beta_e(L, h)
+    denom = (2.0 * beta * e + 3.0)
+
+    RA = w * h**2 / (2.0 * L)
+    RE = RA
+    HA = (w * h / 8.0) * ((11.0 * beta * e + 18.0) / denom) if denom != 0 else 0.0
+
+    MB = (3.0 * w * h**2 / 8.0) * ((beta * e + 2.0) / denom) if denom != 0 else 0.0
+    MC = (w * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
+
+    xb, Mb = _beam_M_from_points(L, [0.0, L], [MB, MC])  # simple
+    Vb = np.full_like(xb, RA)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=xb, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmpp05_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    Mcol = MB * (y / h)
+    Vcol = np.full_like(y, HA)
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmpp05_col_", x_label="y (m)")
+
+    _render_support_forces("tmpp05", RA_kN=RA, RE_kN=RE, HA_kN=HA)
+    delta_max = _beam_deflection_from_M(L, Mb, xb)
+    _set_deflection_summary(delta_max, L_ref_m=L)
+
+
+# -------------------------
+# TM-FF-01: Fixed/Fixed — Central Point Load at C
+# -------------------------
+def tmff01_case(L_mm: float, h_mm: float, F_kN: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return 0.0, 0.0, 0.0, 0.0, 0.0
+
+    beta, e = _tm_beta_e(L, h)
+    denom = (beta * e + 2.0)
+
+    RA = P / 2.0
+    RE = RA
+    HA = (3.0 * P * L) / (8.0 * h * denom) if denom != 0 else 0.0
+
+    MB = (P * L) / (4.0 * denom) if denom != 0 else 0.0
+    MC = (P * L) / 4.0 * ((beta * e + 1.0) / denom) if denom != 0 else 0.0
+
+    Vb = abs(RA)
+    Mb = max(abs(MB), abs(MC))
+    Ncol = -abs(RA)
+    return (Ncol, Mb, 0.0, Vb, 0.0)
+
+
+def _render_tm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _tm_beta_e(L, h)
+    denom = (beta * e + 2.0)
+
+    RA = P / 2.0
+    RE = RA
+    HA = (3.0 * P * L) / (8.0 * h * denom) if denom != 0 else 0.0
+
+    MB = (P * L) / (4.0 * denom) if denom != 0 else 0.0
+    MC = (P * L) / 4.0 * ((beta * e + 1.0) / denom) if denom != 0 else 0.0
+
+    xb, Mb = _beam_M_from_points(L, [0.0, L/2.0, L], [MB, MC, MB])
+    Vb = np.where(xb <= L/2.0, RA, -RE)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=xb, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmff01_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    Mcol = MB * (y / h)
+    Vcol = np.full_like(y, HA)
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmff01_col_", x_label="y (m)")
+
+    _render_support_forces("tmff01", RA_kN=RA, RE_kN=RE, HA_kN=HA)
+    delta_max = _beam_deflection_from_M(L, Mb, xb)
+    _set_deflection_summary(delta_max, L_ref_m=L)
+
+
+# -------------------------
+# TM-FF-02: Fixed/Fixed — Top UDL
+# -------------------------
+def tmff02_case(L_mm: float, h_mm: float, w_kNpm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNpm)
+    if L <= 0 or h <= 0:
+        return 0.0, 0.0, 0.0, 0.0, 0.0
+
+    beta, e = _tm_beta_e(L, h)
+    denom = (beta * e + 2.0)
+
+    RA = w * L / 2.0
+    RE = RA
+    HA = (w * L**2) / (4.0 * h * denom) if denom != 0 else 0.0
+
+    MB = (w * L**2) / (6.0 * denom) if denom != 0 else 0.0
+    MC = (w * L**2) / 24.0 * ((3.0 * beta * e + 2.0) / denom) if denom != 0 else 0.0
+
+    Vb = abs(RA)
+    Mb = max(abs(MB), abs(MC))
+    Ncol = -abs(RA)
+    return (Ncol, Mb, 0.0, Vb, 0.0)
+
+
+def _render_tm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNpm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNpm)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _tm_beta_e(L, h)
+    denom = (beta * e + 2.0)
+
+    RA = w * L / 2.0
+    RE = RA
+    HA = (w * L**2) / (4.0 * h * denom) if denom != 0 else 0.0
+
+    MB = (w * L**2) / (6.0 * denom) if denom != 0 else 0.0
+    MC = (w * L**2) / 24.0 * ((3.0 * beta * e + 2.0) / denom) if denom != 0 else 0.0
+
+    xb, Mb = _beam_M_from_points(L, [0.0, L/2.0, L], [MB, MC, MB])
+    Vb = RA - w * xb
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=xb, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmff02_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    Mcol = MB * (y / h)
+    Vcol = np.full_like(y, HA)
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmff02_col_", x_label="y (m)")
+
+    _render_support_forces("tmff02", RA_kN=RA, RE_kN=RE, HA_kN=HA)
+    delta_max = _beam_deflection_from_M(L, Mb, xb)
+    _set_deflection_summary(delta_max, L_ref_m=L)
+
+
+# -------------------------
+# TM-FF-03: Fixed/Fixed — Side UDL
+# -------------------------
+def tmff03_case(L_mm: float, h_mm: float, w_kNpm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNpm)
+    if L <= 0 or h <= 0:
+        return 0.0, 0.0, 0.0, 0.0, 0.0
+
+    beta, e = _tm_beta_e(L, h)
+    denom1 = (6.0 * beta * e + 1.0)
+    denom2 = (beta * e + 2.0)
+
+    RA = (w * h * beta * e**2) / denom1 if denom1 != 0 else 0.0  # per reference
+    RE = RA
+
+    HA = (w * h / 4.0) * ((8.0 * beta * e + 17.0) / (2.0 * denom2) - (4.0 * beta * e + 3.0) / denom1) if (denom1 != 0 and denom2 != 0) else 0.0
+
+    # Moments at key points (per reference)
+    MA = (w * h**2 / 4.0) * ((4.0 * beta * e + 1.0) / denom1 + (beta * e + 3.0) / (6.0 * denom2)) if (denom1 != 0 and denom2 != 0) else 0.0
+    MB = (w * h**2 * beta * e / 4.0) * (6.0 / denom1 - 1.0 / (6.0 * denom2)) if (denom1 != 0 and denom2 != 0) else 0.0
+    MC = (w * h**2 * beta * e / 4.0) * (2.0 / denom1 - 1.0 / (6.0 * denom2)) if (denom1 != 0 and denom2 != 0) else 0.0
+    MD = (w * h**2 / 4.0) * ((4.0 * beta * e + 1.0) / denom1 - (beta * e + 3.0) / (6.0 * denom2)) if (denom1 != 0 and denom2 != 0) else 0.0
+
+    Vb = abs(RA)
+    Mb = max(abs(MB), abs(MC), abs(MD))
+    Ncol = -abs(RA)
+    return (Ncol, Mb, 0.0, Vb, 0.0)
+
+
+def _render_tm_ff_03_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNpm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNpm)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _tm_beta_e(L, h)
+    denom1 = (6.0 * beta * e + 1.0)
+    denom2 = (beta * e + 2.0)
+
+    RA = (w * h * beta * e**2) / denom1 if denom1 != 0 else 0.0
+    RE = RA
+
+    HA = (w * h / 4.0) * ((8.0 * beta * e + 17.0) / (2.0 * denom2) - (4.0 * beta * e + 3.0) / denom1) if (denom1 != 0 and denom2 != 0) else 0.0
+
+    MB = (w * h**2 * beta * e / 4.0) * (6.0 / denom1 - 1.0 / (6.0 * denom2)) if (denom1 != 0 and denom2 != 0) else 0.0
+    MC = (w * h**2 * beta * e / 4.0) * (2.0 / denom1 - 1.0 / (6.0 * denom2)) if (denom1 != 0 and denom2 != 0) else 0.0
+    MD = (w * h**2 / 4.0) * ((4.0 * beta * e + 1.0) / denom1 - (beta * e + 3.0) / (6.0 * denom2)) if (denom1 != 0 and denom2 != 0) else 0.0
+
+    xb, Mb = _beam_M_from_points(L, [0.0, L/2.0, L], [MB, MC, MD])
+    Vb = np.full_like(xb, RA)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=xb, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmff03_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    Mcol = MB * (y / h)
+    Vcol = np.full_like(y, HA)
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmff03_col_", x_label="y (m)")
+
+    _render_support_forces("tmff03", RA_kN=RA, RE_kN=RE, HA_kN=HA)
+    delta_max = _beam_deflection_from_M(L, Mb, xb)
+    _set_deflection_summary(delta_max, L_ref_m=L)
+
+
+
+
 def _render_ready_frame_cases():
     st.markdown("### Ready frame cases")
     st.caption(
@@ -7787,355 +8365,371 @@ def _render_ready_frame_cases():
     col0  = {"L_mm_in": 4000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
              "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0}
 
-    FRAME_CATALOG = {
-        "Three Member Frames (Pin / Roller) (8 cases)": make_frame_cases("TM-PR", 8, beam0, col0),
-        "Three Member Frames (Pin / Pin) (5 cases)": make_frame_cases("TM-PP", 5, beam0, col0),
-        "Three Member Frames (Fixed / Fixed) (3 cases)": make_frame_cases("TM-FF", 3, beam0, col0),
-        "Three Member Frames (Fixed / Free) (5 cases)": make_frame_cases("TM-FR", 5, beam0, col0),
-        "Two Member Frame (Pin / Pin) (2 cases)": make_frame_cases("DM-PP", 2, beam0, col0),
-        "Two Member Frame (Fixed / Fixed) (2 cases)": make_frame_cases("DM-FF", 2, beam0, col0),
-        "Two Member Frame (Fixed / Pin) (4 cases)": make_frame_cases("DM-FP", 4, beam0, col0),
-        "Two Member Frame (Fixed / Free) (4 cases)": make_frame_cases("DM-FR", 4, beam0, col0),
-    }
+    FRAME_CATALOG = [
+        {"key": "TM-PR", "label": "Three Member Frame (Top Beam Loads) — Pin/Pin (8 cases)", "n": 8},
+        {"key": "TM-PP", "label": "Three Member Frame — Pin/Pin (5 cases)", "n": 5},
+        {"key": "TM-FF", "label": "Three Member Frame — Fixed/Fixed (3 cases)", "n": 3},
+    ]
 
-    cat = st.selectbox("Step 1 — Frame catalog", list(FRAME_CATALOG.keys()), key="frame_cat_sel")
-    cases = FRAME_CATALOG.get(cat, [])
-    if not cases:
-        st.info("No cases in this catalog yet.")
-        return
+    cat = st.selectbox(
+        "Catalog",
+        options=FRAME_CATALOG,
+        format_func=lambda c: c["label"],
+        key="ready_frame_catalog",
+    )
 
-    last_cat = st.session_state.get("_frame_last_cat")
-    if last_cat != cat:
-        st.session_state["frame_case_key"] = None
-        st.session_state["_frame_last_cat"] = cat
+    # Build gallery cases
+    prefix = cat["key"]
+    n = int(cat["n"])
+    cases = make_frame_cases(prefix, n, beam0, col0)
 
-    st.markdown("### Step 2 — Choose a case")
-
-    clicked = None
-    n_per_row = 5
-    for start in range(0, len(cases), n_per_row):
-        row_cases = cases[start:start + n_per_row]
-        cols = st.columns(n_per_row)
-
-        for j in range(n_per_row):
-            with cols[j]:
-                if j >= len(row_cases):
-                    st.write("")
-                    continue
-
-                case = row_cases[j]
-
-                if case.get("img_path"):
-                    shown = safe_image(case["img_path"], use_container_width=True)
-                    if not shown:
-                        st.markdown(
-                            "<div style='height:110px;border:1px dashed #bbb;"
-                            "border-radius:10px;display:flex;align-items:center;"
-                            "justify-content:center;color:#888;font-size:12px;"
-                            "background:rgba(0,0,0,0.02);'>(image missing)</div>",
-                            unsafe_allow_html=True
-                        )
-                else:
-                    st.markdown(
-                        "<div style='height:110px;border:1px dashed #bbb;"
-                        "border-radius:10px;display:flex;align-items:center;"
-                        "justify-content:center;color:#888;font-size:12px;"
-                        "background:rgba(0,0,0,0.02);'>(placeholder image)</div>",
-                        unsafe_allow_html=True
-                    )
-
-                st.caption(case["key"])
-                if st.button("Select", key=f"frame_select_{cat}_{case['key']}"):
-                    clicked = case["key"]
-
-    if clicked:
-        st.session_state["frame_case_key"] = clicked
-
-    case_key = st.session_state.get("frame_case_key")
-    if not case_key:
-        st.info("Select a case above to see parameters and then apply it.")
-        return
-
-    keyset = {c["key"] for c in cases}
-    if case_key not in keyset:
-        st.session_state["frame_case_key"] = None
-        st.info("Selected case was from another catalog. Pick again.")
-        return
-
-    case = next(c for c in cases if c["key"] == case_key)
-    st.markdown(f"**Selected:** {case['key']} — {case['label']}")
-    st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
-
-    # --- safe number input
-    def _num(label, key, default, step=10.0, min_value=None):
-        kwargs = {"step": float(step), "key": key}
-        if min_value is not None:
-            kwargs["min_value"] = float(min_value)
-        if key in st.session_state:
-            return st.number_input(label, **kwargs)
-        return st.number_input(label, value=float(default), **kwargs)
-
-    # --- Case configs
+    # Case config (equations + diagrams)
     CASE_CFG = {
+        # ---------- Existing TM-PR (keep as-is) ----------
         "TM-PR-01": {
-            "inputs": [
-                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
-                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
-                ("F_kN", "Central point load F (kN) (downward negative)", -50.0, 1.0, None),
-            ],
-            "preview": lambda v: _render_tm_pr_01_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], P_kN=v["F_kN"]),
             "apply": "apply_tmpr01",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "P_kN": 50.0},
+            "preview": lambda v: _render_tm_pr_01_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], P_kN=v["P_kN"]),
         },
         "TM-PR-02": {
-            "inputs": [
-                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
-                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
-                ("F_kN", "Side top point load F (kN)  (+ right, − left)", 50.0, 1.0, None),
-            ],
-            "preview": lambda v: _render_tm_pr_02_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
             "apply": "apply_tmpr02",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "F_kN": 50.0},
+            "preview": lambda v: _render_tm_pr_02_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
         },
         "TM-PR-03": {
-            "inputs": [
-                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
-                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
-                ("F_kN", "Side bottom point load F (kN)  (+ right, − left)", 50.0, 1.0, None),
-            ],
-            "preview": lambda v: _render_tm_pr_03_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
             "apply": "apply_tmpr03",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "F_kN": 50.0},
+            "preview": lambda v: _render_tm_pr_03_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
         },
         "TM-PR-04": {
-            "inputs": [
-                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
-                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
-                ("Mc_kNm", "Side top bending moment Mc (kN·m)  (+ CCW)", 100.0, 1.0, None),
-            ],
-            "preview": lambda v: _render_tm_pr_04_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], Mc_kNm=v["Mc_kNm"]),
             "apply": "apply_tmpr04",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "Mc_kNm": 80.0},
+            "preview": lambda v: _render_tm_pr_04_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], Mc_kNm=v["Mc_kNm"]),
         },
         "TM-PR-05": {
-            "inputs": [
-                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
-                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
-                ("Mc_kNm", "Central bending moment Mc (kN·m)  (+ CCW)", 100.0, 1.0, None),
-            ],
-            "preview": lambda v: _render_tm_pr_05_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], Mc_kNm=v["Mc_kNm"]),
             "apply": "apply_tmpr05",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "Mc_kNm": 80.0},
+            "preview": lambda v: _render_tm_pr_05_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], Mc_kNm=v["Mc_kNm"]),
         },
         "TM-PR-06": {
-            "inputs": [
-                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
-                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
-                ("w_kNm", "Top UDL w (kN/m)  (downward negative)", -10.0, 0.5, None),
-            ],
-            "preview": lambda v: _render_tm_pr_06_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
             "apply": "apply_tmpr06",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "w_kNpm": 10.0},
+            "preview": lambda v: _render_tm_pr_06_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNpm=v["w_kNpm"]),
         },
         "TM-PR-07": {
-            "inputs": [
-                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
-                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
-                ("w_kNm", "Side UDL w (kN/m)  (+ right, − left)", 10.0, 0.5, None),
-            ],
-            "preview": lambda v: _render_tm_pr_07_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
             "apply": "apply_tmpr07",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "w_kNm": 30.0},
+            "preview": lambda v: _render_tm_pr_07_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
         },
         "TM-PR-08": {
-            "inputs": [
-                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
-                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
-                ("w_kNm", "Outward side UDL w (kN/m)  (+ outward)", 10.0, 0.5, None),
-            ],
-            "preview": lambda v: _render_tm_pr_08_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
             "apply": "apply_tmpr08",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "w_kNm": 30.0},
+            "preview": lambda v: _render_tm_pr_08_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
+        },
+
+        # ---------- NEW: TM-PP (Pin/Pin) ----------
+        "TM-PP-01": {
+            "apply": "apply_tmpp01",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "F_kN": 50.0},
+            "preview": lambda v: _render_tm_pp_01_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+        },
+        "TM-PP-02": {
+            "apply": "apply_tmpp02",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "F_kN": 50.0},
+            "preview": lambda v: _render_tm_pp_02_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+        },
+        "TM-PP-03": {
+            "apply": "apply_tmpp03",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "F_kN": 50.0},
+            "preview": lambda v: _render_tm_pp_03_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+        },
+        "TM-PP-04": {
+            "apply": "apply_tmpp04",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "w_kNpm": 10.0},
+            "preview": lambda v: _render_tm_pp_04_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNpm=v["w_kNpm"]),
+        },
+        "TM-PP-05": {
+            "apply": "apply_tmpp05",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "w_kNpm": 10.0},
+            "preview": lambda v: _render_tm_pp_05_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNpm=v["w_kNpm"]),
+        },
+
+        # ---------- NEW: TM-FF (Fixed/Fixed) ----------
+        "TM-FF-01": {
+            "apply": "apply_tmff01",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "F_kN": 50.0},
+            "preview": lambda v: _render_tm_ff_01_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+        },
+        "TM-FF-02": {
+            "apply": "apply_tmff02",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "w_kNpm": 10.0},
+            "preview": lambda v: _render_tm_ff_02_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNpm=v["w_kNpm"]),
+        },
+        "TM-FF-03": {
+            "apply": "apply_tmff03",
+            "inputs": {"L_mm": 8000.0, "h_mm": 4000.0, "w_kNpm": 10.0},
+            "preview": lambda v: _render_tm_ff_03_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNpm=v["w_kNpm"]),
         },
     }
 
-    if case_key not in CASE_CFG:
-        st.info("Diagrams not implemented for this case yet.")
-        if st.button("Apply case", key="btn_apply_frame_case_other"):
-            _apply_ready_frame_case(case)
+    # Select case
+    case_opts = [c for c in cases if c["key"] in CASE_CFG]
+    case = st.selectbox(
+        "Case",
+        options=case_opts,
+        format_func=lambda cc: f'{cc["key"]} — {cc["label"]}',
+        key="ready_frame_case",
+    )
+    case_key = case["key"]
+    cfg = CASE_CFG[case_key]
+
+    # Show image (if exists)
+    safe_image(asset_path(cfg.get("img_path", case.get("img_path",""))), caption=case_key, use_container_width=True)
+
+    # Step: Axis selection per member (already exists in your member tabs, but keep a quick toggle here)
+    st.markdown("### Bending axis for this case (applied to both members)")
+    axis_choice = st.radio(
+        "Axis",
+        ["Strong axis (yy)", "Weak axis (zz)"],
+        horizontal=True,
+        key=f"ready_axis_{case_key}",
+    )
+    for pref in ("beam_", "col_"):
+        st.session_state[f"{pref}bend_axis_sel"] = axis_choice
+
+    # Inputs
+    vals = dict(cfg.get("inputs", {}))
+
+    label_map = {
+        "L_mm": "L (mm)",
+        "h_mm": "h (mm)",
+        "F_kN": "F (kN)",
+        "P_kN": "F (kN)",
+        "w_kNpm": "w (kN/m)",
+        "w_kNm": "w (kN/m)",
+        "Mc_kNm": "M (kN·m)",
+    }
+
+    st.markdown("### Inputs")
+    keys = list(vals.keys())
+    for i in range(0, len(keys), 3):
+        cols = st.columns(3)
+        for col, k in zip(cols, keys[i:i+3]):
+            with col:
+                vals[k] = st.number_input(label_map.get(k, k), value=float(vals[k]), key=f"{case_key}_{k}")
+
+    # Preview diagrams
+    with st.expander("Preview diagrams", expanded=True):
+        try:
+            cfg["preview"](vals)
+        except Exception as e:
+            st.error(f"Preview error: {e}")
+
+    # Apply case to Loads (fills beam_ and col_ *inputs*)
+    if st.button("Apply case to Loads", key=f"apply_ready_frame_{case_key}"):
+        try:
+            apply_name = cfg.get("apply")
+
+            # --- NEW: equation-based TM-PP / TM-FF handlers ---
+            if apply_name == "apply_tmpp01":
+                L_mm, h_mm, F = float(vals["L_mm"]), float(vals["h_mm"]), float(vals["F_kN"])
+                # beam envelope
+                _, Mmax, _, Vmax, _ = tmpp01_case(L_mm, h_mm, F)
+                # recompute reactions to also fill column
+                L = L_mm/1000.0; h = h_mm/1000.0
+                beta, e = _tm_beta_e(L, h); xC=L/2.0; denom=(2*beta*e+3.0)
+                RA=F/2.0; RE=F/2.0
+                HA=(3*F*xC*(L-xC))/(2*h*L*denom) if denom!=0 else 0.0
+                MB=(3*F*xC*(L-xC))/(2*L*denom) if denom!=0 else 0.0
+
+                st.session_state["beam_L_mm_in"] = L_mm
+                st.session_state["beam_N_in"] = 0.0
+                _fill_beam_vm_to_components("beam_", V_kN=Vmax, M_kNm=Mmax)
+
+                st.session_state["col_L_mm_in"] = h_mm
+                st.session_state["col_N_in"] = -max(abs(RA), abs(RE))
+                _fill_beam_vm_to_components("col_", V_kN=abs(HA), M_kNm=abs(MB))
+
+            elif apply_name == "apply_tmpp02":
+                L_mm, h_mm, F = float(vals["L_mm"]), float(vals["h_mm"]), float(vals["F_kN"])
+                L=L_mm/1000.0; h=h_mm/1000.0
+                RA=(F*h)/max(L,1e-9)
+                HA=F/2.0
+                MB=F*h/2.0
+
+                st.session_state["beam_L_mm_in"] = L_mm
+                st.session_state["beam_N_in"] = 0.0
+                _fill_beam_vm_to_components("beam_", V_kN=abs(RA), M_kNm=abs(MB))
+
+                st.session_state["col_L_mm_in"] = h_mm
+                st.session_state["col_N_in"] = -abs(RA)
+                _fill_beam_vm_to_components("col_", V_kN=abs(HA), M_kNm=abs(MB))
+
+            elif apply_name == "apply_tmpp03":
+                L_mm, h_mm, F = float(vals["L_mm"]), float(vals["h_mm"]), float(vals["F_kN"])
+                L=L_mm/1000.0; h=h_mm/1000.0
+                beta, e = _tm_beta_e(L, h)
+                y=h/2.0
+                RA=F*(h-y)/max(L,1e-9)
+                denom=(2*h*beta+3*L)
+                phi=(y*beta*(2*h-y))/(h*denom) if denom!=0 else 0.0
+                HA=(F/(2*h))*(h+y-(h-y)*phi)
+                MB=(F*(h-y)/(2*h))*(h+y-(h-y)*phi)
+                MC=(F*(h-y)/2.0)*(1-phi)
+                MD=(F*(h-y)/2.0)*(1+phi)
+                Mmax=max(abs(MB),abs(MC),abs(MD))
+
+                st.session_state["beam_L_mm_in"] = L_mm
+                st.session_state["beam_N_in"] = 0.0
+                _fill_beam_vm_to_components("beam_", V_kN=abs(RA), M_kNm=Mmax)
+
+                st.session_state["col_L_mm_in"] = h_mm
+                st.session_state["col_N_in"] = -abs(RA)
+                _fill_beam_vm_to_components("col_", V_kN=abs(HA), M_kNm=abs(MB))
+
+            elif apply_name == "apply_tmpp04":
+                L_mm, h_mm, w = float(vals["L_mm"]), float(vals["h_mm"]), float(vals["w_kNpm"])
+                L=L_mm/1000.0; h=h_mm/1000.0
+                beta, e=_tm_beta_e(L,h); denom=(2*beta*e+3.0)
+                RA=w*L/2.0
+                HA=(w*L)/(4*e*denom) if (e!=0 and denom!=0) else 0.0
+                MB=(w*L**2)/(4*denom) if denom!=0 else 0.0
+                MC=(w*L**2)/8.0*((2*beta*e+1)/denom) if denom!=0 else 0.0
+                Mmax=max(abs(MB),abs(MC))
+
+                st.session_state["beam_L_mm_in"]=L_mm
+                st.session_state["beam_N_in"]=0.0
+                _fill_beam_vm_to_components("beam_", V_kN=abs(RA), M_kNm=Mmax)
+
+                st.session_state["col_L_mm_in"]=h_mm
+                st.session_state["col_N_in"]=-abs(RA)
+                _fill_beam_vm_to_components("col_", V_kN=abs(HA), M_kNm=abs(MB))
+
+            elif apply_name == "apply_tmpp05":
+                L_mm, h_mm, w = float(vals["L_mm"]), float(vals["h_mm"]), float(vals["w_kNpm"])
+                L=L_mm/1000.0; h=h_mm/1000.0
+                beta, e=_tm_beta_e(L,h); denom=(2*beta*e+3.0)
+                RA=w*h**2/(2*max(L,1e-9))
+                HA=(w*h/8.0)*((11*beta*e+18)/denom) if denom!=0 else 0.0
+                MB=(3*w*h**2/8.0)*((beta*e+2)/denom) if denom!=0 else 0.0
+                MC=(w*h**2/8.0)*((5*beta*e+6)/denom) if denom!=0 else 0.0
+                Mmax=max(abs(MB),abs(MC))
+
+                st.session_state["beam_L_mm_in"]=L_mm
+                st.session_state["beam_N_in"]=0.0
+                _fill_beam_vm_to_components("beam_", V_kN=abs(RA), M_kNm=Mmax)
+
+                st.session_state["col_L_mm_in"]=h_mm
+                st.session_state["col_N_in"]=0.0
+                _fill_beam_vm_to_components("col_", V_kN=abs(w)*h, M_kNm=abs(MB))
+
+            elif apply_name == "apply_tmff01":
+                L_mm, h_mm, F = float(vals["L_mm"]), float(vals["h_mm"]), float(vals["F_kN"])
+                L=L_mm/1000.0; h=h_mm/1000.0
+                beta,e=_tm_beta_e(L,h); denom=(beta*e+2.0)
+                RA=F/2.0
+                HA=(3*F*L)/(8*h*denom) if denom!=0 else 0.0
+                MB=(F*L)/(4*denom) if denom!=0 else 0.0
+                MC=(F*L)/4.0*((beta*e+1)/denom) if denom!=0 else 0.0
+                Mmax=max(abs(MB),abs(MC))
+
+                st.session_state["beam_L_mm_in"]=L_mm
+                st.session_state["beam_N_in"]=0.0
+                _fill_beam_vm_to_components("beam_", V_kN=abs(RA), M_kNm=Mmax)
+
+                st.session_state["col_L_mm_in"]=h_mm
+                st.session_state["col_N_in"]=-abs(RA)
+                _fill_beam_vm_to_components("col_", V_kN=abs(HA), M_kNm=abs(MB))
+
+            elif apply_name == "apply_tmff02":
+                L_mm, h_mm, w = float(vals["L_mm"]), float(vals["h_mm"]), float(vals["w_kNpm"])
+                L=L_mm/1000.0; h=h_mm/1000.0
+                beta,e=_tm_beta_e(L,h); denom=(beta*e+2.0)
+                RA=w*L/2.0
+                HA=(w*L**2)/(4*h*denom) if denom!=0 else 0.0
+                MB=(w*L**2)/(6*denom) if denom!=0 else 0.0
+                MC=(w*L**2)/24.0*((3*beta*e+2)/denom) if denom!=0 else 0.0
+                Mmax=max(abs(MB),abs(MC))
+
+                st.session_state["beam_L_mm_in"]=L_mm
+                st.session_state["beam_N_in"]=0.0
+                _fill_beam_vm_to_components("beam_", V_kN=abs(RA), M_kNm=Mmax)
+
+                st.session_state["col_L_mm_in"]=h_mm
+                st.session_state["col_N_in"]=-abs(RA)
+                _fill_beam_vm_to_components("col_", V_kN=abs(HA), M_kNm=abs(MB))
+
+            elif apply_name == "apply_tmff03":
+                L_mm, h_mm, w = float(vals["L_mm"]), float(vals["h_mm"]), float(vals["w_kNpm"])
+                L=L_mm/1000.0; h=h_mm/1000.0
+                beta,e=_tm_beta_e(L,h); denom1=(6*beta*e+1.0); denom2=(beta*e+2.0)
+                RA=(w*h*beta*e**2)/denom1 if denom1!=0 else 0.0
+                HA=(w*h/4.0)*((8*beta*e+17)/(2*denom2) - (4*beta*e+3)/denom1) if (denom1!=0 and denom2!=0) else 0.0
+                MB=(w*h**2*beta*e/4.0)*(6/denom1 - 1/(6*denom2)) if (denom1!=0 and denom2!=0) else 0.0
+                MC=(w*h**2*beta*e/4.0)*(2/denom1 - 1/(6*denom2)) if (denom1!=0 and denom2!=0) else 0.0
+                MD=(w*h**2/4.0)*((4*beta*e+1)/denom1 - (beta*e+3)/(6*denom2)) if (denom1!=0 and denom2!=0) else 0.0
+                Mmax=max(abs(MB),abs(MC),abs(MD))
+
+                st.session_state["beam_L_mm_in"]=L_mm
+                st.session_state["beam_N_in"]=0.0
+                _fill_beam_vm_to_components("beam_", V_kN=abs(RA), M_kNm=Mmax)
+
+                st.session_state["col_L_mm_in"]=h_mm
+                st.session_state["col_N_in"]=0.0
+                _fill_beam_vm_to_components("col_", V_kN=abs(HA), M_kNm=abs(MB))
+
+            # --- Existing TM-PR handlers from your code (unchanged) ---
+            elif apply_name == "apply_tmpr07":
+                L_mm = float(vals["L_mm"])
+                h_mm = float(vals["h_mm"])
+                w = float(vals["w_kNm"])
+
+                L_m = max(L_mm / 1000.0, 1e-9)
+                h_m = h_mm / 1000.0
+
+                RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
+                Mmax_kNm = abs(w) * h_m**2 / 2.0
+                Vcol_kN = abs(w) * h_m
+
+                st.session_state["beam_L_mm_in"] = L_mm
+                st.session_state["beam_N_in"] = 0.0
+                _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
+
+                st.session_state["col_L_mm_in"] = h_mm
+                st.session_state["col_N_in"] = 0.0
+                _fill_beam_vm_to_components("col_", V_kN=Vcol_kN, M_kNm=Mmax_kNm)
+
+            elif apply_name == "apply_tmpr08":
+                L_mm = float(vals["L_mm"])
+                h_mm = float(vals["h_mm"])
+                w = float(vals["w_kNm"])
+
+                L_m = max(L_mm / 1000.0, 1e-9)
+                h_m = h_mm / 1000.0
+
+                RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
+                Mmax_kNm = abs(w) * h_m**2
+
+                st.session_state["beam_L_mm_in"] = L_mm
+                st.session_state["beam_N_in"] = 0.0
+                _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
+
+                st.session_state["col_L_mm_in"] = h_mm
+                st.session_state["col_N_in"] = 0.0
+                _fill_beam_vm_to_components("col_", V_kN=abs(w) * h_m, M_kNm=0.5 * abs(w) * h_m**2)
+
+            else:
+                _apply_ready_frame_case(case)
+
+            # clear computed results so both members re-run cleanly
             for k in ["beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
                       "col_df_rows", "col_overall_ok", "col_governing", "col_extras"]:
                 st.session_state.pop(k, None)
+
             st.toast("Case applied — loads transferred to inputs.", icon="✅")
-        return
 
-    cfg = CASE_CFG[case_key]
-
-    # --- Inputs
-    vals = {}
-    c1, c2, c3 = st.columns(3)
-    cols = [c1, c2, c3]
-    for i, (name, label, default, step, minv) in enumerate(cfg["inputs"]):
-        with cols[i % 3]:
-            vals[name] = float(_num(label, key=f"{case_key}_{name}", default=default, step=step, min_value=minv))
-
-    # --- Preview
-    with st.expander("Diagrams & support forces", expanded=False):
-        cfg["preview"](vals)
-
-    # --- Apply (your original apply logic)
-    if st.button("Apply case", key=f"btn_apply_{case_key}"):
-
-        if cfg["apply"] == "apply_tmpr01":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            P_kN = float(vals["F_kN"])
-
-            Vmax_kN = 0.5 * P_kN
-            Mmax_kNm = (P_kN * (L_mm / 1000.0)) / 4.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -0.5 * P_kN
-            st.session_state["col_Vy_in"] = 0.0
-            st.session_state["col_Vz_in"] = 0.0
-            st.session_state["col_My_in"] = 0.0
-            st.session_state["col_Mz_in"] = 0.0
-
-        elif cfg["apply"] == "apply_tmpr02":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            F_kN = float(vals["F_kN"])
-
-            L_m = L_mm / 1000.0
-            h_m = h_mm / 1000.0
-
-            RA_kN = -(F_kN * h_m) / L_m
-            RE_kN = +(F_kN * h_m) / L_m
-
-            Mmax_kNm = F_kN * h_m
-            V_beam_kN = RE_kN  # signed
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", V_beam_kN, Mmax_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_VM_into_member_inputs("col_", F_kN, Mmax_kNm)
-
-        elif cfg["apply"] == "apply_tmpr03":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            F_kN = float(vals["F_kN"])
-
-            h_m = h_mm / 1000.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=F_kN * h_m)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=F_kN, M_kNm=F_kN * h_m)
-
-        elif cfg["apply"] == "apply_tmpr04":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            Mc_kNm = float(vals["Mc_kNm"])
-
-            L_m = max(L_mm / 1000.0, 1e-9)
-
-            RA_kN = Mc_kNm / L_m
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mc_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=Mc_kNm)
-
-        elif cfg["apply"] == "apply_tmpr05":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            Mc_kNm = float(vals["Mc_kNm"])
-
-            L_m = max(L_mm / 1000.0, 1e-9)
-
-            Vmax_kN = Mc_kNm / L_m
-            Mmax_kNm = 0.5 * Mc_kNm
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        elif cfg["apply"] == "apply_tmpr06":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            w = float(vals["w_kNm"])
-
-            L_m = max(L_mm / 1000.0, 1e-9)
-
-            Vmax_kN = abs(w) * L_m / 2.0
-            Mmax_kNm = abs(w) * (L_m ** 2) / 8.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
-
-            Ncol_kN = -abs(w) * L_m / 2.0
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = Ncol_kN
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        elif cfg["apply"] == "apply_tmpr07":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            w = float(vals["w_kNm"])
-
-            L_m = max(L_mm / 1000.0, 1e-9)
-            h_m = h_mm / 1000.0
-
-            RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
-            Mmax_kNm = abs(w) * h_m**2 / 2.0
-            Vcol_kN = abs(w) * h_m
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=Vcol_kN, M_kNm=Mmax_kNm)
-
-        elif cfg["apply"] == "apply_tmpr08":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            w = float(vals["w_kNm"])
-
-            L_m = max(L_mm / 1000.0, 1e-9)
-            h_m = h_mm / 1000.0
-
-            RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
-            Mmax_kNm = abs(w) * h_m**2
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=abs(w) * h_m, M_kNm=0.5 * abs(w) * h_m**2)
-
-        else:
-            _apply_ready_frame_case(case)
-
-        for k in ["beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
-                  "col_df_rows", "col_overall_ok", "col_governing", "col_extras"]:
-            st.session_state.pop(k, None)
-
-        st.toast("Case applied — loads transferred to inputs.", icon="✅")
-
+        except Exception as e:
+            st.error(f"Apply failed: {e}")
 
 def _swap_yz_in_sr_display(sr_display: dict) -> dict:
     """Return a shallow-copied sr_display with y/z (strong/weak) properties swapped.
