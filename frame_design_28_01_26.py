@@ -7260,6 +7260,18 @@ def _store_design_forces_from_state_member(member_prefix: str, inputs_key: str):
         K_LT=K_LT,
         K_T=K_T,
     )
+
+def get_E_Pa() -> float:
+    """
+    Global elastic modulus getter.
+    - default: 210 GPa for steel
+    - later: you can expose st.session_state["E_GPa"] in UI
+    """
+    E_GPa = float(st.session_state.get("E_GPa", 210.0))
+    if E_GPa <= 0:
+        E_GPa = 210.0
+    return E_GPa * 1e9  # Pa
+
 def _axis_is_weak(member_prefix: str) -> bool:
     sel = st.session_state.get(f"{member_prefix}bend_axis_sel", "Strong axis (yy)")
     return isinstance(sel, str) and sel.lower().startswith("weak")
@@ -7538,6 +7550,346 @@ def _render_tm_pr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     with s2:
         st.number_input("RE (kN)", disabled=True, step=0.1, key="tmpr02_RE_out")
 
+def _member_I_m4(member_prefix: str) -> float:
+    """
+    Returns I (m^4) for the member based on its own strong/weak axis selection.
+    Uses member-specific sr_display stored as:
+      - beam_sr_display
+      - col_sr_display
+    """
+    sr = st.session_state.get(f"{member_prefix}sr_display", {}) or {}
+    Iy = float(sr.get("I_y_cm4", 0.0)) * 1e-8
+    Iz = float(sr.get("I_z_cm4", 0.0)) * 1e-8
+    weak = _axis_is_weak(member_prefix)
+    I = Iz if weak else Iy
+    return float(I) if I > 0 else 0.0
+
+
+def _set_deflection_summary(delta_max_m: float, L_ref_m: float):
+    """
+    Push a minimal diag_summary so render_results() shows deflection.
+    """
+    if L_ref_m <= 0:
+        return
+
+    w_max_mm = abs(float(delta_max_m)) * 1000.0
+    L_mm = float(L_ref_m) * 1000.0
+
+    st.session_state["diag_summary"] = dict(
+        defl_available=True,
+        w_max_mm=w_max_mm,
+        limit_L300=L_mm / 300.0,
+        limit_L600=L_mm / 600.0,
+        limit_L900=L_mm / 900.0,
+    )
+    st.session_state["diag_delta_max_mm"] = w_max_mm
+    
+def push_case_deflection(delta_m: float, L_ref_m: float):
+    """
+    Unified place to push deflection to Results tabs.
+    Keeps all cases clean and avoids repetition.
+    """
+    if delta_m is None:
+        return
+    _set_deflection_summary(float(delta_m), float(L_ref_m))
+
+def _render_support_forces_RA_RE(case_key: str, RA_kN: float, RE_kN: float):
+    st.markdown("### Support forces")
+    st.caption("Upward positive.")
+    st.session_state[f"{case_key}_RA_out"] = float(RA_kN)
+    st.session_state[f"{case_key}_RE_out"] = float(RE_kN)
+    s1, s2 = st.columns(2)
+    with s1:
+        st.number_input("RA (kN)", disabled=True, step=0.1, key=f"{case_key}_RA_out")
+    with s2:
+        st.number_input("RE (kN)", disabled=True, step=0.1, key=f"{case_key}_RE_out")
+
+
+# ============================================================
+# TM-PR-03: Side Bottom Point Load  (horizontal point load F at bottom-right support E)
+# Reference (your image):
+#   RA = RE = 0
+#   HA = F
+#   Mmax (at B & D on beam) = F*h
+#   ΔDx = (F*h^2/(3EI))*(3L+2h)
+# Here EI uses COLUMN inertia (sway).
+# ============================================================
+def _render_tm_pr_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    F = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    # Beam: V=0, M=F*h (constant)
+    x_b = np.linspace(0.0, L, 401)
+    V_b = np.zeros_like(x_b)
+    M_b = np.full_like(x_b, F * h)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x_b, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr03_beam_", x_label="x (m)")
+
+    # Column (left) sway representation: V ~ F, M(y)=F*y
+    y_c = np.linspace(0.0, h, 251)
+    V_c = np.full_like(y_c, F)
+    M_c = F * y_c
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y_c, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr03_col_", x_label="y (m)")
+
+    # Support forces
+    _render_support_forces_RA_RE("tmpr03", RA_kN=0.0, RE_kN=0.0)
+
+    # Deflection (frame drift) using COLUMN EI
+    E = get_E_Pa()
+    I = _member_I_m4("col_")
+    if I > 0:
+        delta = (F * 1000.0 * h**2 / (3.0 * E * I)) * (3.0 * L + 2.0 * h)  # meters
+        _set_deflection_summary(delta, L_ref_m=h)
+
+
+# ============================================================
+# TM-PR-04: Side Top Bending Moment (moment Mc at top-right corner D)
+# Reference (your image):
+#   RA = RE = Mc/L
+#   Mmax(at D) = Mc
+#   ΔDx = Mc*h*L/(2EI)     (EI uses COLUMN inertia)
+# ============================================================
+def _render_tm_pr_04_whole_frame_diagrams(L_mm: float, h_mm: float, Mc_kNm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    Mc = float(Mc_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = Mc / L
+    RE = Mc / L
+
+    # Beam (simple representation): shear ~ RA, moment ramps to Mc at right
+    x_b = np.linspace(0.0, L, 401)
+    V_b = np.full_like(x_b, RA)
+    M_b = Mc * (x_b / L)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x_b, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr04_beam_", x_label="x (m)")
+
+    # Column (left) representation: moment ~ Mc (constant couple effect), shear ~ 0
+    y_c = np.linspace(0.0, h, 251)
+    V_c = np.zeros_like(y_c)
+    M_c = np.full_like(y_c, Mc)
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y_c, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr04_col_", x_label="y (m)")
+
+    _render_support_forces_RA_RE("tmpr04", RA_kN=RA, RE_kN=RE)
+
+    # Deflection (frame drift) using COLUMN EI
+    E = get_E_Pa()
+    I = _member_I_m4("col_")
+    if I > 0:
+        delta = (Mc * 1000.0 * h * L) / (2.0 * E * I)  # meters
+        _set_deflection_summary(delta, L_ref_m=h)
+
+
+# ============================================================
+# TM-PR-05: Central Bending Moment (moment Mc at beam mid-point C)
+# Reference (your image):
+#   RA = RE = Mc/L
+#   Mmax(at C) = Mc/2
+#   Slope at C: theta(C) = Mc*L/(12EI)   (beam EI)
+# We'll compute deflection numerically from M(x) (beam EI), so results tab shows δmax.
+# ============================================================
+def _render_tm_pr_05_whole_frame_diagrams(L_mm: float, h_mm: float, Mc_kNm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    Mc = float(Mc_kNm)
+    if L <= 0:
+        return
+
+    RA = Mc / L
+    RE = Mc / L
+
+    x = np.linspace(0.0, L, 1001)
+    mid = 0.5 * L
+
+    # Shear: +RA then -RA (like a "step" caused by applied couple at mid)
+    V = np.where(x <= mid, RA, -RA)
+
+    # Moment: triangular to Mc/2 at mid, then back (sign change shown in your BMD)
+    M_left  = (Mc / L) * x
+    M_right = (Mc / L) * (L - x)
+    M = np.where(x <= mid, M_left, -M_right)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpr05_beam_", x_label="x (m)")
+
+    # Columns: assume mainly axial/no bending for this pure couple at mid (simplified)
+    if h > 0:
+        y_c = np.linspace(0.0, h, 200)
+        V_c = np.zeros_like(y_c)
+        M_c = np.zeros_like(y_c)
+        with st.expander("Column diagrams", expanded=False):
+            small_title("Column diagrams")
+            _render_member_vm(x_m=y_c, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr05_col_", x_label="y (m)")
+
+    _render_support_forces_RA_RE("tmpr05", RA_kN=RA, RE_kN=RE)
+
+    # Deflection: integrate curvature on BEAM using BEAM EI
+    E = get_E_Pa()
+    I = _member_I_m4("beam_")
+    if I > 0:
+        M_Nm = M * 1000.0
+        kappa = M_Nm / (E * I)
+        dx = x[1] - x[0]
+        theta = np.cumsum(kappa) * dx
+        y = np.cumsum(theta) * dx
+        # enforce y(0)=0 and y(L)=0
+        y = y - (y[-1] / L) * x
+        delta_max = float(np.nanmax(np.abs(y)))
+        _set_deflection_summary(delta_max, L_ref_m=L)
+
+
+# ============================================================
+# TM-PR-06: Top UDL w on beam
+# Reference (your image):
+#   RA = RE = wL/2
+#   Mmax(at C) = wL^2/8
+#   ΔEx = w*h*L^3/(12EI)   (EI uses COLUMN inertia, drift of support E)
+# ============================================================
+def _render_tm_pr_06_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = w * L / 2.0
+    RE = w * L / 2.0
+
+    x = np.linspace(0.0, L, 801)
+    V = RA - w * x
+    M = RA * x - w * x**2 / 2.0
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpr06_beam_", x_label="x (m)")
+
+    # Columns: axial only (simplified)
+    y_c = np.linspace(0.0, h, 200)
+    V_c = np.zeros_like(y_c)
+    M_c = np.zeros_like(y_c)
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y_c, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr06_col_", x_label="y (m)")
+
+    _render_support_forces_RA_RE("tmpr06", RA_kN=RA, RE_kN=RE)
+
+    # Deflection (drift) using COLUMN EI
+    E = get_E_Pa()
+    I = _member_I_m4("col_")
+    if I > 0:
+        delta = (w * 1000.0 * h * L**3) / (12.0 * E * I)  # meters
+        _set_deflection_summary(delta, L_ref_m=h)
+
+
+# ============================================================
+# TM-PR-07: Side UDL w on LEFT column (inward)
+# Reference (your image):
+#   RA = RE = w h^2 / (2L)
+#   HA = w h
+#   Mmax(at B) = w h^2 / 2
+#   ΔDx = w h^3 /(24EI) * (6L + 5h)     (EI uses COLUMN inertia)
+# ============================================================
+def _render_tm_pr_07_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = (w * h**2) / (2.0 * L)
+    RE = (w * h**2) / (2.0 * L)
+
+    # Beam (simple): constant shear ~ RA, moment ~ RA*x (max at left joint B)
+    x_b = np.linspace(0.0, L, 401)
+    V_b = np.full_like(x_b, RA)
+    M_b = RA * x_b
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x_b, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr07_beam_", x_label="x (m)")
+
+    # Column (left): cantilever-ish under UDL: V(y)=w*(h-y), M(y)=w*(h-y)^2/2 (max at base)
+    y = np.linspace(0.0, h, 401)
+    V_c = w * (h - y)
+    M_c = w * (h - y)**2 / 2.0
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr07_col_", x_label="y (m)")
+
+    _render_support_forces_RA_RE("tmpr07", RA_kN=RA, RE_kN=RE)
+
+    # Deflection (drift) using COLUMN EI
+    E = get_E_Pa()
+    I = _member_I_m4("col_")
+    if I > 0:
+        delta = (w * 1000.0 * h**3 / (24.0 * E * I)) * (6.0 * L + 5.0 * h)  # meters
+        _set_deflection_summary(delta, L_ref_m=h)
+
+
+# ============================================================
+# TM-PR-08: Outward Side UDL w on RIGHT column (outward)
+# Reference (your image):
+#   RA = RE = w h^2 / (2L)
+#   HA = w h
+#   Mc = w h^2 / 2
+#   Mmax(at B) = w h^2
+#   ΔDx = w h^3 /(24EI) * (18L + 11h)    (EI uses COLUMN inertia)
+# ============================================================
+def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = (w * h**2) / (2.0 * L)
+    RE = (w * h**2) / (2.0 * L)
+
+    # Beam: show larger end moment demand (your ref says Mmax at B = w h^2)
+    x_b = np.linspace(0.0, L, 401)
+    V_b = np.full_like(x_b, RA)
+    M_b = (w * h**2) * (1.0 - x_b / L)  # max at left
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x_b, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr08_beam_", x_label="x (m)")
+
+    # Column (right) UDL outward: same magnitudes (we just show absolute envelope)
+    y = np.linspace(0.0, h, 401)
+    V_c = w * (h - y)
+    M_c = w * (h - y)**2 / 2.0
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr08_col_", x_label="y (m)")
+
+    _render_support_forces_RA_RE("tmpr08", RA_kN=RA, RE_kN=RE)
+
+    # Deflection (drift) using COLUMN EI
+    E = get_E_Pa()
+    I = _member_I_m4("col_")
+    if I > 0:
+        delta = (w * 1000.0 * h**3 / (24.0 * E * I)) * (18.0 * L + 11.0 * h)  # meters
+        _set_deflection_summary(delta, L_ref_m=h)
+
+
 def _case_num(label: str, key: str, default: float, step: float = 10.0, allow_negative: bool = True):
     """
     Number input helper:
@@ -7732,8 +8084,9 @@ def _render_ready_frame_cases():
                 ("F_kN", "Central point load F (kN) (downward negative)", -50.0, 1.0, None),
             ],
             "preview": lambda v: _render_tm_pr_01_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], P_kN=v["F_kN"]),
-            "apply":   "apply_tmpr01",
+            "apply": "apply_tmpr01",
         },
+    
         "TM-PR-02": {
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
@@ -7741,9 +8094,70 @@ def _render_ready_frame_cases():
                 ("F_kN", "Side top point load F (kN)  (+ right, − left)", 50.0, 1.0, None),
             ],
             "preview": lambda v: _render_tm_pr_02_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
-            "apply":   "apply_tmpr02",
+            "apply": "apply_tmpr02",
+        },
+    
+        "TM-PR-03": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("F_kN", "Side bottom point load F (kN)  (+ right, − left)", 50.0, 1.0, None),
+            ],
+            "preview": lambda v: _render_tm_pr_03_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+            "apply": "apply_tmpr03",
+        },
+    
+        "TM-PR-04": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("Mc_kNm", "Side top bending moment Mc (kN·m)  (+ CCW)", 100.0, 1.0, None),
+            ],
+            "preview": lambda v: _render_tm_pr_04_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], Mc_kNm=v["Mc_kNm"]),
+            "apply": "apply_tmpr04",
+        },
+    
+        "TM-PR-05": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("Mc_kNm", "Central bending moment Mc (kN·m)  (+ CCW)", 100.0, 1.0, None),
+            ],
+            "preview": lambda v: _render_tm_pr_05_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], Mc_kNm=v["Mc_kNm"]),
+            "apply": "apply_tmpr05",
+        },
+    
+        "TM-PR-06": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("w_kNm", "Top UDL w (kN/m)  (downward negative)", -10.0, 0.5, None),
+            ],
+            "preview": lambda v: _render_tm_pr_06_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
+            "apply": "apply_tmpr06",
+        },
+    
+        "TM-PR-07": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("w_kNm", "Side UDL w (kN/m)  (+ right, − left)", 10.0, 0.5, None),
+            ],
+            "preview": lambda v: _render_tm_pr_07_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
+            "apply": "apply_tmpr07",
+        },
+    
+        "TM-PR-08": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("w_kNm", "Outward side UDL w (kN/m)  (+ outward)", 10.0, 0.5, None),
+            ],
+            "preview": lambda v: _render_tm_pr_08_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
+            "apply": "apply_tmpr08",
         },
     }
+
 
     if case_key not in CASE_CFG:
         st.info("Diagrams not implemented for this case yet.")
@@ -7812,6 +8226,134 @@ def _render_ready_frame_cases():
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
             _fill_VM_into_member_inputs("col_", F_kN, Mmax_kNm)
+            
+        elif cfg["apply"] == "apply_tmpr03":
+            L_mm = float(vals["L_mm"])
+            h_mm = float(vals["h_mm"])
+            F_kN = float(vals["F_kN"])
+
+            L_m = L_mm / 1000.0
+            h_m = h_mm / 1000.0
+
+            # Beam: V=0, M=F*h
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=F_kN * h_m)
+
+            # Column: V=F, Mmax=F*h
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = 0.0
+            _fill_beam_vm_to_components("col_", V_kN=F_kN, M_kNm=F_kN * h_m)
+
+        elif cfg["apply"] == "apply_tmpr04":
+            L_mm = float(vals["L_mm"])
+            h_mm = float(vals["h_mm"])
+            Mc_kNm = float(vals["Mc_kNm"])
+
+            L_m = L_mm / 1000.0
+            h_m = h_mm / 1000.0
+            if L_m <= 0:
+                L_m = 1.0
+
+            RA_kN = Mc_kNm / L_m
+
+            # Beam: V ~ RA, Mmax ~ Mc
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mc_kNm)
+
+            # Column: take same moment envelope (safe)
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = 0.0
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=Mc_kNm)
+
+        elif cfg["apply"] == "apply_tmpr05":
+            L_mm = float(vals["L_mm"])
+            h_mm = float(vals["h_mm"])
+            Mc_kNm = float(vals["Mc_kNm"])
+
+            L_m = L_mm / 1000.0
+            if L_m <= 0:
+                L_m = 1.0
+
+            Vmax_kN = Mc_kNm / L_m
+            Mmax_kNm = 0.5 * Mc_kNm
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
+
+            # Columns simplified as no bending for this case
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = 0.0
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
+
+        elif cfg["apply"] == "apply_tmpr06":
+            L_mm = float(vals["L_mm"])
+            h_mm = float(vals["h_mm"])
+            w = float(vals["w_kNm"])
+
+            L_m = L_mm / 1000.0
+            if L_m <= 0:
+                L_m = 1.0
+
+            Vmax_kN = abs(w) * L_m / 2.0
+            Mmax_kNm = abs(w) * (L_m ** 2) / 8.0
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
+
+            # Columns: axial compression from reaction (sign: compression negative in your app)
+            Ncol_kN = -abs(w) * L_m / 2.0
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = Ncol_kN
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
+
+        elif cfg["apply"] == "apply_tmpr07":
+            L_mm = float(vals["L_mm"])
+            h_mm = float(vals["h_mm"])
+            w = float(vals["w_kNm"])
+
+            L_m = L_mm / 1000.0
+            h_m = h_mm / 1000.0
+            if L_m <= 0:
+                L_m = 1.0
+
+            RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
+            Mmax_kNm = abs(w) * h_m**2 / 2.0
+            Vcol_kN = abs(w) * h_m
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
+
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = 0.0
+            _fill_beam_vm_to_components("col_", V_kN=Vcol_kN, M_kNm=Mmax_kNm)
+
+        elif cfg["apply"] == "apply_tmpr08":
+            L_mm = float(vals["L_mm"])
+            h_mm = float(vals["h_mm"])
+            w = float(vals["w_kNm"])
+
+            L_m = L_mm / 1000.0
+            h_m = h_mm / 1000.0
+            if L_m <= 0:
+                L_m = 1.0
+
+            RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
+            Mmax_kNm = abs(w) * h_m**2      # per your reference (at B)
+            Vcol_kN = abs(w) * h_m
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
+
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = 0.0
+            _fill_beam_vm_to_components("col_", V_kN=Vcol_kN, M_kNm=0.5 * abs(w) * h_m**2)  # Mc = w h^2/2
+
 
         else:
             _apply_ready_frame_case(case)
