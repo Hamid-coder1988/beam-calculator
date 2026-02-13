@@ -7631,76 +7631,93 @@ def _EI_col() -> float:
 
 
 def _render_tm_fr_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    """TM-FR-01: Free End Horizontal Point Load at D (P to +x)."""
+    """TM-FR-01: Free End Horizontal Point Load (P at D to +x)."""
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
     P = float(F_kN)
     if L <= 0 or h <= 0:
         return
 
-    # Support reactions from image:
+    # Support reactions from your image
     RA = 0.0
-    HA = -P  # reaction opposite load (positive right convention)
-    _render_support_forces("tmfr01", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
+    HA = -P  # sign per your convention (+ right)
 
-    # --- Diagrams (simple but consistent + uses your strong/weak axis handling inside _render_member_vm)
+    # --- Diagrams first (KEEP LAYOUT CONSISTENT) ---
+    # Beam: constant moment ~ P*h (envelope)
     x = np.linspace(0.0, L, 401)
     Vb = np.zeros_like(x)
-    Mb = np.full_like(x, P * h)  # constant top moment magnitude ~ Ph
+    Mb = np.full_like(x, P * h)
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmfr01_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="tmfr01_beam_", x_label="x (m)"
+        )
 
+    # Column: triangular moment, constant shear
     y = np.linspace(0.0, h, 401)
     Vc = np.full_like(y, P)
     Mc = P * (h - y)
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="tmfr01_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="tmfr01_col_", x_label="y (m)"
+        )
 
-    # --- Deflection summary (unchanged)
+    # --- Support forces last ---
+    _render_support_forces("tmfr01", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
+
+    # Deflection (your existing approach)
     EI = _EI_col()
     if EI > 0:
         Dx = (P * h**2 / (3.0 * EI)) * (3.0 * L + 4.0 * h)
         Dy = -(P * h * L / (2.0 * EI)) * (L + h)
         _set_deflection_summary(abs(Dy), L_ref_m=L)
-
-
 def _render_tm_fr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    """TM-FR-02: Free End Vertical Point Load at D (P downward negative)."""
+    """TM-FR-02: Free End Vertical Point Load (P at D downward)."""
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
     P = float(F_kN)
     if L <= 0 or h <= 0:
         return
 
-    # Support reactions from image:
+    # Support reactions from your image
     RA = P
     HA = 0.0
-    _render_support_forces("tmfr02", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
 
-    # Diagrams (approximate: treat effect as end vertical load producing beam shear + column moment)
+    # --- Diagrams first ---
+    # Beam: linear moment from PL at A/B down to 0 (simple envelope)
     x = np.linspace(0.0, L, 401)
-    Vb = np.full_like(x, RA)
-    Mb = RA * (L - x)  # triangular (max at left joint)
+    Vb = np.full_like(x, P)
+    Mb = P * (L - x)
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmfr02_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="tmfr02_beam_", x_label="x (m)"
+        )
 
-    y = np.linspace(0.0, h, 401)
-    Vc = np.full_like(y, RA)
-    Mc = RA * L * (1.0 - y / h)  # fade to 0 at top
+    # Column: approx constant moment ~ P*L (envelope)
+    y = np.linspace(0.0, h, 251)
+    Vc = np.zeros_like(y)
+    Mc = np.full_like(y, P * L)
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="tmfr02_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="tmfr02_col_", x_label="y (m)"
+        )
 
+    # --- Support forces last ---
+    _render_support_forces("tmfr02", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
+
+    # Deflection (your existing block)
     EI = _EI_col()
     if EI > 0:
         Dx = -(P * h * L / (2.0 * EI)) * (L + 2.0 * h)
         Dy = (P * L**2 / (3.0 * EI)) * (L + 3.0 * h)
         _set_deflection_summary(abs(Dy), L_ref_m=L)
-
-
 def _render_tm_fr_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
     """TM-FR-03: Side Top Point Load (P to +x at top)."""
     L = float(L_mm) / 1000.0
@@ -7709,32 +7726,38 @@ def _render_tm_fr_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     if L <= 0 or h <= 0:
         return
 
-    # Support reactions from image:
+    # Support reactions from image
     RA = 0.0
     HA = -P
-    _render_support_forces("tmfr03", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
 
-    # Diagrams (approx: constant moment in beam ~ Ph, column triangular)
+    # --- Diagrams first ---
     x = np.linspace(0.0, L, 401)
     Vb = np.zeros_like(x)
     Mb = np.full_like(x, P * h)
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmfr03_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="tmfr03_beam_", x_label="x (m)"
+        )
 
     y = np.linspace(0.0, h, 401)
     Vc = np.full_like(y, P)
     Mc = P * (h - y)
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="tmfr03_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="tmfr03_col_", x_label="y (m)"
+        )
+
+    # --- Support forces last ---
+    _render_support_forces("tmfr03", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
 
     EI = _EI_col()
     if EI > 0:
         Dy_D = (P * L * h**2 / (2.0 * EI))
         _set_deflection_summary(abs(Dy_D), L_ref_m=L)
-
-
 def _render_tm_fr_04_whole_frame_diagrams(L_mm: float, h_mm: float, M_kNm: float):
     """TM-FR-04: Free End Bending Moment at D (MD)."""
     L = float(L_mm) / 1000.0
@@ -7743,60 +7766,75 @@ def _render_tm_fr_04_whole_frame_diagrams(L_mm: float, h_mm: float, M_kNm: float
     if L <= 0 or h <= 0:
         return
 
-    _render_support_forces("tmfr04", RA_kN=0.0, RE_kN=0.0, HA_kN=0.0)
-
-    # Diagrams (moment-only case)
+    # --- Diagrams first ---
     x = np.linspace(0.0, L, 401)
     Vb = np.zeros_like(x)
     Mb = np.full_like(x, MD)
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmfr04_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="tmfr04_beam_", x_label="x (m)"
+        )
 
-    y = np.linspace(0.0, h, 401)
+    y = np.linspace(0.0, h, 251)
     Vc = np.zeros_like(y)
     Mc = np.full_like(y, MD)
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="tmfr04_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="tmfr04_col_", x_label="y (m)"
+        )
+
+    # --- Support forces last ---
+    _render_support_forces("tmfr04", RA_kN=0.0, RE_kN=0.0, HA_kN=0.0)
 
     EI = _EI_col()
     if EI > 0:
         Dy = -(MD * L / (2.0 * EI)) * (L + 2.0 * h)
         _set_deflection_summary(abs(Dy), L_ref_m=L)
-
-
 def _render_tm_fr_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    """TM-FR-05: Top UDL on beam (w)."""
+    """TM_attach: TM-FR-05: Top UDL on beam (w)."""
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
     w = float(w_kNm)
     if L <= 0 or h <= 0:
         return
 
+    # Support reactions from image
     RA = w * L
     HA = 0.0
-    _render_support_forces("tmfr05", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
 
-    # Diagrams (use standard cantilever-like shape for preview)
+    # --- Diagrams first ---
     x = np.linspace(0.0, L, 401)
     Vb = RA - w * x
-    Mb = RA * x - w * x**2 / 2.0
+    Mb = 0.5 * w * (L - x) ** 2  # envelope-style
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="tmfr05_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="tmfr05_beam_", x_label="x (m)"
+        )
 
-    y = np.linspace(0.0, h, 401)
-    Vc = np.full_like(y, RA)
-    Mc = (RA * L) * (1.0 - y / h)
+    y = np.linspace(0.0, h, 251)
+    Vc = np.zeros_like(y)
+    Mc = np.full_like(y, 0.5 * w * L**2)
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="tmfr05_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="tmfr05_col_", x_label="y (m)"
+        )
+
+    # --- Support forces last ---
+    _render_support_forces("tmfr05", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
 
     EI = _EI_col()
     if EI > 0:
         Dy = (w * L**3 / (8.0 * EI)) * (L + 4.0 * h)
         _set_deflection_summary(abs(Dy), L_ref_m=L)
+
 
 
 def _render_dm_pp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
