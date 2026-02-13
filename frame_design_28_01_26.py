@@ -7422,10 +7422,26 @@ def _render_member_vm(
         st.session_state[f"{key_prefix}M_png"] = buf_m.getvalue()
         st.pyplot(fig2)
 
+# -----------------------------
+# Apply helper for "ready case" dicts  (APPLY-ONLY)
+# -----------------------------
+from typing import Optional
 
-# -----------------------------
-# Apply helper for "ready case" dicts  (NO UI HERE)
-# -----------------------------
+def make_frame_cases(prefix: str, n: int, beam_defaults: dict, col_defaults: dict):
+    """Build placeholder case cards for the gallery."""
+    out = []
+    for i in range(1, int(n) + 1):
+        key = f"{prefix}-{i:02d}"
+        out.append({
+            "key": key,
+            "label": f"Case {i}",
+            "img_path": f"assets/frame_cases/{key}.png",
+            "beam": beam_defaults.copy(),
+            "col":  col_defaults.copy(),
+        })
+    return out
+
+
 def _apply_ready_frame_case(case: dict) -> None:
     """
     Fill BOTH beam_ and col_ inputs in session_state from a ready frame case dict:
@@ -7442,44 +7458,334 @@ def _apply_ready_frame_case(case: dict) -> None:
 
 
 # -----------------------------
-# Ready frame cases UI (catalog + preview + apply)
+# Small wrappers / helpers used by frame cases
 # -----------------------------
-def _render_ready_frame_cases() -> None:
+def _fill_beam_vm_to_components(member_prefix: str, V_kN: float, M_kNm: float) -> None:
+    """
+    Backward compatible helper:
+    many of your apply blocks call this name.
+    It does the same as _fill_VM_into_member_inputs().
+    """
+    _fill_VM_into_member_inputs(member_prefix, V_kN, M_kNm)
+
+
+def _render_support_forces(case_key: str, RA_kN: float, RE_kN: float, HA_kN: Optional[float] = None) -> None:
+    """
+    Support forces box for frame cases.
+    Conventions:
+      - RA, RE: vertical reactions (kN), upward positive
+      - HA: horizontal reaction at A (kN), positive to the RIGHT
+    """
+    st.markdown("### Support forces")
+    st.caption("Upward positive for R. Positive to the right for H.")
+
+    st.session_state[f"{case_key}_RA_out"] = float(RA_kN)
+    st.session_state[f"{case_key}_RE_out"] = float(RE_kN)
+
+    if HA_kN is None:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.number_input("RA (kN)", disabled=True, step=0.1, key=f"{case_key}_RA_out")
+        with c2:
+            st.number_input("RE (kN)", disabled=True, step=0.1, key=f"{case_key}_RE_out")
+    else:
+        st.session_state[f"{case_key}_HA_out"] = float(HA_kN)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.number_input("RA (kN)", disabled=True, step=0.1, key=f"{case_key}_RA_out")
+        with c2:
+            st.number_input("RE (kN)", disabled=True, step=0.1, key=f"{case_key}_RE_out")
+        with c3:
+            st.number_input("HA (kN)", disabled=True, step=0.1, key=f"{case_key}_HA_out")
+
+
+def _member_I_m4(member_prefix: str) -> float:
+    """
+    Returns I (m^4) for the member based on its strong/weak axis selection.
+    Expects section props: I_y_cm4, I_z_cm4.
+    """
+    sr = st.session_state.get(f"{member_prefix}sr_display", {}) or {}
+    Iy = float(sr.get("I_y_cm4", 0.0)) * 1e-8
+    Iz = float(sr.get("I_z_cm4", 0.0)) * 1e-8
+    I = Iz if _axis_is_weak(member_prefix) else Iy
+    return float(I) if I > 0 else 0.0
+
+
+def _set_deflection_summary(delta_max_m: float, L_ref_m: float) -> None:
+    """Push a minimal diag_summary so render_results() shows deflection."""
+    if L_ref_m <= 0:
+        return
+
+    w_max_mm = abs(float(delta_max_m)) * 1000.0
+    L_mm = float(L_ref_m) * 1000.0
+
+    st.session_state["diag_summary"] = dict(
+        defl_available=True,
+        w_max_mm=w_max_mm,
+        limit_L300=L_mm / 300.0,
+        limit_L600=L_mm / 600.0,
+        limit_L900=L_mm / 900.0,
+    )
+    st.session_state["diag_delta_max_mm"] = w_max_mm
+
+
+# ============================================================
+# TM-PR-01..08 — diagram preview functions (MUST exist globally)
+# ============================================================
+def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float):
+    """TM-PR-01: central point load on beam."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(P_kN)
+    if L <= 0:
+        return
+
+    x = np.linspace(0.0, L, 401)
+    mid = 0.5 * L
+    R = 0.5 * P
+    V = np.where(x <= mid, R, -R)
+    M = np.where(x <= mid, R * x, R * (L - x))
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpr01_beam_", x_label="x (m)")
+
+    if h > 0:
+        y = np.linspace(0.0, h, 200)
+        with st.expander("Column diagrams", expanded=False):
+            small_title("Column diagrams")
+            _render_member_vm(x_m=y, V_kN=np.zeros_like(y), M_kNm=np.zeros_like(y),
+                             member_prefix="col_", key_prefix="tmpr01_col_", x_label="y (m)")
+
+    _render_support_forces("tmpr01", RA_kN=0.5 * P, RE_kN=0.5 * P)
+
+    # Beam deflection (mid-point load, SS beam): δmax = P L^3 /(48 E I)
+    E = get_E_Pa()
+    I = _member_I_m4("beam_")
+    if I > 0:
+        delta = (abs(P) * 1000.0 * L**3) / (48.0 * E * I)
+        _set_deflection_summary(delta, L_ref_m=L)
+
+
+def _render_tm_pr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    """TM-PR-02: horizontal point load at top-right."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    F = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = (F * h) / L
+    RE = (F * h) / L
+
+    x_b = np.linspace(0.0, L, 401)
+    V_b = np.full_like(x_b, RA)
+    M_b = (F * h) * (1.0 - x_b / L)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x_b, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr02_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    V_c = np.full_like(y, F)
+    M_c = F * y
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr02_col_", x_label="y (m)")
+
+    _render_support_forces("tmpr02", RA_kN=RA, RE_kN=RE, HA_kN=F)
+
+
+def _render_tm_pr_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    """TM-PR-03: side bottom point load (horizontal)."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    F = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    x = np.linspace(0.0, L, 401)
+    V_b = np.zeros_like(x)
+    M_b = np.full_like(x, F * h)  # envelope per your reference
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr03_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    V_c = np.full_like(y, F)
+    M_c = F * y
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr03_col_", x_label="y (m)")
+
+    _render_support_forces("tmpr03", RA_kN=0.0, RE_kN=0.0, HA_kN=F)
+
+
+def _render_tm_pr_04_whole_frame_diagrams(L_mm: float, h_mm: float, Mc_kNm: float):
+    """TM-PR-04: side top bending moment."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    Mc = float(Mc_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = Mc / L
+    RE = Mc / L
+
+    x = np.linspace(0.0, L, 401)
+    V_b = np.full_like(x, RA)
+    M_b = Mc * (x / L)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr04_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 251)
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=np.zeros_like(y), M_kNm=np.full_like(y, Mc),
+                         member_prefix="col_", key_prefix="tmpr04_col_", x_label="y (m)")
+
+    _render_support_forces("tmpr04", RA_kN=RA, RE_kN=RE)
+
+
+def _render_tm_pr_05_whole_frame_diagrams(L_mm: float, h_mm: float, Mc_kNm: float):
+    """TM-PR-05: central bending moment at C."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    Mc = float(Mc_kNm)
+    if L <= 0:
+        return
+
+    RA = Mc / L
+    RE = Mc / L
+
+    x = np.linspace(0.0, L, 1001)
+    mid = 0.5 * L
+    V = np.where(x <= mid, RA, -RA)
+    M_left = (Mc / L) * x
+    M_right = (Mc / L) * (L - x)
+    M = np.where(x <= mid, M_left, -M_right)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpr05_beam_", x_label="x (m)")
+
+    if h > 0:
+        y = np.linspace(0.0, h, 200)
+        with st.expander("Column diagrams", expanded=False):
+            small_title("Column diagrams")
+            _render_member_vm(x_m=y, V_kN=np.zeros_like(y), M_kNm=np.zeros_like(y),
+                             member_prefix="col_", key_prefix="tmpr05_col_", x_label="y (m)")
+
+    _render_support_forces("tmpr05", RA_kN=RA, RE_kN=RE)
+
+    # Beam deflection by curvature integration (beam EI)
+    E = get_E_Pa()
+    I = _member_I_m4("beam_")
+    if I > 0:
+        M_Nm = M * 1000.0
+        kappa = M_Nm / (E * I)
+        dx = x[1] - x[0]
+        theta = np.cumsum(kappa) * dx
+        y_def = np.cumsum(theta) * dx
+        y_def = y_def - (y_def[-1] / L) * x
+        _set_deflection_summary(float(np.nanmax(np.abs(y_def))), L_ref_m=L)
+
+
+def _render_tm_pr_06_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    """TM-PR-06: top UDL on beam."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = w * L / 2.0
+    RE = w * L / 2.0
+
+    x = np.linspace(0.0, L, 801)
+    V = RA - w * x
+    M = RA * x - w * x**2 / 2.0
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpr06_beam_", x_label="x (m)")
+
+    _render_support_forces("tmpr06", RA_kN=RA, RE_kN=RE)
+
+
+def _render_tm_pr_07_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    """TM-PR-07: side UDL on left column."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = (w * h**2) / (2.0 * L)
+    RE = (w * h**2) / (2.0 * L)
+
+    x = np.linspace(0.0, L, 401)
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=np.full_like(x, RA), M_kNm=RA * x,
+                         member_prefix="beam_", key_prefix="tmpr07_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 401)
+    V_c = w * (h - y)
+    M_c = w * (h - y)**2 / 2.0
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr07_col_", x_label="y (m)")
+
+    _render_support_forces("tmpr07", RA_kN=RA, RE_kN=RE, HA_kN=w * h)
+
+
+def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    """TM-PR-08: outward side UDL on right column."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = (w * h**2) / (2.0 * L)
+    RE = (w * h**2) / (2.0 * L)
+
+    x = np.linspace(0.0, L, 401)
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=np.full_like(x, RA), M_kNm=(w * h**2) * (1.0 - x / L),
+                         member_prefix="beam_", key_prefix="tmpr08_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 401)
+    V_c = w * (h - y)
+    M_c = w * (h - y)**2 / 2.0
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr08_col_", x_label="y (m)")
+
+    _render_support_forces("tmpr08", RA_kN=RA, RE_kN=RE, HA_kN=w * h)
+
+
+# -----------------------------
+# Gallery UI (TOP-LEVEL FUNCTION)
+# -----------------------------
+def _render_ready_frame_cases():
     st.markdown("### Ready frame cases")
     st.caption(
         "Pick a catalog + case to prefill **both** beam and column forces. "
         "Then you can tweak any value below."
     )
 
-    # -----------------------------
-    # Helper: build placeholder cases
-    # -----------------------------
-    def make_frame_cases(prefix: str, n: int, beam_defaults: dict, col_defaults: dict):
-        out = []
-        for i in range(1, int(n) + 1):
-            key = f"{prefix}-{i:02d}"
-            out.append({
-                "key": key,
-                "label": f"Case {i}",
-                "img_path": f"assets/frame_cases/{key}.png",
-                "beam": dict(beam_defaults),
-                "col":  dict(col_defaults),
-            })
-        return out
-
-    # -----------------------------
-    # FRAME CATALOG (layout defaults only)
-    # -----------------------------
-    beam0 = {
-        "L_mm_in": 8000.0, "N_in": 0.0,
-        "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
-        "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0
-    }
-    col0 = {
-        "L_mm_in": 4000.0, "N_in": 0.0,
-        "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
-        "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0
-    }
+    beam0 = {"L_mm_in": 8000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
+             "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0}
+    col0  = {"L_mm_in": 4000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
+             "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0}
 
     FRAME_CATALOG = {
         "Three Member Frames (Pin / Roller) (8 cases)": make_frame_cases("TM-PR", 8, beam0, col0),
@@ -7492,16 +7798,12 @@ def _render_ready_frame_cases() -> None:
         "Two Member Frame (Fixed / Free) (4 cases)": make_frame_cases("DM-FR", 4, beam0, col0),
     }
 
-    # -----------------------------
-    # UI (gallery)
-    # -----------------------------
     cat = st.selectbox("Step 1 — Frame catalog", list(FRAME_CATALOG.keys()), key="frame_cat_sel")
     cases = FRAME_CATALOG.get(cat, [])
     if not cases:
         st.info("No cases in this catalog yet.")
         return
 
-    # Reset selection when catalog changes
     last_cat = st.session_state.get("_frame_last_cat")
     if last_cat != cat:
         st.session_state["frame_case_key"] = None
@@ -7521,10 +7823,10 @@ def _render_ready_frame_cases() -> None:
                     st.write("")
                     continue
 
-                c = row_cases[j]
+                case = row_cases[j]
 
-                if c.get("img_path"):
-                    shown = safe_image(c["img_path"], use_container_width=True)
+                if case.get("img_path"):
+                    shown = safe_image(case["img_path"], use_container_width=True)
                     if not shown:
                         st.markdown(
                             "<div style='height:110px;border:1px dashed #bbb;"
@@ -7542,9 +7844,9 @@ def _render_ready_frame_cases() -> None:
                         unsafe_allow_html=True
                     )
 
-                st.caption(c["key"])
-                if st.button("Select", key=f"frame_select_{cat}_{c['key']}"):
-                    clicked = c["key"]
+                st.caption(case["key"])
+                if st.button("Select", key=f"frame_select_{cat}_{case['key']}"):
+                    clicked = case["key"]
 
     if clicked:
         st.session_state["frame_case_key"] = clicked
@@ -7564,21 +7866,16 @@ def _render_ready_frame_cases() -> None:
     st.markdown(f"**Selected:** {case['key']} — {case['label']}")
     st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
 
-    # -----------------------------
-    # Common helper: safe number input (avoid value/session_state conflict)
-    # -----------------------------
+    # --- safe number input
     def _num(label, key, default, step=10.0, min_value=None):
         kwargs = {"step": float(step), "key": key}
         if min_value is not None:
             kwargs["min_value"] = float(min_value)
-
         if key in st.session_state:
             return st.number_input(label, **kwargs)
         return st.number_input(label, value=float(default), **kwargs)
 
-    # -----------------------------
-    # Case configs
-    # -----------------------------
+    # --- Case configs
     CASE_CFG = {
         "TM-PR-01": {
             "inputs": [
@@ -7666,7 +7963,7 @@ def _render_ready_frame_cases() -> None:
 
     cfg = CASE_CFG[case_key]
 
-    # --- Inputs (same for all cases) ---
+    # --- Inputs
     vals = {}
     c1, c2, c3 = st.columns(3)
     cols = [c1, c2, c3]
@@ -7674,11 +7971,11 @@ def _render_ready_frame_cases() -> None:
         with cols[i % 3]:
             vals[name] = float(_num(label, key=f"{case_key}_{name}", default=default, step=step, min_value=minv))
 
-    # --- Preview (diagrams + support forces) in expander ---
+    # --- Preview
     with st.expander("Diagrams & support forces", expanded=False):
         cfg["preview"](vals)
 
-    # --- Apply (only transfers loads) ---
+    # --- Apply (your original apply logic)
     if st.button("Apply case", key=f"btn_apply_{case_key}"):
 
         if cfg["apply"] == "apply_tmpr01":
@@ -7708,12 +8005,11 @@ def _render_ready_frame_cases() -> None:
             L_m = L_mm / 1000.0
             h_m = h_mm / 1000.0
 
-            # keep your sign convention as-is
             RA_kN = -(F_kN * h_m) / L_m
             RE_kN = +(F_kN * h_m) / L_m
 
             Mmax_kNm = F_kN * h_m
-            V_beam_kN = RE_kN
+            V_beam_kN = RE_kN  # signed
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
@@ -7727,84 +8023,78 @@ def _render_ready_frame_cases() -> None:
             L_mm = float(vals["L_mm"])
             h_mm = float(vals["h_mm"])
             F_kN = float(vals["F_kN"])
+
             h_m = h_mm / 1000.0
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", 0.0, F_kN * h_m)
+            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=F_kN * h_m)
 
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_VM_into_member_inputs("col_", F_kN, F_kN * h_m)
+            _fill_beam_vm_to_components("col_", V_kN=F_kN, M_kNm=F_kN * h_m)
 
         elif cfg["apply"] == "apply_tmpr04":
             L_mm = float(vals["L_mm"])
             h_mm = float(vals["h_mm"])
             Mc_kNm = float(vals["Mc_kNm"])
 
-            L_m = L_mm / 1000.0
-            if L_m <= 0:
-                L_m = 1.0
+            L_m = max(L_mm / 1000.0, 1e-9)
 
             RA_kN = Mc_kNm / L_m
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", RA_kN, Mc_kNm)
+            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mc_kNm)
 
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_VM_into_member_inputs("col_", 0.0, Mc_kNm)
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=Mc_kNm)
 
         elif cfg["apply"] == "apply_tmpr05":
             L_mm = float(vals["L_mm"])
             h_mm = float(vals["h_mm"])
             Mc_kNm = float(vals["Mc_kNm"])
 
-            L_m = L_mm / 1000.0
-            if L_m <= 0:
-                L_m = 1.0
+            L_m = max(L_mm / 1000.0, 1e-9)
 
             Vmax_kN = Mc_kNm / L_m
             Mmax_kNm = 0.5 * Mc_kNm
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
+            _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
 
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_VM_into_member_inputs("col_", 0.0, 0.0)
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
 
         elif cfg["apply"] == "apply_tmpr06":
             L_mm = float(vals["L_mm"])
             h_mm = float(vals["h_mm"])
             w = float(vals["w_kNm"])
 
-            L_m = L_mm / 1000.0
-            if L_m <= 0:
-                L_m = 1.0
+            L_m = max(L_mm / 1000.0, 1e-9)
 
             Vmax_kN = abs(w) * L_m / 2.0
             Mmax_kNm = abs(w) * (L_m ** 2) / 8.0
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
+            _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
 
+            Ncol_kN = -abs(w) * L_m / 2.0
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(w) * L_m / 2.0
-            _fill_VM_into_member_inputs("col_", 0.0, 0.0)
+            st.session_state["col_N_in"] = Ncol_kN
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
 
         elif cfg["apply"] == "apply_tmpr07":
             L_mm = float(vals["L_mm"])
             h_mm = float(vals["h_mm"])
             w = float(vals["w_kNm"])
 
-            L_m = L_mm / 1000.0
+            L_m = max(L_mm / 1000.0, 1e-9)
             h_m = h_mm / 1000.0
-            if L_m <= 0:
-                L_m = 1.0
 
             RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
             Mmax_kNm = abs(w) * h_m**2 / 2.0
@@ -7812,40 +8102,40 @@ def _render_ready_frame_cases() -> None:
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", RA_kN, Mmax_kNm)
+            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
 
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_VM_into_member_inputs("col_", Vcol_kN, Mmax_kNm)
+            _fill_beam_vm_to_components("col_", V_kN=Vcol_kN, M_kNm=Mmax_kNm)
 
         elif cfg["apply"] == "apply_tmpr08":
             L_mm = float(vals["L_mm"])
             h_mm = float(vals["h_mm"])
             w = float(vals["w_kNm"])
 
-            L_m = L_mm / 1000.0
+            L_m = max(L_mm / 1000.0, 1e-9)
             h_m = h_mm / 1000.0
-            if L_m <= 0:
-                L_m = 1.0
 
             RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
             Mmax_kNm = abs(w) * h_m**2
-            Vcol_kN = abs(w) * h_m
 
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", RA_kN, Mmax_kNm)
+            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
 
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_VM_into_member_inputs("col_", Vcol_kN, 0.5 * abs(w) * h_m**2)
+            _fill_beam_vm_to_components("col_", V_kN=abs(w) * h_m, M_kNm=0.5 * abs(w) * h_m**2)
 
-        # Invalidate previous results
+        else:
+            _apply_ready_frame_case(case)
+
         for k in ["beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
                   "col_df_rows", "col_overall_ok", "col_governing", "col_extras"]:
             st.session_state.pop(k, None)
 
         st.toast("Case applied — loads transferred to inputs.", icon="✅")
+
 
 def _swap_yz_in_sr_display(sr_display: dict) -> dict:
     """Return a shallow-copied sr_display with y/z (strong/weak) properties swapped.
