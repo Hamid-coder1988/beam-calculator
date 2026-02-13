@@ -7261,37 +7261,79 @@ def _store_design_forces_from_state_member(member_prefix: str, inputs_key: str):
         K_T=K_T,
     )
 
+# ============================================================
+# FRAME HELPERS (TM-PR) — keep this block only ONCE
+# - E getter (future user input ready)
+# - strong/weak axis mapping
+# - write V/M to correct member components (Vz/My or Vy/Mz)
+# - small diagram generators
+# - plotting helper (V/M)
+# - apply helper (fills session_state for ready cases)
+# ============================================================
+
+from typing import Optional
+import io
+import numpy as np
+import matplotlib.pyplot as plt
+import streamlit as st
+
+
+# -----------------------------
+# Global elastic modulus (Pa)
+# -----------------------------
 def get_E_Pa() -> float:
     """
-    Global elastic modulus getter.
-    - default: 210 GPa for steel
-    - later: you can expose st.session_state["E_GPa"] in UI
+    Global elastic modulus getter (Pa).
+    Default: 210 GPa (steel).
+
+    Later: add a UI number_input that writes st.session_state["E_GPa"].
     """
     E_GPa = float(st.session_state.get("E_GPa", 210.0))
     if E_GPa <= 0:
         E_GPa = 210.0
-    return E_GPa * 1e9  # Pa
+    return E_GPa * 1e9
 
+
+# -----------------------------
+# Axis selection (strong / weak)
+# -----------------------------
 def _axis_is_weak(member_prefix: str) -> bool:
+    """
+    True if member uses weak-axis bending (zz).
+    Reads selector: st.session_state[f"{member_prefix}bend_axis_sel"]
+    """
     sel = st.session_state.get(f"{member_prefix}bend_axis_sel", "Strong axis (yy)")
     return isinstance(sel, str) and sel.lower().startswith("weak")
 
-def _fill_beam_vm_to_components(member_prefix: str, V_kN: float, M_kNm: float):
-    """Write V/M into (Vy,Vz,My,Mz) based on strong/weak selection for this member."""
+
+# -----------------------------
+# Write envelope V/M into member inputs
+# -----------------------------
+def _fill_VM_into_member_inputs(member_prefix: str, Vmax_kN: float, Mmax_kNm: float) -> None:
+    """
+    Writes V and M into the correct session_state inputs depending on axis:
+
+    Strong axis -> Vz_in, My_in
+    Weak axis   -> Vy_in, Mz_in
+    """
     weak = _axis_is_weak(member_prefix)
 
     if weak:
-        st.session_state[f"{member_prefix}Vy_in"] = float(V_kN)
+        st.session_state[f"{member_prefix}Vy_in"] = float(Vmax_kN)
         st.session_state[f"{member_prefix}Vz_in"] = 0.0
         st.session_state[f"{member_prefix}My_in"] = 0.0
-        st.session_state[f"{member_prefix}Mz_in"] = float(M_kNm)
+        st.session_state[f"{member_prefix}Mz_in"] = float(Mmax_kNm)
     else:
         st.session_state[f"{member_prefix}Vy_in"] = 0.0
-        st.session_state[f"{member_prefix}Vz_in"] = float(V_kN)
-        st.session_state[f"{member_prefix}My_in"] = float(M_kNm)
+        st.session_state[f"{member_prefix}Vz_in"] = float(Vmax_kN)
+        st.session_state[f"{member_prefix}My_in"] = float(Mmax_kNm)
         st.session_state[f"{member_prefix}Mz_in"] = 0.0
 
-def _add_frame_inset(ax, L_m: float, h_m: float):
+
+# -----------------------------
+# Optional: frame inset (if you later want it)
+# -----------------------------
+def _add_frame_inset(ax, L_m: float, h_m: float) -> None:
     """Small frame sketch inset so main plot y-axis can stay V/M units."""
     iax = ax.inset_axes([0.30, 0.62, 0.40, 0.33])  # [x0,y0,w,h] in axes fraction
     iax.set_axis_off()
@@ -7302,37 +7344,48 @@ def _add_frame_inset(ax, L_m: float, h_m: float):
     FRAME_COLOR = "#1f77b4"
     LW = 3.0
 
-    # normalized inset coordinates
     iax.plot([0, 0], [0, 1], color=FRAME_COLOR, linewidth=LW)
     iax.plot([1, 1], [0, 1], color=FRAME_COLOR, linewidth=LW)
     iax.plot([0, 1], [1, 1], color=FRAME_COLOR, linewidth=LW)
 
 
+# -----------------------------
+# Diagram generator(s) — keep ONE copy only
+# -----------------------------
 def _tm_pr_01_diagrams(L_mm: float, P_kN: float, n: int = 401):
-    """Simply supported beam with central point load P (kN). Returns x(m), V(kN), M(kN·m)."""
+    """
+    Simply supported beam with central point load P (kN).
+    Returns:
+      x (m), V (kN), M (kN·m)
+    """
     L_mm = float(L_mm)
     P_kN = float(P_kN)
 
     x_m = np.linspace(0.0, L_mm / 1000.0, int(n))
-    L_m = x_m[-1]
+    L_m = float(x_m[-1])
     mid = 0.5 * L_m
 
     R = 0.5 * P_kN
-
     V = np.where(x_m <= mid, R, -R)
     M = np.where(x_m <= mid, R * x_m, R * (L_m - x_m))
-
     return x_m, V, M
 
+
+# -----------------------------
+# Plotting helper (V/M like beam tool)
+# -----------------------------
 def _render_member_vm(
     x_m,
     V_kN,
     M_kNm,
-    member_prefix="beam_",
-    key_prefix="frame_vm_",
-    x_label="x (m)",
-):
-    """Plot V and M like beam tool. Labels follow strong/weak selection per member."""
+    member_prefix: str = "beam_",
+    key_prefix: str = "frame_vm_",
+    x_label: str = "x (m)",
+) -> None:
+    """
+    Plot V and M like beam tool. Labels follow strong/weak selection per member.
+    Also stores PNG bytes in session_state for later PDF/report use.
+    """
     weak = _axis_is_weak(member_prefix)
     V_lbl = "Vy (kN)" if weak else "Vz (kN)"
     M_lbl = "Mz (kN·m)" if weak else "My (kN·m)"
@@ -7352,7 +7405,6 @@ def _render_member_vm(
         fig1.savefig(buf_v, format="png", dpi=200, bbox_inches="tight")
         buf_v.seek(0)
         st.session_state[f"{key_prefix}V_png"] = buf_v.getvalue()
-
         st.pyplot(fig1)
 
     with colM:
@@ -7368,607 +7420,23 @@ def _render_member_vm(
         fig2.savefig(buf_m, format="png", dpi=200, bbox_inches="tight")
         buf_m.seek(0)
         st.session_state[f"{key_prefix}M_png"] = buf_m.getvalue()
-
         st.pyplot(fig2)
 
 
-def _apply_ready_frame_case(case: dict):
-    """Fill BOTH beam_ and col_ inputs in session_state from a ready frame case."""
+# -----------------------------
+# Apply helper for "ready case" dicts
+# -----------------------------
+def _apply_ready_frame_case(case: dict) -> None:
+    """
+    Fill BOTH beam_ and col_ inputs in session_state from a ready frame case dict:
+      case["beam"] -> st.session_state["beam_<k>"] = v
+      case["col"]  -> st.session_state["col_<k>"]  = v
+    """
     for pref in ("beam_", "col_"):
         data = case.get("beam" if pref == "beam_" else "col", {})
         for k, v in data.items():
             st.session_state[f"{pref}{k}"] = v
-def _axis_is_weak(member_prefix: str) -> bool:
-    # Your member axis selector key is: f"{member_prefix}bend_axis_sel"
-    sel = st.session_state.get(f"{member_prefix}bend_axis_sel", "Strong axis (yy)")
-    return isinstance(sel, str) and sel.lower().startswith("weak")
 
-def _fill_VM_into_member_inputs(member_prefix: str, Vmax_kN: float, Mmax_kNm: float):
-    """
-    Strong axis -> (Vz, My)
-    Weak axis   -> (Vy, Mz)
-    """
-    weak = _axis_is_weak(member_prefix)
-
-    if weak:
-        st.session_state[f"{member_prefix}Vy_in"] = float(Vmax_kN)
-        st.session_state[f"{member_prefix}Vz_in"] = 0.0
-        st.session_state[f"{member_prefix}My_in"] = 0.0
-        st.session_state[f"{member_prefix}Mz_in"] = float(Mmax_kNm)
-    else:
-        st.session_state[f"{member_prefix}Vy_in"] = 0.0
-        st.session_state[f"{member_prefix}Vz_in"] = float(Vmax_kN)
-        st.session_state[f"{member_prefix}My_in"] = float(Mmax_kNm)
-        st.session_state[f"{member_prefix}Mz_in"] = 0.0
-
-def _tm_pr_01_beam_diagrams(L_mm: float, P_kN: float, n: int = 401):
-    """
-    Simply supported beam with central point load P.
-    Returns: x (m), V (kN), M (kN*m)
-    """
-    L_mm = float(L_mm)
-    P_kN = float(P_kN)
-
-    x = np.linspace(0.0, L_mm / 1000.0, int(n))
-    L = x[-1]
-    mid = 0.5 * L
-
-    R = 0.5 * P_kN
-    V = np.where(x <= mid, R, -R)
-    M = np.where(x <= mid, R * x, R * (L - x))
-    return x, V, M
-
-def _render_tm_pr_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float):
-    """
-    TM-PR-01: pin/roller, vertical central point load on beam.
-    We show REAL V/M diagrams for:
-      - Beam: simply supported with central point load
-      - Columns: (your assumption) no bending/shear => V=0, M=0
-    """
-    L_mm = float(L_mm)
-    h_mm = float(h_mm)
-    P_kN = float(P_kN)
-
-    # Beam diagrams (true)
-    x_b, V_b, M_b = _tm_pr_01_diagrams(L_mm=L_mm, P_kN=P_kN, n=401)
-
-    # ------------------------------
-    # Beam diagrams (collapsed)
-    # ------------------------------
-    with st.expander("Beam diagrams", expanded=False):
-        small_title("Beam diagrams")
-        _render_member_vm(
-            x_m=x_b,
-            V_kN=V_b,
-            M_kNm=M_b,
-            member_prefix="beam_",
-            key_prefix="tmpr01_beam_",
-            x_label="x (m)",
-        )
-
-    # Column diagrams (per your current assumption: axial only)
-    y_c = np.linspace(0.0, h_mm / 1000.0, 200)
-    V_c = np.zeros_like(y_c)
-    M_c = np.zeros_like(y_c)
-
-    # ------------------------------
-    # Column diagrams (collapsed)
-    # ------------------------------
-    with st.expander("Column diagrams", expanded=False):
-        small_title("Column diagrams")
-        _render_member_vm(
-            x_m=y_c,
-            V_kN=V_c,
-            M_kNm=M_c,
-            member_prefix="col_",
-            key_prefix="tmpr01_col_",
-            x_label="y (m)",
-        )
-    
-    # Support forces (compact)
-    RA_kN = 0.5 * P_kN
-    RE_kN = 0.5 * P_kN
-
-    st.markdown("### Support forces")
-    st.caption("Upward positive.")
-
-    st.session_state["tmpr01_RA_out"] = float(RA_kN)
-    st.session_state["tmpr01_RE_out"] = float(RE_kN)
-
-    s1, s2 = st.columns(2)
-    with s1:
-        st.number_input("RA (kN)", disabled=True, step=0.1, key="tmpr01_RA_out")
-    with s2:
-        st.number_input("RE (kN)", disabled=True, step=0.1, key="tmpr01_RE_out")
-
-def _render_tm_pr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    """
-    TM-PR-02: pin/roller, horizontal point load at top-right (to the right).
-    Reference (your image) gives:
-      RA = RE = (F*h)/L   (upward +)
-      HA = F              (not shown in your simplified output)
-      Mmax(at top-left) = F*h
-    We plot REAL member diagrams:
-      - Column (left): shear ~ F (constant), moment M(y)=F*y
-      - Beam (top): shear ~ RA (constant), moment M(x)=F*h*(1-x/L)
-    """
-    L_mm = float(L_mm)
-    h_mm = float(h_mm)
-    F_kN = float(F_kN)
-
-    L = L_mm / 1000.0
-    h = h_mm / 1000.0
-    if L <= 0 or h <= 0:
-        return
-
-    # Reactions (upward +)
-    RA_kN = (F_kN * h) / L
-    RE_kN = (F_kN * h) / L
-
-    # Beam diagrams
-    x_b = np.linspace(0.0, L, 401)
-    V_b = np.full_like(x_b, RA_kN)                 # constant
-    M_b = (F_kN * h) * (1.0 - x_b / L)             # linear to 0 at right
-
-    with st.expander("Beam diagrams", expanded=False):
-        small_title("Beam diagrams")
-        _render_member_vm(
-            x_m=x_b,
-            V_kN=V_b,
-            M_kNm=M_b,
-            member_prefix="beam_",
-            key_prefix="tmpr02_beam_",
-            x_label="x (m)",
-        )
-
-    # Column diagrams (left column)
-    y_c = np.linspace(0.0, h, 250)
-    V_c = np.full_like(y_c, F_kN)                  # constant shear (sign follows F)
-    M_c = F_kN * y_c                               # linear, max at top = F*h
-
-    with st.expander("Column diagrams", expanded=False):
-        small_title("Column diagrams")
-        _render_member_vm(
-            x_m=y_c,
-            V_kN=V_c,
-            M_kNm=M_c,
-            member_prefix="col_",
-            key_prefix="tmpr02_col_",
-            x_label="y (m)",
-        )
-
-    # Support forces (ONLY RA/RE as you requested)
-    st.markdown("### Support forces")
-    st.caption("Upward positive.")
-
-    st.session_state["tmpr02_RA_out"] = float(RA_kN)
-    st.session_state["tmpr02_RE_out"] = float(RE_kN)
-
-    s1, s2 = st.columns(2)
-    with s1:
-        st.number_input("RA (kN)", disabled=True, step=0.1, key="tmpr02_RA_out")
-    with s2:
-        st.number_input("RE (kN)", disabled=True, step=0.1, key="tmpr02_RE_out")
-
-def _member_I_m4(member_prefix: str) -> float:
-    """
-    Returns I (m^4) for the member based on its own strong/weak axis selection.
-    Uses member-specific sr_display stored as:
-      - beam_sr_display
-      - col_sr_display
-    """
-    sr = st.session_state.get(f"{member_prefix}sr_display", {}) or {}
-    Iy = float(sr.get("I_y_cm4", 0.0)) * 1e-8
-    Iz = float(sr.get("I_z_cm4", 0.0)) * 1e-8
-    weak = _axis_is_weak(member_prefix)
-    I = Iz if weak else Iy
-    return float(I) if I > 0 else 0.0
-
-
-def _set_deflection_summary(delta_max_m: float, L_ref_m: float):
-    """
-    Push a minimal diag_summary so render_results() shows deflection.
-    """
-    if L_ref_m <= 0:
-        return
-
-    w_max_mm = abs(float(delta_max_m)) * 1000.0
-    L_mm = float(L_ref_m) * 1000.0
-
-    st.session_state["diag_summary"] = dict(
-        defl_available=True,
-        w_max_mm=w_max_mm,
-        limit_L300=L_mm / 300.0,
-        limit_L600=L_mm / 600.0,
-        limit_L900=L_mm / 900.0,
-    )
-    st.session_state["diag_delta_max_mm"] = w_max_mm
-    
-def push_case_deflection(delta_m: float, L_ref_m: float):
-    """
-    Unified place to push deflection to Results tabs.
-    Keeps all cases clean and avoids repetition.
-    """
-    if delta_m is None:
-        return
-    _set_deflection_summary(float(delta_m), float(L_ref_m))
-
-def _render_support_forces_RA_RE(case_key: str, RA_kN: float, RE_kN: float):
-    st.markdown("### Support forces")
-    st.caption("Upward positive.")
-    st.session_state[f"{case_key}_RA_out"] = float(RA_kN)
-    st.session_state[f"{case_key}_RE_out"] = float(RE_kN)
-    s1, s2 = st.columns(2)
-    with s1:
-        st.number_input("RA (kN)", disabled=True, step=0.1, key=f"{case_key}_RA_out")
-    with s2:
-        st.number_input("RE (kN)", disabled=True, step=0.1, key=f"{case_key}_RE_out")
-
-
-# ============================================================
-# TM-PR-03: Side Bottom Point Load  (horizontal point load F at bottom-right support E)
-# Reference (your image):
-#   RA = RE = 0
-#   HA = F
-#   Mmax (at B & D on beam) = F*h
-#   ΔDx = (F*h^2/(3EI))*(3L+2h)
-# Here EI uses COLUMN inertia (sway).
-# ============================================================
-def _render_tm_pr_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    L = float(L_mm) / 1000.0
-    h = float(h_mm) / 1000.0
-    F = float(F_kN)
-    if L <= 0 or h <= 0:
-        return
-
-    # Beam: V=0, M=F*h (constant)
-    x_b = np.linspace(0.0, L, 401)
-    V_b = np.zeros_like(x_b)
-    M_b = np.full_like(x_b, F * h)
-
-    with st.expander("Beam diagrams", expanded=False):
-        small_title("Beam diagrams")
-        _render_member_vm(x_m=x_b, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr03_beam_", x_label="x (m)")
-
-    # Column (left) sway representation: V ~ F, M(y)=F*y
-    y_c = np.linspace(0.0, h, 251)
-    V_c = np.full_like(y_c, F)
-    M_c = F * y_c
-
-    with st.expander("Column diagrams", expanded=False):
-        small_title("Column diagrams")
-        _render_member_vm(x_m=y_c, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr03_col_", x_label="y (m)")
-
-    # Support forces
-    _render_support_forces_RA_RE("tmpr03", RA_kN=0.0, RE_kN=0.0)
-
-    # Deflection (frame drift) using COLUMN EI
-    E = get_E_Pa()
-    I = _member_I_m4("col_")
-    if I > 0:
-        delta = (F * 1000.0 * h**2 / (3.0 * E * I)) * (3.0 * L + 2.0 * h)  # meters
-        _set_deflection_summary(delta, L_ref_m=h)
-
-
-# ============================================================
-# TM-PR-04: Side Top Bending Moment (moment Mc at top-right corner D)
-# Reference (your image):
-#   RA = RE = Mc/L
-#   Mmax(at D) = Mc
-#   ΔDx = Mc*h*L/(2EI)     (EI uses COLUMN inertia)
-# ============================================================
-def _render_tm_pr_04_whole_frame_diagrams(L_mm: float, h_mm: float, Mc_kNm: float):
-    L = float(L_mm) / 1000.0
-    h = float(h_mm) / 1000.0
-    Mc = float(Mc_kNm)
-    if L <= 0 or h <= 0:
-        return
-
-    RA = Mc / L
-    RE = Mc / L
-
-    # Beam (simple representation): shear ~ RA, moment ramps to Mc at right
-    x_b = np.linspace(0.0, L, 401)
-    V_b = np.full_like(x_b, RA)
-    M_b = Mc * (x_b / L)
-
-    with st.expander("Beam diagrams", expanded=False):
-        small_title("Beam diagrams")
-        _render_member_vm(x_m=x_b, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr04_beam_", x_label="x (m)")
-
-    # Column (left) representation: moment ~ Mc (constant couple effect), shear ~ 0
-    y_c = np.linspace(0.0, h, 251)
-    V_c = np.zeros_like(y_c)
-    M_c = np.full_like(y_c, Mc)
-
-    with st.expander("Column diagrams", expanded=False):
-        small_title("Column diagrams")
-        _render_member_vm(x_m=y_c, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr04_col_", x_label="y (m)")
-
-    _render_support_forces_RA_RE("tmpr04", RA_kN=RA, RE_kN=RE)
-
-    # Deflection (frame drift) using COLUMN EI
-    E = get_E_Pa()
-    I = _member_I_m4("col_")
-    if I > 0:
-        delta = (Mc * 1000.0 * h * L) / (2.0 * E * I)  # meters
-        _set_deflection_summary(delta, L_ref_m=h)
-
-
-# ============================================================
-# TM-PR-05: Central Bending Moment (moment Mc at beam mid-point C)
-# Reference (your image):
-#   RA = RE = Mc/L
-#   Mmax(at C) = Mc/2
-#   Slope at C: theta(C) = Mc*L/(12EI)   (beam EI)
-# We'll compute deflection numerically from M(x) (beam EI), so results tab shows δmax.
-# ============================================================
-def _render_tm_pr_05_whole_frame_diagrams(L_mm: float, h_mm: float, Mc_kNm: float):
-    L = float(L_mm) / 1000.0
-    h = float(h_mm) / 1000.0
-    Mc = float(Mc_kNm)
-    if L <= 0:
-        return
-
-    RA = Mc / L
-    RE = Mc / L
-
-    x = np.linspace(0.0, L, 1001)
-    mid = 0.5 * L
-
-    # Shear: +RA then -RA (like a "step" caused by applied couple at mid)
-    V = np.where(x <= mid, RA, -RA)
-
-    # Moment: triangular to Mc/2 at mid, then back (sign change shown in your BMD)
-    M_left  = (Mc / L) * x
-    M_right = (Mc / L) * (L - x)
-    M = np.where(x <= mid, M_left, -M_right)
-
-    with st.expander("Beam diagrams", expanded=False):
-        small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpr05_beam_", x_label="x (m)")
-
-    # Columns: assume mainly axial/no bending for this pure couple at mid (simplified)
-    if h > 0:
-        y_c = np.linspace(0.0, h, 200)
-        V_c = np.zeros_like(y_c)
-        M_c = np.zeros_like(y_c)
-        with st.expander("Column diagrams", expanded=False):
-            small_title("Column diagrams")
-            _render_member_vm(x_m=y_c, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr05_col_", x_label="y (m)")
-
-    _render_support_forces_RA_RE("tmpr05", RA_kN=RA, RE_kN=RE)
-
-    # Deflection: integrate curvature on BEAM using BEAM EI
-    E = get_E_Pa()
-    I = _member_I_m4("beam_")
-    if I > 0:
-        M_Nm = M * 1000.0
-        kappa = M_Nm / (E * I)
-        dx = x[1] - x[0]
-        theta = np.cumsum(kappa) * dx
-        y = np.cumsum(theta) * dx
-        # enforce y(0)=0 and y(L)=0
-        y = y - (y[-1] / L) * x
-        delta_max = float(np.nanmax(np.abs(y)))
-        _set_deflection_summary(delta_max, L_ref_m=L)
-
-
-# ============================================================
-# TM-PR-06: Top UDL w on beam
-# Reference (your image):
-#   RA = RE = wL/2
-#   Mmax(at C) = wL^2/8
-#   ΔEx = w*h*L^3/(12EI)   (EI uses COLUMN inertia, drift of support E)
-# ============================================================
-def _render_tm_pr_06_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    L = float(L_mm) / 1000.0
-    h = float(h_mm) / 1000.0
-    w = float(w_kNm)
-    if L <= 0 or h <= 0:
-        return
-
-    RA = w * L / 2.0
-    RE = w * L / 2.0
-
-    x = np.linspace(0.0, L, 801)
-    V = RA - w * x
-    M = RA * x - w * x**2 / 2.0
-
-    with st.expander("Beam diagrams", expanded=False):
-        small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpr06_beam_", x_label="x (m)")
-
-    # Columns: axial only (simplified)
-    y_c = np.linspace(0.0, h, 200)
-    V_c = np.zeros_like(y_c)
-    M_c = np.zeros_like(y_c)
-    with st.expander("Column diagrams", expanded=False):
-        small_title("Column diagrams")
-        _render_member_vm(x_m=y_c, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr06_col_", x_label="y (m)")
-
-    _render_support_forces_RA_RE("tmpr06", RA_kN=RA, RE_kN=RE)
-
-    # Deflection (drift) using COLUMN EI
-    E = get_E_Pa()
-    I = _member_I_m4("col_")
-    if I > 0:
-        delta = (w * 1000.0 * h * L**3) / (12.0 * E * I)  # meters
-        _set_deflection_summary(delta, L_ref_m=h)
-
-
-# ============================================================
-# TM-PR-07: Side UDL w on LEFT column (inward)
-# Reference (your image):
-#   RA = RE = w h^2 / (2L)
-#   HA = w h
-#   Mmax(at B) = w h^2 / 2
-#   ΔDx = w h^3 /(24EI) * (6L + 5h)     (EI uses COLUMN inertia)
-# ============================================================
-def _render_tm_pr_07_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    L = float(L_mm) / 1000.0
-    h = float(h_mm) / 1000.0
-    w = float(w_kNm)
-    if L <= 0 or h <= 0:
-        return
-
-    RA = (w * h**2) / (2.0 * L)
-    RE = (w * h**2) / (2.0 * L)
-
-    # Beam (simple): constant shear ~ RA, moment ~ RA*x (max at left joint B)
-    x_b = np.linspace(0.0, L, 401)
-    V_b = np.full_like(x_b, RA)
-    M_b = RA * x_b
-
-    with st.expander("Beam diagrams", expanded=False):
-        small_title("Beam diagrams")
-        _render_member_vm(x_m=x_b, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr07_beam_", x_label="x (m)")
-
-    # Column (left): cantilever-ish under UDL: V(y)=w*(h-y), M(y)=w*(h-y)^2/2 (max at base)
-    y = np.linspace(0.0, h, 401)
-    V_c = w * (h - y)
-    M_c = w * (h - y)**2 / 2.0
-
-    with st.expander("Column diagrams", expanded=False):
-        small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr07_col_", x_label="y (m)")
-
-    _render_support_forces_RA_RE("tmpr07", RA_kN=RA, RE_kN=RE)
-
-    # Deflection (drift) using COLUMN EI
-    E = get_E_Pa()
-    I = _member_I_m4("col_")
-    if I > 0:
-        delta = (w * 1000.0 * h**3 / (24.0 * E * I)) * (6.0 * L + 5.0 * h)  # meters
-        _set_deflection_summary(delta, L_ref_m=h)
-
-
-# ============================================================
-# TM-PR-08: Outward Side UDL w on RIGHT column (outward)
-# Reference (your image):
-#   RA = RE = w h^2 / (2L)
-#   HA = w h
-#   Mc = w h^2 / 2
-#   Mmax(at B) = w h^2
-#   ΔDx = w h^3 /(24EI) * (18L + 11h)    (EI uses COLUMN inertia)
-# ============================================================
-def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    L = float(L_mm) / 1000.0
-    h = float(h_mm) / 1000.0
-    w = float(w_kNm)
-    if L <= 0 or h <= 0:
-        return
-
-    RA = (w * h**2) / (2.0 * L)
-    RE = (w * h**2) / (2.0 * L)
-
-    # Beam: show larger end moment demand (your ref says Mmax at B = w h^2)
-    x_b = np.linspace(0.0, L, 401)
-    V_b = np.full_like(x_b, RA)
-    M_b = (w * h**2) * (1.0 - x_b / L)  # max at left
-
-    with st.expander("Beam diagrams", expanded=False):
-        small_title("Beam diagrams")
-        _render_member_vm(x_m=x_b, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr08_beam_", x_label="x (m)")
-
-    # Column (right) UDL outward: same magnitudes (we just show absolute envelope)
-    y = np.linspace(0.0, h, 401)
-    V_c = w * (h - y)
-    M_c = w * (h - y)**2 / 2.0
-
-    with st.expander("Column diagrams", expanded=False):
-        small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr08_col_", x_label="y (m)")
-
-    _render_support_forces_RA_RE("tmpr08", RA_kN=RA, RE_kN=RE)
-
-    # Deflection (drift) using COLUMN EI
-    E = get_E_Pa()
-    I = _member_I_m4("col_")
-    if I > 0:
-        delta = (w * 1000.0 * h**3 / (24.0 * E * I)) * (18.0 * L + 11.0 * h)  # meters
-        _set_deflection_summary(delta, L_ref_m=h)
-
-
-def _case_num(label: str, key: str, default: float, step: float = 10.0, allow_negative: bool = True):
-    """
-    Number input helper:
-    - Allows negative values when needed (loads/moments directions)
-    - Avoids Streamlit warning by NOT passing 'value=' if key already exists
-    """
-    kwargs = dict(step=float(step), key=key)
-    if not allow_negative:
-        kwargs["min_value"] = 0.0
-
-    if key in st.session_state:
-        return st.number_input(label, **kwargs)
-    else:
-        return st.number_input(label, value=float(default), **kwargs)
-
-
-def _render_case_panel(
-    *,
-    case_key: str,
-    inputs_spec: list,
-    preview_fn,
-    apply_fn,
-):
-    """
-    Generic panel used by ALL frame cases:
-    - Renders inputs (no 'Case inputs (TM-..)' text)
-    - Shows diagrams in expanders (not shown by default)
-    - Apply button calls apply_fn()
-    """
-    # --- Inputs row(s)
-    cols = st.columns(3)
-    vals = {}
-    for i, spec in enumerate(inputs_spec):
-        col = cols[i % 3]
-        with col:
-            vals[spec["name"]] = _case_num(
-                spec["label"],
-                key=f"{case_key}_{spec['name']}",
-                default=spec["default"],
-                step=spec.get("step", 10.0),
-                allow_negative=spec.get("allow_negative", True),
-            )
-
-    # --- Preview (diagrams + support forces etc)
-    preview_fn(vals)
-
-    # --- Apply
-    if st.button("Apply case", key=f"apply_{case_key}"):
-        apply_fn(vals)
-
-        # Invalidate previous results (same keys you already clear elsewhere)
-        for k in ["beam_df_rows","beam_overall_ok","beam_governing","beam_extras",
-                  "col_df_rows","col_overall_ok","col_governing","col_extras"]:
-            st.session_state.pop(k, None)
-
-        st.toast("Case applied — loads transferred to inputs.", icon="✅")
-    
-def _render_ready_frame_cases():
-    st.markdown("### Ready frame cases")
-    st.caption(
-        "Pick a catalog + case to prefill **both** beam and column forces. "
-        "Then you can tweak any value below."
-    )
-
-    # -----------------------------
-    # Helper: build placeholder cases
-    # -----------------------------
-    def make_frame_cases(prefix: str, n: int, beam_defaults: dict, col_defaults: dict):
-        out = []
-        for i in range(1, int(n) + 1):
-            key = f"{prefix}-{i:02d}"
-            out.append({
-                "key": key,
-                "label": f"Case {i}",
-                "img_path": f"assets/frame_cases/{key}.png",
-                "beam": beam_defaults.copy(),
-                "col":  col_defaults.copy(),
-            })
-        return out
 
     # -----------------------------
     # FRAME CATALOG (layout only)
