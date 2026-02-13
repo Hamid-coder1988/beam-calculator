@@ -7538,7 +7538,62 @@ def _render_tm_pr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     with s2:
         st.number_input("RE (kN)", disabled=True, step=0.1, key="tmpr02_RE_out")
 
+def _case_num(label: str, key: str, default: float, step: float = 10.0, allow_negative: bool = True):
+    """
+    Number input helper:
+    - Allows negative values when needed (loads/moments directions)
+    - Avoids Streamlit warning by NOT passing 'value=' if key already exists
+    """
+    kwargs = dict(step=float(step), key=key)
+    if not allow_negative:
+        kwargs["min_value"] = 0.0
 
+    if key in st.session_state:
+        return st.number_input(label, **kwargs)
+    else:
+        return st.number_input(label, value=float(default), **kwargs)
+
+
+def _render_case_panel(
+    *,
+    case_key: str,
+    inputs_spec: list,
+    preview_fn,
+    apply_fn,
+):
+    """
+    Generic panel used by ALL frame cases:
+    - Renders inputs (no 'Case inputs (TM-..)' text)
+    - Shows diagrams in expanders (not shown by default)
+    - Apply button calls apply_fn()
+    """
+    # --- Inputs row(s)
+    cols = st.columns(3)
+    vals = {}
+    for i, spec in enumerate(inputs_spec):
+        col = cols[i % 3]
+        with col:
+            vals[spec["name"]] = _case_num(
+                spec["label"],
+                key=f"{case_key}_{spec['name']}",
+                default=spec["default"],
+                step=spec.get("step", 10.0),
+                allow_negative=spec.get("allow_negative", True),
+            )
+
+    # --- Preview (diagrams + support forces etc)
+    preview_fn(vals)
+
+    # --- Apply
+    if st.button("Apply case", key=f"apply_{case_key}"):
+        apply_fn(vals)
+
+        # Invalidate previous results (same keys you already clear elsewhere)
+        for k in ["beam_df_rows","beam_overall_ok","beam_governing","beam_extras",
+                  "col_df_rows","col_overall_ok","col_governing","col_extras"]:
+            st.session_state.pop(k, None)
+
+        st.toast("Case applied — loads transferred to inputs.", icon="✅")
     
 def _render_ready_frame_cases():
     st.markdown("### Ready frame cases")
@@ -7548,7 +7603,7 @@ def _render_ready_frame_cases():
     )
 
     # -----------------------------
-    # Helper: build placeholder cases (you'll replace loads later when we add equations)
+    # Helper: build placeholder cases
     # -----------------------------
     def make_frame_cases(prefix: str, n: int, beam_defaults: dict, col_defaults: dict):
         out = []
@@ -7557,8 +7612,6 @@ def _render_ready_frame_cases():
             out.append({
                 "key": key,
                 "label": f"Case {i}",
-                # IMPORTANT: image file name must match the key
-                # Example: assets/frame_cases/TM-PR-01.png
                 "img_path": f"assets/frame_cases/{key}.png",
                 "beam": beam_defaults.copy(),
                 "col":  col_defaults.copy(),
@@ -7568,33 +7621,14 @@ def _render_ready_frame_cases():
     # -----------------------------
     # FRAME CATALOG (layout only)
     # -----------------------------
-    # NOTE: All loads below are placeholders so the UI works.
-    # We will replace these numbers once you send the case images and we derive equations.
-    beam0 = {"L_mm_in": 8000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0, "Tx_in": 0.0,
-             "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0}
-    col0  = {"L_mm_in": 4000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0, "Tx_in": 0.0,
-             "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0}
-
-    beam_defaults = {
-        "L_mm": 6000.0,
-        "N_kN": 0.0,
-        "Vy_kN": 0.0,
-        "Vz_kN": 0.0,
-        "My_kNm": 0.0,
-        "Mz_kNm": 0.0,
-        "Tx_kNm": 0.0,
+    beam0 = {
+        "L_mm_in": 8000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
+        "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0
     }
-    
-    col_defaults = {
-        "L_mm": 3000.0,
-        "N_kN": 0.0,
-        "Vy_kN": 0.0,
-        "Vz_kN": 0.0,
-        "My_kNm": 0.0,
-        "Mz_kNm": 0.0,
-        "Tx_kNm": 0.0,   # (you already hide Tx in UI for column; leaving it here avoids key errors)
+    col0 = {
+        "L_mm_in": 4000.0, "N_in": 0.0, "Vy_in": 0.0, "Vz_in": 0.0, "My_in": 0.0, "Mz_in": 0.0,
+        "Ky_in": 1.0, "Kz_in": 1.0, "KLT_in": 1.0, "KT_in": 1.0
     }
-
 
     FRAME_CATALOG = {
         "Three Member Frames (Pin / Roller) (8 cases)": make_frame_cases("TM-PR", 8, beam0, col0),
@@ -7604,12 +7638,11 @@ def _render_ready_frame_cases():
         "Two Member Frame (Pin / Pin) (2 cases)": make_frame_cases("DM-PP", 2, beam0, col0),
         "Two Member Frame (Fixed / Fixed) (2 cases)": make_frame_cases("DM-FF", 2, beam0, col0),
         "Two Member Frame (Fixed / Pin) (4 cases)": make_frame_cases("DM-FP", 4, beam0, col0),
-        # You wrote "( cases)" with no number; using 1 placeholder so the UI exists.
-        "Two Member Frame (Fixed / Free) (4 cases)": make_frame_cases("DM-FR", 4, beam_defaults, col_defaults),
+        "Two Member Frame (Fixed / Free) (4 cases)": make_frame_cases("DM-FR", 4, beam0, col0),
     }
 
     # -----------------------------
-    # UI (same look & feel as Beam gallery)
+    # UI (gallery)
     # -----------------------------
     cat = st.selectbox("Step 1 — Frame catalog", list(FRAME_CATALOG.keys()), key="frame_cat_sel")
     cases = FRAME_CATALOG.get(cat, [])
@@ -7639,7 +7672,6 @@ def _render_ready_frame_cases():
 
                 case = row_cases[j]
 
-                # fixed-size preview tile
                 if case.get("img_path"):
                     shown = safe_image(case["img_path"], use_container_width=True)
                     if not shown:
@@ -7658,7 +7690,7 @@ def _render_ready_frame_cases():
                         "background:rgba(0,0,0,0.02);'>(placeholder image)</div>",
                         unsafe_allow_html=True
                     )
-                # Title like your screenshot: group + key
+
                 st.caption(case["key"])
                 if st.button("Select", key=f"frame_select_{cat}_{case['key']}"):
                     clicked = case["key"]
@@ -7671,7 +7703,6 @@ def _render_ready_frame_cases():
         st.info("Select a case above to see parameters and then apply it.")
         return
 
-    # Validate key still in current catalog
     keyset = {c["key"] for c in cases}
     if case_key not in keyset:
         st.session_state["frame_case_key"] = None
@@ -7680,123 +7711,131 @@ def _render_ready_frame_cases():
 
     case = next(c for c in cases if c["key"] == case_key)
     st.markdown(f"**Selected:** {case['key']} — {case['label']}")
+    st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
 
-    # ---------------------------------------------------
-    # Case preview inputs + diagrams (like beam tool)
-    # ---------------------------------------------------
-    if case["key"] in ["TM-PR-01", "TM-PR-02"]:
-    
-        if case["key"] == "TM-PR-01":
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                L_mm = st.number_input("Span L (mm)", min_value=1.0, value=6000.0, step=10.0, key="tmpr01_L_mm")
-            with c2:
-                h_mm = st.number_input("Column height h (mm)", min_value=1.0, value=3000.0, step=10.0, key="tmpr01_h_mm")
-            with c3:
-                P_kN = st.number_input("Central point load F (kN) (downward)", value=-50.0, step=1.0, key="tmpr01_P_kN")
+    # -----------------------------
+    # Common helper: safe number input (avoid value/session_state conflict)
+    # -----------------------------
+    def _num(label, key, default, step=10.0, min_value=None):
+        kwargs = {"step": float(step), "key": key}
+        if min_value is not None:
+            kwargs["min_value"] = float(min_value)
+        if key in st.session_state:
+            return st.number_input(label, **kwargs)
+        return st.number_input(label, value=float(default), **kwargs)
 
-            st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
-            _render_tm_pr_01_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, P_kN=P_kN)
-    
-        if case["key"] == "TM-PR-02":
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                L_mm = st.number_input("Span L (mm)", min_value=1.0, value=6000.0, step=10.0, key="tmpr02_L_mm")
-            with c2:
-                h_mm = st.number_input("Column height h (mm)", min_value=1.0, value=3000.0, step=10.0, key="tmpr02_h_mm")
-            with c3:
-                F_kN = st.number_input(
-                    "Side top point load F (kN)  (+ = to the right, − = to the left)",
-                    value=float(st.session_state.get("tmpr02_F_kN", 50.0)),
-                    step=1.0,
-                    key="tmpr02_F_kN"
-)
-
-    
-            st.caption("Axis note: Strong axis → (Vz, My). Weak axis → (Vy, Mz).")
-            _render_tm_pr_02_whole_frame_diagrams(L_mm=L_mm, h_mm=h_mm, F_kN=F_kN)
-    
-    else:
-        st.info("Diagrams not implemented for this case yet.")
-
-    
-    # ---------------------------------------------------
-    # Apply case (ONLY transfer loads to input fields)
-    # ---------------------------------------------------
-    if st.button("Apply case", key="btn_apply_frame_case"):
-    
-        if case["key"] == "TM-PR-01":
-            L_mm = float(st.session_state.get("tmpr01_L_mm", 6000.0))
-            h_mm = float(st.session_state.get("tmpr01_h_mm", 3000.0))
-            P_kN = float(st.session_state.get("tmpr01_P_kN", 50.0))
-    
-            # Beam maxima
-            Vmax_kN = 0.5 * P_kN
-            Mmax_kNm = (P_kN * (L_mm / 1000.0)) / 4.0
-    
-            # Fill BEAM inputs
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
-    
-            # Fill COLUMN inputs (axial only, per reference assumption)
-            st.session_state["col_L_mm_in"] = h_mm   # UI shows this as h (mm)
-            st.session_state["col_N_in"] = -0.5 * P_kN  # compression negative (+N = tension)
-            st.session_state["col_Vy_in"] = 0.0
-            st.session_state["col_Vz_in"] = 0.0
-            st.session_state["col_My_in"] = 0.0
-            st.session_state["col_Mz_in"] = 0.0
-    
-        elif case["key"] == "TM-PR-02":
-            L_mm = float(st.session_state.get("tmpr02_L_mm", 6000.0))
-            h_mm = float(st.session_state.get("tmpr02_h_mm", 3000.0))
-            F_kN = float(st.session_state.get("tmpr02_F_kN", 50.0))  # horizontal load
-    
-            L_m = L_mm / 1000.0
-            h_m = h_mm / 1000.0
-            
-            # -------------------------
-            # Reactions (upward +, rightward +)
-            # -------------------------
-            # If F is negative (to the left), reactions automatically change sign.
-            RA_kN = -(F_kN * h_m) / L_m
-            RE_kN = +(F_kN * h_m) / L_m
-            
-            # -------------------------
-            # Moment (signed)
-            # -------------------------
-            # Positive F (to the right) gives positive M at joint B
-            # Negative F flips the diagram automatically
-            Mmax_kNm = F_kN * h_m
-            
-            # -------------------------
-            # Beam shear (signed)
-            # -------------------------
-            # Do NOT use abs() — keep direction
-            V_beam_kN = RE_kN
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", V_beam_kN, Mmax_kNm)
-    
-            # ---- COLUMN forces to inputs ----
-            # Column length is h (shown as h in UI)
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            # Use horizontal load magnitude as a shear magnitude for column input (visual/design placeholder)
-            _fill_VM_into_member_inputs("col_", abs(F_kN), Mmax_kNm)
-    
-        else:
-            # placeholder for other cases
-            _apply_ready_frame_case(case)
-    
-        # Invalidate previous results
+    # -----------------------------
+    # Apply helper for all cases (invalidate results)
+    # -----------------------------
+    def _invalidate_results():
         for k in ["beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
                   "col_df_rows", "col_overall_ok", "col_governing", "col_extras"]:
             st.session_state.pop(k, None)
-    
-        st.toast("Case applied — loads transferred to inputs.", icon="✅")
 
+    # -----------------------------
+    # Case handlers (preview + apply)
+    # -----------------------------
+    def _apply_tmpr01(vals):
+        L_mm = float(vals["L_mm"])
+        h_mm = float(vals["h_mm"])
+        P_kN = float(vals["F_kN"])
+
+        Vmax_kN = 0.5 * P_kN
+        Mmax_kNm = (P_kN * (L_mm / 1000.0)) / 4.0
+
+        st.session_state["beam_L_mm_in"] = L_mm
+        st.session_state["beam_N_in"] = 0.0
+        _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
+
+        st.session_state["col_L_mm_in"] = h_mm
+        st.session_state["col_N_in"] = -0.5 * P_kN
+        st.session_state["col_Vy_in"] = 0.0
+        st.session_state["col_Vz_in"] = 0.0
+        st.session_state["col_My_in"] = 0.0
+        st.session_state["col_Mz_in"] = 0.0
+
+    def _apply_tmpr02(vals):
+        L_mm = float(vals["L_mm"])
+        h_mm = float(vals["h_mm"])
+        F_kN = float(vals["F_kN"])
+
+        L_m = L_mm / 1000.0
+        h_m = h_mm / 1000.0
+        if abs(L_m) < 1e-12:
+            st.error("Span L must be > 0.")
+            return
+
+        # reactions (signed)
+        RA_kN = -(F_kN * h_m) / L_m
+        RE_kN = +(F_kN * h_m) / L_m
+
+        Mmax_kNm = F_kN * h_m
+        V_beam_kN = RE_kN  # signed
+
+        st.session_state["beam_L_mm_in"] = L_mm
+        st.session_state["beam_N_in"] = 0.0
+        _fill_VM_into_member_inputs("beam_", V_beam_kN, Mmax_kNm)
+
+        st.session_state["col_L_mm_in"] = h_mm
+        st.session_state["col_N_in"] = 0.0
+        _fill_VM_into_member_inputs("col_", F_kN, Mmax_kNm)  # keep sign
+
+    CASE_CFG = {
+        "TM-PR-01": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("F_kN", "Central point load F (kN) (downward negative)", -50.0, 1.0, None),
+            ],
+            "preview": lambda v: _render_tm_pr_01_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], P_kN=v["F_kN"]),
+            "apply_fn": _apply_tmpr01,
+        },
+        "TM-PR-02": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("F_kN", "Side top point load F (kN)  (+ right, − left)", 50.0, 1.0, None),
+            ],
+            "preview": lambda v: _render_tm_pr_02_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+            "apply_fn": _apply_tmpr02,
+        },
+    }
+
+    # -----------------------------
+    # Not implemented fallback
+    # -----------------------------
+    if case_key not in CASE_CFG:
+        st.info("Diagrams not implemented for this case yet.")
+        if st.button("Apply case", key="btn_apply_frame_case_other"):
+            _apply_ready_frame_case(case)
+            _invalidate_results()
+            st.toast("Case applied — loads transferred to inputs.", icon="✅")
+        return
+
+    cfg = CASE_CFG[case_key]
+
+    # -----------------------------
+    # Inputs (same for all cases)
+    # -----------------------------
+    vals = {}
+    c1, c2, c3 = st.columns(3)
+    cols = [c1, c2, c3]
+    for i, (name, label, default, step, minv) in enumerate(cfg["inputs"]):
+        with cols[i % 3]:
+            vals[name] = float(_num(label, key=f"{case_key}_{name}", default=default, step=step, min_value=minv))
+
+    # -----------------------------
+    # Preview
+    # -----------------------------
+    cfg["preview"](vals)
+
+    # -----------------------------
+    # Apply
+    # -----------------------------
+    if st.button("Apply case", key=f"btn_apply_{case_key}"):
+        cfg["apply_fn"](vals)
+        _invalidate_results()
+        st.toast("Case applied — loads transferred to inputs.", icon="✅")
 
 def _swap_yz_in_sr_display(sr_display: dict) -> dict:
     """Return a shallow-copied sr_display with y/z (strong/weak) properties swapped.
