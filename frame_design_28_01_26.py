@@ -7835,10 +7835,8 @@ def _render_tm_fr_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
         Dy = (w * L**3 / (8.0 * EI)) * (L + 4.0 * h)
         _set_deflection_summary(abs(Dy), L_ref_m=L)
 
-
-
 def _render_dm_pp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    """DM-PP-01: Top Point Load at C (assumed midspan)."""
+    """DM-PP-01: Two Member Frame (Pin/Pin) — Top Point Load at C (assumed midspan)."""
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
     P = float(F_kN)
@@ -7846,40 +7844,55 @@ def _render_dm_pp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
-    x0 = 0.5 * L
+    x0 = 0.5 * L  # C at midspan
 
+    # reactions from your STRUCT image (Pin/Pin)
     RA = (P * x0 * (L**2 * (2.0 * beta * e + 3.0) - x0**2)) / (2.0 * L**3 * (beta * e + 1.0))
     RD = P - RA
     HA = (P * x0 * (L**2 - x0**2)) / (2.0 * h * L**2 * (beta * e + 1.0))  # HA = HD
 
-    _render_support_forces("dmpp01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
-
-    # Beam diagrams from reactions (point load at mid)
+    # -------------------------
+    # Beam diagrams (first)
+    # -------------------------
     x = np.linspace(0.0, L, 801)
-    H = (x >= x0).astype(float)
-    Vb = RA - P * H
-    Mb = RA * x - P * (x - x0) * H
+    step = (x >= x0).astype(float)
+    Vb = RA - P * step
+    Mb = RA * x - P * (x - x0) * step
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmpp01_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="dmpp01_beam_", x_label="x (m)"
+        )
 
-    # Column diagrams (approx from horizontal reaction)
+    # -------------------------
+    # Column diagrams (second)
+    # Use the horizontal reaction to generate a consistent column envelope
+    # -------------------------
     y = np.linspace(0.0, h, 401)
     Vc = np.full_like(y, HA)
     Mc = HA * (h - y)
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmpp01_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="dmpp01_col_", x_label="y (m)"
+        )
 
+    # -------------------------
+    # Support forces (last)
+    # -------------------------
+    _render_support_forces("dmpp01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
+
+    # Deflection summary (simple beam ref, optional)
     E = get_E_Pa()
     I = _member_I_m4("beam_")
     if E > 0 and I > 0:
         delta = abs(P) * L**3 / (48.0 * E * I)
         _set_deflection_summary(delta, L_ref_m=L)
-
-
+        
 def _render_dm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    """DM-PP-02: Top UDL on beam."""
+    """DM-PP-02: Two Member Frame (Pin/Pin) — Top UDL."""
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
     w = float(w_kNm)
@@ -7888,35 +7901,51 @@ def _render_dm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     beta, e = _frame_beta_e("beam_", "col_")
 
+    # reactions from your STRUCT image (Pin/Pin)
     RA = (w * L / 8.0) * ((4.0 * beta * e + 5.0) / (beta * e + 1.0))
     RC = (w * L / 8.0) * ((4.0 * beta * e + 3.0) / (beta * e + 1.0))
     HA = (w * L**2) / (8.0 * h * (beta * e + 1.0))  # HA = HC
 
-    _render_support_forces("dmpp02", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HA)
-
+    # -------------------------
+    # Beam diagrams (first)
+    # -------------------------
     x = np.linspace(0.0, L, 801)
     Vb = RA - w * x
-    Mb = RA * x - w * x**2 / 2.0
+    Mb = RA * x - 0.5 * w * x**2
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmpp02_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="dmpp02_beam_", x_label="x (m)"
+        )
 
+    # -------------------------
+    # Column diagrams (second)
+    # -------------------------
     y = np.linspace(0.0, h, 401)
     Vc = np.full_like(y, HA)
     Mc = HA * (h - y)
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmpp02_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="dmpp02_col_", x_label="y (m)"
+        )
 
+    # -------------------------
+    # Support forces (last)
+    # -------------------------
+    _render_support_forces("dmpp02", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HA)
+
+    # Deflection (simple SS beam ref)
     E = get_E_Pa()
     I = _member_I_m4("beam_")
     if E > 0 and I > 0:
         delta = 5.0 * abs(w) * L**4 / (384.0 * E * I)
         _set_deflection_summary(delta, L_ref_m=L)
-
-
+        
 def _render_dm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    """DM-FF-01: Top Point Load at C (assumed midspan)."""
+    """DM-FF-01: Two Member Frame (Fixed/Fixed) — Top Point Load at C (assumed midspan)."""
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
     P = float(F_kN)
@@ -7926,36 +7955,54 @@ def _render_dm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     beta, e = _frame_beta_e("beam_", "col_")
     x0 = 0.5 * L
 
-    RA = (P * x0**2 / (2.0 * L**3 * (beta * e + 1.0))) * (beta * e * (3.0 * L - x0) + 2.0 * (3.0 * L - 2.0 * x0))
+    # reactions from your STRUCT image (Fixed/Fixed)
+    RA = (P * x0**2 / (2.0 * L**3 * (beta * e + 1.0))) * (
+        beta * e * (3.0 * L - x0) + 2.0 * (3.0 * L - 2.0 * x0)
+    )
     RD = P - RA
     HA = (3.0 * P * x0**2 * (L - x0)) / (2.0 * h * L**2 * (beta * e + 1.0))  # HA = HD
 
-    _render_support_forces("dmff01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
-
+    # -------------------------
+    # Beam diagrams (first)
+    # -------------------------
     x = np.linspace(0.0, L, 801)
-    H = (x >= x0).astype(float)
-    Vb = RA - P * H
-    Mb = RA * x - P * (x - x0) * H
+    step = (x >= x0).astype(float)
+    Vb = RA - P * step
+    Mb = RA * x - P * (x - x0) * step
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmff01_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="dmff01_beam_", x_label="x (m)"
+        )
 
+    # -------------------------
+    # Column diagrams (second)
+    # -------------------------
     y = np.linspace(0.0, h, 401)
     Vc = np.full_like(y, HA)
     Mc = HA * (h - y)
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmff01_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="dmff01_col_", x_label="y (m)"
+        )
 
+    # -------------------------
+    # Support forces (last)
+    # -------------------------
+    _render_support_forces("dmff01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
+
+    # Deflection (simple fixed-fixed beam ref)
     E = get_E_Pa()
     I = _member_I_m4("beam_")
     if E > 0 and I > 0:
         delta = abs(P) * L**3 / (192.0 * E * I)
         _set_deflection_summary(delta, L_ref_m=L)
-
-
+        
 def _render_dm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    """DM-FF-02: Top UDL on beam."""
+    """DM-FF-02: Two Member Frame (Fixed/Fixed) — Top UDL."""
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
     w = float(w_kNm)
@@ -7964,31 +8011,47 @@ def _render_dm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     beta, e = _frame_beta_e("beam_", "col_")
 
-    # (Keep your existing reaction formulas if you already wrote them; this is a safe preview)
-    RA = (w * L / 2.0) * 0.5
-    RD = (w * L / 2.0) * 0.5
+    # If you already have exact STRUCT formulas in your notes, put them here.
+    # For now: use consistent reactions to build diagrams (no layout differences).
+    RA = w * L / 2.0
+    RD = w * L / 2.0
     HA = (w * L**2) / (8.0 * h * (beta * e + 1.0))
 
-    _render_support_forces("dmff02", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
-
+    # -------------------------
+    # Beam diagrams (first)
+    # -------------------------
     x = np.linspace(0.0, L, 801)
     Vb = RA - w * x
-    Mb = RA * x - w * x**2 / 2.0
+    Mb = RA * x - 0.5 * w * x**2
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmff02_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="dmff02_beam_", x_label="x (m)"
+        )
 
+    # -------------------------
+    # Column diagrams (second)
+    # -------------------------
     y = np.linspace(0.0, h, 401)
     Vc = np.full_like(y, HA)
     Mc = HA * (h - y)
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmff02_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="dmff02_col_", x_label="y (m)"
+        )
 
+    # -------------------------
+    # Support forces (last)
+    # -------------------------
+    _render_support_forces("dmff02", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
+
+    # Deflection (simple fixed-fixed UDL beam ref)
     E = get_E_Pa()
     I = _member_I_m4("beam_")
     if E > 0 and I > 0:
-        # fixed-fixed UDL midspan deflection approx
         delta = abs(w) * L**4 / (384.0 * E * I)
         _set_deflection_summary(delta, L_ref_m=L)
 
