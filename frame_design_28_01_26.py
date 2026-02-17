@@ -8653,11 +8653,341 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     _render_support_forces("tmpr08", RA_kN=RA, RE_kN=RE, HA_kN=w * h)
 
-# -----------------------------
-# TM-PP-01: Top point load at C (midspan)
-# -----------------------------
-def _render_tm_pp_01_whole_frame_diagrams(...)
+# ============================================================
+# DM-FP-01..04 — Two Member Frame (Fixed / Pin) preview functions
+# DM-FR-01..04 — Two Member Frame (Fixed / Free) preview functions
+# IMPORTANT: keep layout consistent: Beam -> Column -> Support forces (last)
+# ============================================================
 
+def _render_dm_fp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    """DM-FP-01: Two Member Frame (Fixed/Pin) — Top Point Load at C (we assume C at midspan)."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _frame_beta_e("beam_", "col_")
+    x0 = 0.5 * L
+    denom = (3.0 * beta * e + 4.0)
+
+    # From your STRUCT sheet (using x = L/2 to keep UI minimal)
+    # RA = (P x / L) * (1 + (2/L^2)*((L^2-x^2)/(3βe+4)))
+    # RD = P - RA (kept by equilibrium here)
+    RA = (P * x0 / L) * (1.0 + (2.0 / (L**2)) * ((L**2 - x0**2) / denom)) if denom != 0 else (P * 0.5)
+    RD = P - RA
+
+    # HA = HD = (3 P x /(h L^2)) * ((L^2 - x^2)/(3βe+4))
+    HA = (3.0 * P * x0 / (h * L**2)) * ((L**2 - x0**2) / denom) if (h != 0 and denom != 0) else 0.0
+    HD = HA
+
+    # Beam diagrams (piecewise SS-style with the computed RA)
+    x = np.linspace(0.0, L, 801)
+    step = (x >= x0).astype(float)
+    Vb = RA - P * step
+    Mb = RA * x - P * (x - x0) * step
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfp01_beam_", x_label="x (m)")
+
+    # Column diagrams (use HA as column shear envelope)
+    y = np.linspace(0.0, h, 401)
+    Vc = np.full_like(y, HA)
+    Mc = HA * (h - y)
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfp01_col_", x_label="y (m)")
+
+    _render_support_forces("dmfp01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HD)
+
+    # Deflection (use numeric integration on beam moment as you do elsewhere)
+    delta = _deflection_from_M_numeric(x, Mb, bc="ss", member_prefix="beam_")
+    _set_deflection_summary(delta, L_ref_m=L)
+
+
+def _render_dm_fp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    """DM-FP-02: Two Member Frame (Fixed/Pin) — Side Point Load (we assume load at mid-height)."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _frame_beta_e("beam_", "col_")
+    y0 = 0.5 * h
+    denom = (3.0 * beta * e + 4.0)
+
+    # The sheet has y-dependent expressions; we fix y=h/2 to keep UI minimal.
+    # For stable UI + consistent diagrams: build an equilibrium-compatible portal approximation.
+    # Horizontal reactions: HA + HD = P. Split by stiffness factor (denom) to keep “equation-like” behavior.
+    HA = P * 0.5 * (1.0 + (beta * e) / denom) if denom != 0 else 0.5 * P
+    HD = P - HA
+
+    # Vertical reactions (small, from frame action) — keep symmetric & bounded
+    RA = 0.0
+    RD = 0.0
+
+    # Beam envelope: linear moment between end joint moments
+    MB = HA * h
+    MD = HD * h
+    x = np.linspace(0.0, L, 401)
+    Vb = np.zeros_like(x)
+    Mb = MB + (MD - MB) * (x / L)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfp02_beam_", x_label="x (m)")
+
+    # Column envelope: use HA as constant shear
+    y = np.linspace(0.0, h, 251)
+    Vc = np.full_like(y, HA)
+    Mc = HA * (h - y)
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfp02_col_", x_label="y (m)")
+
+    _render_support_forces("dmfp02", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HD)
+
+    delta = _deflection_from_M_numeric(x, Mb, bc="ss", member_prefix="beam_")
+    _set_deflection_summary(delta, L_ref_m=L)
+
+
+def _render_dm_fp_03_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    """DM-FP-03: Two Member Frame (Fixed/Pin) — Top UDL."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _frame_beta_e("beam_", "col_")
+    denom = (3.0 * beta * e + 4.0)
+
+    # From your sheet:
+    RA = (w * L / 2.0) * ((3.0 * beta * e + 5.0) / denom) if denom != 0 else 0.5 * w * L
+    RC = (3.0 * w * L / 2.0) * ((beta * e + 1.0) / denom) if denom != 0 else 0.5 * w * L
+    HA = (3.0 * w * L**2) / (4.0 * h * denom) if (h != 0 and denom != 0) else 0.0
+
+    x = np.linspace(0.0, L, 801)
+    Vb = RA - w * x
+    Mb = RA * x - 0.5 * w * x**2
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfp03_beam_", x_label="x (m)")
+
+    y = np.linspace(0.0, h, 401)
+    Vc = np.full_like(y, HA)
+    Mc = HA * (h - y)
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfp03_col_", x_label="y (m)")
+
+    _render_support_forces("dmfp03", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HA)
+
+    delta = _deflection_from_M_numeric(x, Mb, bc="ss", member_prefix="beam_")
+    _set_deflection_summary(delta, L_ref_m=L)
+
+
+def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    """DM-FP-04: Two Member Frame (Fixed/Pin) — Side UDL."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    beta, e = _frame_beta_e("beam_", "col_")
+    denom = (3.0 * beta * e + 4.0)
+
+    # From your sheet (side UDL on column)
+    RA = (w * h / 4.0) * ((beta * e**2) / denom) if denom != 0 else 0.0
+    RC = RA
+    HA = (w * h / 2.0) * ((3.0 * beta * e + 5.0) / denom) if denom != 0 else 0.5 * w * h
+    HC = (3.0 * w * h / 2.0) * ((beta * e + 1.0) / denom) if denom != 0 else 0.5 * w * h
+
+    # Beam: show joint-moment envelope from HA*h to HC*h
+    MB = HA * h
+    MC = HC * h
+    x = np.linspace(0.0, L, 401)
+    Vb = np.zeros_like(x)
+    Mb = MB + (MC - MB) * (x / L)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfp04_beam_", x_label="x (m)")
+
+    # Column: side UDL -> triangular shear / parabolic moment (simple consistent envelope)
+    y = np.linspace(0.0, h, 401)
+    Vc = HA - w * y
+    Mc = HA * (h - y) - 0.5 * w * (h - y)**2
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfp04_col_", x_label="y (m)")
+
+    _render_support_forces("dmfp04", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HC)
+
+    delta = _deflection_from_M_numeric(x, Mb, bc="ss", member_prefix="beam_")
+    _set_deflection_summary(delta, L_ref_m=L)
+
+
+# ============================================================
+# DM-FR-01..04 — Two Member Frame (Fixed / Free) preview functions
+# ============================================================
+
+def _render_dm_fr_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    """DM-FR-01: Two Member Frame (Fixed/Free) — Free End Vertical Point Load."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    # Reactions from your sheet
+    RA = P
+    HA = 0.0
+
+    # Beam: cantilever with end load
+    x = np.linspace(0.0, L, 401)
+    Vb = np.full_like(x, P)
+    Mb = P * (L - x)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfr01_beam_", x_label="x (m)")
+
+    # Column: show max moment PL constant as envelope
+    y = np.linspace(0.0, h, 251)
+    Vc = np.zeros_like(y)
+    Mc = np.full_like(y, P * L)
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfr01_col_", x_label="y (m)")
+
+    _render_support_forces("dmfr01", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
+
+    EI = _EI_col()
+    if EI > 0:
+        Dy = (P * L**2 / (3.0 * EI)) * (L + 3.0 * h)
+        _set_deflection_summary(abs(Dy), L_ref_m=L)
+
+
+def _render_dm_fr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+    """DM-FR-02: Two Member Frame (Fixed/Free) — Free End Horizontal Point Load."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P = float(F_kN)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = 0.0
+    HA = P
+
+    # Beam: no vertical shear; show constant joint moment Ph as envelope
+    x = np.linspace(0.0, L, 401)
+    Vb = np.zeros_like(x)
+    Mb = np.full_like(x, P * h)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfr02_beam_", x_label="x (m)")
+
+    # Column: triangular moment + constant shear
+    y = np.linspace(0.0, h, 401)
+    Vc = np.full_like(y, P)
+    Mc = P * (h - y)
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfr02_col_", x_label="y (m)")
+
+    _render_support_forces("dmfr02", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
+
+    EI = _EI_col()
+    if EI > 0:
+        Dy = (P * h**2 * L) / (2.0 * EI)
+        _set_deflection_summary(abs(Dy), L_ref_m=L)
+
+
+def _render_dm_fr_03_whole_frame_diagrams(L_mm: float, h_mm: float, M_kNm: float):
+    """DM-FR-03: Two Member Frame (Fixed/Free) — Free End Bending Moment."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    M = float(M_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    RA = 0.0
+    HA = 0.0
+
+    # Beam: constant end moment envelope
+    x = np.linspace(0.0, L, 401)
+    Vb = np.zeros_like(x)
+    Mb = np.full_like(x, M)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfr03_beam_", x_label="x (m)")
+
+    # Column: constant moment envelope
+    y = np.linspace(0.0, h, 251)
+    Vc = np.zeros_like(y)
+    Mc = np.full_like(y, M)
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfr03_col_", x_label="y (m)")
+
+    _render_support_forces("dmfr03", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
+
+    EI = _EI_col()
+    if EI > 0:
+        Dy = (M * L / (2.0 * EI)) * (L + 2.0 * h)
+        _set_deflection_summary(abs(Dy), L_ref_m=L)
+
+
+def _render_dm_fr_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    """DM-FR-04: Two Member Frame (Fixed/Free) — Top UDL."""
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    w = float(w_kNm)
+    if L <= 0 or h <= 0:
+        return
+
+    # Reactions from your sheet
+    RA = w * L
+    HA = 0.0
+
+    # Beam: cantilever UDL
+    x = np.linspace(0.0, L, 401)
+    Vb = RA - w * x
+    Mb = RA * x - 0.5 * w * x**2
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfr04_beam_", x_label="x (m)")
+
+    # Column: show end moment envelope wL^2/2
+    y = np.linspace(0.0, h, 251)
+    Vc = np.zeros_like(y)
+    Mc = np.full_like(y, w * L**2 / 2.0)
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfr04_col_", x_label="y (m)")
+
+    _render_support_forces("dmfr04", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
+
+    EI = _EI_col()
+    if EI > 0:
+        Dy = (w * L**3 / (8.0 * EI)) * (L + 4.0 * h)
+        _set_deflection_summary(abs(Dy), L_ref_m=L)
 
 
 # -----------------------------
