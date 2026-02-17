@@ -8653,6 +8653,12 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     _render_support_forces("tmpr08", RA_kN=RA, RE_kN=RE, HA_kN=w * h)
 
+# -----------------------------
+# TM-PP-01: Top point load at C (midspan)
+# -----------------------------
+def _render_tm_pp_01_whole_frame_diagrams(...)
+
+
 
 # -----------------------------
 # Gallery UI (TOP-LEVEL FUNCTION)
@@ -9003,6 +9009,85 @@ def _render_ready_frame_cases():
             "apply": "apply_dmff02",
         },
 
+        # -----------------------------
+        # DM-FP previews
+        # -----------------------------
+        "DM-FP-01": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("F_kN", "Top point load F (kN) (downward negative)", -50.0, 1.0, None),
+            ],
+            "preview": lambda v: _render_dm_fp_01_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+            "apply": "apply_dmfp01",
+        },
+        "DM-FP-02": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("F_kN", "Side point load F (kN) (+ right)", 50.0, 1.0, None),
+            ],
+            "preview": lambda v: _render_dm_fp_02_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+            "apply": "apply_dmfp02",
+        },
+        "DM-FP-03": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("w_kNm", "Top UDL w (kN/m) (downward negative)", -10.0, 0.1, None),
+            ],
+            "preview": lambda v: _render_dm_fp_03_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
+            "apply": "apply_dmfp03",
+        },
+        "DM-FP-04": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("w_kNm", "Side UDL w (kN/m) (+ right)", 10.0, 0.1, None),
+            ],
+            "preview": lambda v: _render_dm_fp_04_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
+            "apply": "apply_dmfp04",
+        },
+
+        # -----------------------------
+        # DM-FR previews
+        # -----------------------------
+        "DM-FR-01": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("F_kN", "Free end vertical point load F (kN) (downward negative)", -50.0, 1.0, None),
+            ],
+            "preview": lambda v: _render_dm_fr_01_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+            "apply": "apply_dmfr01",
+        },
+        "DM-FR-02": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("F_kN", "Free end horizontal point load F (kN) (+ right)", 50.0, 1.0, None),
+            ],
+            "preview": lambda v: _render_dm_fr_02_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+            "apply": "apply_dmfr02",
+        },
+        "DM-FR-03": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("M_kNm", "Free end moment MC (kN·m) (+ CCW)", 50.0, 1.0, None),
+            ],
+            "preview": lambda v: _render_dm_fr_03_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], M_kNm=v["M_kNm"]),
+            "apply": "apply_dmfr03",
+        },
+        "DM-FR-04": {
+            "inputs": [
+                ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
+                ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("w_kNm", "Top UDL w (kN/m) (downward negative)", -10.0, 0.1, None),
+            ],
+            "preview": lambda v: _render_dm_fr_04_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], w_kNm=v["w_kNm"]),
+            "apply": "apply_dmfr04",
+        },
     }
 
     if case_key not in CASE_CFG:
@@ -9460,6 +9545,113 @@ def _render_ready_frame_cases():
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = -abs(w) * L / 2.0
             _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
+        # -----------------------------
+        # DM-FP applies
+        # -----------------------------
+        elif cfg["apply"] == "apply_dmfp01":
+            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
+            L = L_mm / 1000.0
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=abs(P), M_kNm=abs(P) * L / 4.0)
+
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = -abs(P) / 2.0
+            _fill_beam_vm_to_components("col_", V_kN=abs(P) / 2.0, M_kNm=abs(P) * (h_mm / 1000.0))
+
+        elif cfg["apply"] == "apply_dmfp02":
+            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
+            h = h_mm / 1000.0
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=abs(P) * h)
+
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = 0.0
+            _fill_beam_vm_to_components("col_", V_kN=abs(P), M_kNm=abs(P) * h)
+
+        elif cfg["apply"] == "apply_dmfp03":
+            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
+            L = L_mm / 1000.0
+
+            Vmax = abs(w) * L / 2.0
+            Mmax = abs(w) * (L**2) / 8.0
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=Vmax, M_kNm=Mmax)
+
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = -abs(w) * L / 2.0
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
+
+        elif cfg["apply"] == "apply_dmfp04":
+            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
+            h = h_mm / 1000.0
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=abs(w) * h**2 / 2.0)
+
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = 0.0
+            _fill_beam_vm_to_components("col_", V_kN=abs(w) * h, M_kNm=abs(w) * h**2 / 2.0)
+
+        # -----------------------------
+        # DM-FR applies
+        # -----------------------------
+        elif cfg["apply"] == "apply_dmfr01":
+            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
+            L = L_mm / 1000.0
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=abs(P), M_kNm=abs(P) * L)
+
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = -abs(P)
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=abs(P) * L)
+
+        elif cfg["apply"] == "apply_dmfr02":
+            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
+            h = h_mm / 1000.0
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=abs(P) * h)
+
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = 0.0
+            _fill_beam_vm_to_components("col_", V_kN=abs(P), M_kNm=abs(P) * h)
+
+        elif cfg["apply"] == "apply_dmfr03":
+            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); M = float(vals["M_kNm"])
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=abs(M))
+
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = 0.0
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=abs(M))
+
+        elif cfg["apply"] == "apply_dmfr04":
+            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
+            L = L_mm / 1000.0
+
+            Vmax = abs(w) * L
+            Mmax = abs(w) * (L**2) / 2.0
+
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_beam_vm_to_components("beam_", V_kN=Vmax, M_kNm=Mmax)
+
+            st.session_state["col_L_mm_in"] = h_mm
+            st.session_state["col_N_in"] = -abs(w) * L
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=Mmax)
+
 
         else:
             _apply_ready_frame_case(case)
