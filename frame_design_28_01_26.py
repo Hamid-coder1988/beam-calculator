@@ -7067,7 +7067,6 @@ def _render_section_selection_member(member_prefix: str, title: str):
 
     return material, family, selected_name, selected_row, detected_table
 
-
 def _render_member_section_panel(member_prefix: str, title: str):
     material, family, selected_name, selected_row, detected_table = _render_section_selection_member(member_prefix, title)
 
@@ -7129,29 +7128,44 @@ def _render_member_section_panel(member_prefix: str, title: str):
             key_prefix=f"db_{prefix_id}"
         )
 
-    # normalize to 0..1 inside inset
-    # Resolve member length (m) from the inputs widget keys
-    L_key = f"{member_prefix}L_mm_in"
-    L_mm = float(st.session_state.get(L_key, 6000.0 if member_prefix == "beam_" else 3000.0))
-    L = L_mm / 1000.0
-    # Resolve column height (m) from the column length widget key
+    # -----------------------------
+    # Frame sketch (FIXED: no L_m/h_m/iax NameErrors)
+    # -----------------------------
+    # Read lengths from your widget keys
+    L_mm_key = f"{member_prefix}L_mm_in"
+    L_mm = float(st.session_state.get(L_mm_key, 6000.0 if member_prefix == "beam_" else 3000.0))
     h_mm = float(st.session_state.get("col_L_mm_in", 3000.0))
+
+    L = L_mm / 1000.0
     h = h_mm / 1000.0
     if L <= 0 or h <= 0:
         return
 
-    # frame lines (blue)
-    FRAME_COLOR = "#1f77b4"
-    LW = 3.0
-    iax.plot([0, 0], [0, 1], color=FRAME_COLOR, linewidth=LW)      # left col
-    iax.plot([1, 1], [0, 1], color=FRAME_COLOR, linewidth=LW)      # right col
-    iax.plot([0, 1], [1, 1], color=FRAME_COLOR, linewidth=LW)      # top beam
+    with st.expander("Frame sketch", expanded=False):
+        import matplotlib.pyplot as plt
 
-    # small labels (optional)
-    iax.text(0.0, -0.08, "A", fontsize=9)
-    iax.text(0.0,  1.02, "B", fontsize=9)
-    iax.text(1.0, -0.08, "E", fontsize=9)
-    iax.text(1.0,  1.02, "D", fontsize=9)
+        fig, ax = plt.subplots(figsize=(4.5, 2.0))
+        ax.set_aspect("equal", adjustable="box")
+        ax.axis("off")
+
+        # Normalize to 0..1 for drawing (shape only)
+        FRAME_COLOR = "#1f77b4"
+        LW = 3.0
+
+        # frame lines
+        ax.plot([0, 0], [0, 1], color=FRAME_COLOR, linewidth=LW)  # left col
+        ax.plot([1, 1], [0, 1], color=FRAME_COLOR, linewidth=LW)  # right col
+        ax.plot([0, 1], [1, 1], color=FRAME_COLOR, linewidth=LW)  # top beam
+
+        # labels
+        ax.text(0.0, -0.10, "A", fontsize=10)
+        ax.text(0.0,  1.03, "B", fontsize=10)
+        ax.text(1.0, -0.10, "E", fontsize=10)
+        ax.text(1.0,  1.03, "D", fontsize=10)
+        ax.text(0.5,  1.06, f"L={L_mm:.0f} mm", ha="center", fontsize=9)
+        ax.text(-0.08, 0.5, f"h={h_mm:.0f} mm", va="center", rotation=90, fontsize=9)
+
+        st.pyplot(fig, clear_figure=True)
 
 
 def _render_design_settings():
