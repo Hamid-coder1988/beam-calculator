@@ -10107,7 +10107,8 @@ def _render_report_member(member_prefix: str, inputs_key: str, title: str):
                 st.session_state[k] = v
 
 def _render_member_load_form(member_prefix: str, title: str, family_for_torsion: str, read_only: bool):
-    """Loads form (ULS) — same fields as beam app, isolated by prefix.
+    """Loads form (ULS) — isolated by prefix.
+    IMPORTANT: Do NOT pass value=... when using session_state keys (avoids Streamlit conflict).
     NOTE: No torsion in this app (Tx removed completely).
     """
     st.markdown(f"#### {title}")
@@ -10115,18 +10116,10 @@ def _render_member_load_form(member_prefix: str, title: str, family_for_torsion:
 
     dis = bool(read_only)
 
-    # ------------------------------------------------------------------
-    # IMPORTANT Streamlit rule:
-    # If you set st.session_state[key] elsewhere (e.g., Apply case),
-    # DO NOT also pass value=... for the same widget key.
-    # We initialize defaults once using session_state.setdefault(...),
-    # then render widgets WITHOUT value=.
-    # ------------------------------------------------------------------
-
-    # Length label: Column uses h, Beam uses L (but keep key as ...L_mm_in)
+    # Length label: Column uses h, Beam uses L (but keep key as .L_mm_in)
     len_label = "h (mm)" if member_prefix == "col_" else "L (mm)"
 
-    # Initialize defaults (only if missing)
+    # Initialize defaults ONLY if missing
     st.session_state.setdefault(f"{member_prefix}L_mm_in", 3000.0)
     st.session_state.setdefault(f"{member_prefix}N_in", 0.0)
     st.session_state.setdefault(f"{member_prefix}Vy_in", 0.0)
@@ -10175,14 +10168,16 @@ def _render_member_load_form(member_prefix: str, title: str, family_for_torsion:
     st.markdown("##### Buckling / stability factors")
     b1, b2, b3, b4 = st.columns(4)
     with b1:
-        st.number_input("Ky", min_value=0.1, step=0.05, disabled=dis, key=f"{member_prefix}Ky_in")
+        st.number_input("Ky", step=0.05, disabled=dis, key=f"{member_prefix}Ky_in")
     with b2:
-        st.number_input("Kz", min_value=0.1, step=0.05, disabled=dis, key=f"{member_prefix}Kz_in")
+        st.number_input("Kz", step=0.05, disabled=dis, key=f"{member_prefix}Kz_in")
     with b3:
-        st.number_input("KLT", min_value=0.1, step=0.05, disabled=dis, key=f"{member_prefix}KLT_in")
+        st.number_input("KLT", step=0.05, disabled=dis, key=f"{member_prefix}KLT_in")
     with b4:
-        st.number_input("KT", min_value=0.1, step=0.05, disabled=dis, key=f"{member_prefix}KT_in")
+        st.number_input("KT", step=0.05, disabled=dis, key=f"{member_prefix}KT_in")
 
+    # Keep stable key so downstream never crashes (Tx not used)
+    st.session_state.setdefault(f"{member_prefix}Tx_in", 0.0)
 
 def _render_instability_length_ratios_member(member_prefix: str, title: str):
     st.markdown(f"##### {title}")
