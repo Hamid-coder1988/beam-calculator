@@ -7124,7 +7124,10 @@ def _render_member_section_panel(member_prefix: str, title: str):
         )
 
     # normalize to 0..1 inside inset
-    L = float(L_m)
+    # Resolve member length (m) from the inputs widget keys
+    L_key = f"{member_prefix}L_mm_in"
+    L_mm = float(st.session_state.get(L_key, 6000.0 if member_prefix == "beam_" else 3000.0))
+    L = L_mm / 1000.0
     h = float(h_m)
     if L <= 0 or h <= 0:
         return
