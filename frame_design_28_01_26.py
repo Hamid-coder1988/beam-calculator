@@ -13,6 +13,12 @@ import io
 import streamlit.components.v1 as components
 from pathlib import Path
 
+# -----------------------------
+# Frame diagram plot styling
+# -----------------------------
+FRAME_COLOR = "#1f77b4"   # blue-ish, you can change later
+LW = 2.0                 # line width for frame sketch
+
 # ----------------------------------------------------
 # Material properties (EN 10025-2) – simplified table values
 # NOTE: In reality, fy depends on thickness. Here we use the table values you showed.
