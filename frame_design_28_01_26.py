@@ -8685,18 +8685,23 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     if L <= 0 or h <= 0:
         return
 
-    # Reactions (same magnitude)
+    # Support reactions (per reference)
     RA = (w * h**2) / (2.0 * L)
     RE = RA
 
     # -------------------
-    # Beam diagrams:
-    # For RIGHT column side load, moment is ZERO at x=0 and MAX at x=L
-    # M(x) = RA * x
+    # Beam diagrams (match STRUCT reference):
+    # M(B)=Mmax = w*h^2
+    # M(C)=Mc   = w*h^2/2
+    # Linear between ends (no load on beam)
+    # Shear is constant: V = (M_B - M_C)/L = w*h^2/(2L) = RA
     # -------------------
     x = np.linspace(0.0, L, 401)
     Vb = np.full_like(x, RA)
-    Mb = RA * x
+
+    M_B = w * h**2          # Mmax at B (x=0)
+    M_C = w * h**2 / 2.0    # Mc at C (x=L)
+    Mb = M_B + (M_C - M_B) * (x / L)   # linear interpolation
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
@@ -8705,6 +8710,23 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
             member_prefix="beam_", key_prefix="tmpr08_beam_", x_label="x (m)"
         )
 
+    # -------------------
+    # Column diagrams (match reference shape):
+    # V(y) starts 0 at base and increases to w*h at top
+    # M(y) starts 0 at base and increases to w*h^2/2 at top (= Mc)
+    # -------------------
+    y = np.linspace(0.0, h, 401)
+    V_c = w * y
+    M_c = w * y**2 / 2.0
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(
+            x_m=y, V_kN=V_c, M_kNm=M_c,
+            member_prefix="col_", key_prefix="tmpr08_col_", x_label="y (m)"
+        )
+
+    _render_support_forces("tmpr08", RA_kN=RA, RE_kN=RE, HA_kN=w * h)
     # -------------------
     # Column diagrams:
     # Must be ZERO at y=0 and MAX at y=h
