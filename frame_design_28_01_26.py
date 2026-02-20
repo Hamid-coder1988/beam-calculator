@@ -8573,7 +8573,7 @@ def _render_tm_pr_05_whole_frame_diagrams(L_mm: float, h_mm: float, Mc_kNm: floa
             _render_member_vm(x_m=y, V_kN=np.zeros_like(y), M_kNm=np.zeros_like(y),
                              member_prefix="col_", key_prefix="tmpr05_col_", x_label="y (m)")
 
-    _render_support_forces("tmpr05", RA_kN=RA, RE_kN=RE)
+    _render_support_forces("tmpr05", RA_kN=RA, RE_kN=RE, HA_kN=0.0)
 
     # Beam deflection by curvature integration (beam EI)
     E = get_E_Pa()
