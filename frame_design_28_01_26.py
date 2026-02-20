@@ -8598,16 +8598,34 @@ def _render_tm_pr_06_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     RA = w * L / 2.0
     RE = w * L / 2.0
+    HA = 0.0  # this case has no horizontal reaction at A
 
+    # Beam diagrams
     x = np.linspace(0.0, L, 801)
     V = RA - w * x
     M = RA * x - w * x**2 / 2.0
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpr06_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=V, M_kNm=M,
+            member_prefix="beam_", key_prefix="tmpr06_beam_", x_label="x (m)"
+        )
 
-    _render_support_forces("tmpr06", RA_kN=RA, RE_kN=RE)
+    # Column diagrams (explicitly show zero shear and zero moment like other cases)
+    y = np.linspace(0.0, h, 251)
+    Vc = np.zeros_like(y)
+    Mc = np.zeros_like(y)
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="tmpr06_col_", x_label="y (m)"
+        )
+
+    # Support forces (show HA explicitly)
+    _render_support_forces("tmpr06", RA_kN=RA, RE_kN=RE, HA_kN=HA)
 
 
 def _render_tm_pr_07_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
