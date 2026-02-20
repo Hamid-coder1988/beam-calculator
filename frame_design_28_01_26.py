@@ -8744,26 +8744,6 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     V_c = w * y
     M_c = w * y**2 / 2.0
 
-    with st.expander("Column diagrams", expanded=False):
-        small_title("Column diagrams")
-        _render_member_vm(
-            x_m=y, V_kN=V_c, M_kNm=M_c,
-            member_prefix="col_", key_prefix="tmpr08_col_", x_label="y (m)"
-        )
-
-    # -------------------
-    # Support forces (LOCAL display to avoid Streamlit key collision)
-    # DO NOT call _render_support_forces("tmpr08", ...) because it sets
-    # session_state keys that are already tied to widgets => crash.
-    # -------------------
-    with st.expander("Support forces", expanded=False):
-        small_title("Support forces")
-
-        c1, c2, c3 = st.columns(3)
-        c1.number_input("RA (kN)", value=float(RA), disabled=True, key="tmpr08_RA_disp")
-        c2.number_input("RD/RE (kN)", value=float(RE), disabled=True, key="tmpr08_RE_disp")
-        c3.number_input("HA (kN)", value=float(HA), disabled=True, key="tmpr08_HA_disp")
-
     # Optional: keep outputs available for any "apply case" logic,
     # but ONLY set them if they don't already exist (prevents crash).
     if "tmpr08_RA_out" not in st.session_state:
