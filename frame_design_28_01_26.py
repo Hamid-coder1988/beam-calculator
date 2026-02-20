@@ -8505,32 +8505,44 @@ def _render_tm_pr_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
 
 
 def _render_tm_pr_04_whole_frame_diagrams(L_mm: float, h_mm: float, Mc_kNm: float):
-    """TM-PR-04: side top bending moment."""
+    """TM-PR-04: side top bending moment (per reference: HA=0, column moment = 0)."""
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
     Mc = float(Mc_kNm)
     if L <= 0 or h <= 0:
         return
 
+    # Support reactions (reference)
     RA = Mc / L
     RE = Mc / L
+    HA = 0.0
 
+    # Beam: constant shear, linear moment from 0 -> Mc
     x = np.linspace(0.0, L, 401)
     V_b = np.full_like(x, RA)
     M_b = Mc * (x / L)
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V_b, M_kNm=M_b, member_prefix="beam_", key_prefix="tmpr04_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=V_b, M_kNm=M_b,
+            member_prefix="beam_", key_prefix="tmpr04_beam_", x_label="x (m)"
+        )
 
+    # Columns: per your reference, column bending moment should be zero for this ready case
     y = np.linspace(0.0, h, 251)
+    V_c = np.zeros_like(y)
+    M_c = np.zeros_like(y)
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=np.zeros_like(y), M_kNm=np.full_like(y, Mc),
-                         member_prefix="col_", key_prefix="tmpr04_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=V_c, M_kNm=M_c,
+            member_prefix="col_", key_prefix="tmpr04_col_", x_label="y (m)"
+        )
 
-    _render_support_forces("tmpr04", RA_kN=RA, RE_kN=RE)
-
+    # Force display: show HA explicitly (zero)
+    _render_support_forces("tmpr04", RA_kN=RA, RE_kN=RE, HA_kN=HA)
 
 def _render_tm_pr_05_whole_frame_diagrams(L_mm: float, h_mm: float, Mc_kNm: float):
     """TM-PR-05: central bending moment at C."""
@@ -9505,18 +9517,19 @@ def _render_ready_frame_cases():
             L_mm = float(vals["L_mm"])
             h_mm = float(vals["h_mm"])
             Mc_kNm = float(vals["Mc_kNm"])
-
+        
             L_m = max(L_mm / 1000.0, 1e-9)
-
+        
             RA_kN = Mc_kNm / L_m
-
+        
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
             _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mc_kNm)
-
+        
             st.session_state["col_L_mm_in"] = h_mm
             st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=Mc_kNm)
+            # Reference case: column moment must be zero
+            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
 
         elif cfg["apply"] == "apply_tmpr05":
             L_mm = float(vals["L_mm"])
