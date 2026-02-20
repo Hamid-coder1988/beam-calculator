@@ -8638,24 +8638,44 @@ def _render_tm_pr_07_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     if L <= 0 or h <= 0:
         return
 
+    # Reactions (from your reference sheet)
     RA = (w * h**2) / (2.0 * L)
-    RE = (w * h**2) / (2.0 * L)
+    RE = RA
 
+    # -------------------
+    # Beam diagrams:
+    # Must be MAX at x=0 and go to ZERO at x=L
+    # M(x) = RA * (L - x)
+    # -------------------
     x = np.linspace(0.0, L, 401)
+    Vb = np.full_like(x, RA)
+    Mb = RA * (L - x)
+
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=np.full_like(x, RA), M_kNm=RA * x,
-                         member_prefix="beam_", key_prefix="tmpr07_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="tmpr07_beam_", x_label="x (m)"
+        )
 
+    # -------------------
+    # Column diagrams:
+    # Must be ZERO at y=0 and MAX at y=h
+    # V(y) = w*y
+    # M(y) = w*y^2/2
+    # -------------------
     y = np.linspace(0.0, h, 401)
-    V_c = w * (h - y)
-    M_c = w * (h - y)**2 / 2.0
+    V_c = w * y
+    M_c = w * y**2 / 2.0
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr07_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=V_c, M_kNm=M_c,
+            member_prefix="col_", key_prefix="tmpr07_col_", x_label="y (m)"
+        )
 
     _render_support_forces("tmpr07", RA_kN=RA, RE_kN=RE, HA_kN=w * h)
-
 
 def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     """TM-PR-08: outward side UDL on right column."""
@@ -8665,21 +8685,40 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     if L <= 0 or h <= 0:
         return
 
+    # Reactions (same magnitude)
     RA = (w * h**2) / (2.0 * L)
-    RE = (w * h**2) / (2.0 * L)
+    RE = RA
 
+    # -------------------
+    # Beam diagrams:
+    # For RIGHT column side load, moment is ZERO at x=0 and MAX at x=L
+    # M(x) = RA * x
+    # -------------------
     x = np.linspace(0.0, L, 401)
+    Vb = np.full_like(x, RA)
+    Mb = RA * x
+
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=np.full_like(x, RA), M_kNm=(w * h**2) * (1.0 - x / L),
-                         member_prefix="beam_", key_prefix="tmpr08_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="tmpr08_beam_", x_label="x (m)"
+        )
 
+    # -------------------
+    # Column diagrams:
+    # Must be ZERO at y=0 and MAX at y=h
+    # -------------------
     y = np.linspace(0.0, h, 401)
-    V_c = w * (h - y)
-    M_c = w * (h - y)**2 / 2.0
+    V_c = w * y
+    M_c = w * y**2 / 2.0
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=V_c, M_kNm=M_c, member_prefix="col_", key_prefix="tmpr08_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=V_c, M_kNm=M_c,
+            member_prefix="col_", key_prefix="tmpr08_col_", x_label="y (m)"
+        )
 
     _render_support_forces("tmpr08", RA_kN=RA, RE_kN=RE, HA_kN=w * h)
 
