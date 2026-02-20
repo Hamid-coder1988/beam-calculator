@@ -8688,7 +8688,6 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     # Support reactions (per reference)
     RA = (w * h**2) / (2.0 * L)
     RE = RA
-    HA = w * h
 
     # -------------------
     # Beam diagrams (match STRUCT reference):
@@ -8711,6 +8710,31 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
             member_prefix="beam_", key_prefix="tmpr08_beam_", x_label="x (m)"
         )
 
+    # -------------------
+    # Column diagrams (match reference shape):
+    # V(y) starts 0 at base and increases to w*h at top
+    # M(y) starts 0 at base and increases to w*h^2/2 at top (= Mc)
+    # -------------------
+    y = np.linspace(0.0, h, 401)
+    V_c = w * y
+    M_c = w * y**2 / 2.0
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+        _render_member_vm(
+            x_m=y, V_kN=V_c, M_kNm=M_c,
+            member_prefix="col_", key_prefix="tmpr08_col_", x_label="y (m)"
+        )
+
+    # -------------------
+    # CRITICAL FIX:
+    # Clear widget-owned keys BEFORE _render_support_forces sets them.
+    # This keeps your global support-forces format unchanged.
+    # -------------------
+    for k in ("tmpr08_RA_out", "tmpr08_RE_out", "tmpr08_HA_out", "tmpr08_HE_out", "tmpr08_HD_out"):
+        st.session_state.pop(k, None)
+
+    _render_support_forces("tmpr08", RA_kN=RA, RE_kN=RE, HA_kN=w * h)
     # -------------------
     # Column diagrams (match reference shape):
     # V(y) starts 0 at base and increases to w*h at top
