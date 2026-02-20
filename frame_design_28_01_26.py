@@ -7490,9 +7490,11 @@ def _render_support_forces(
 
     # optional horizontal reactions in display order
     H_items = []
-    if HA_kN is not None:
-        st.session_state[f"{case_key}_HA_out"] = float(HA_kN)
-        H_items.append(("HA (kN)", f"{case_key}_HA_out"))
+    # ALWAYS show HA (default 0.0 if not provided)
+    HA_val = 0.0 if HA_kN is None else float(HA_kN)
+    st.session_state[f"{case_key}_HA_out"] = HA_val
+    H_items.append(("HA (kN)", f"{case_key}_HA_out"))
+
     if HE_kN is not None:
         st.session_state[f"{case_key}_HE_out"] = float(HE_kN)
         H_items.append(("HE (kN)", f"{case_key}_HE_out"))
@@ -9513,7 +9515,7 @@ def _render_ready_frame_cases():
             _fill_VM_into_member_inputs("beam_", V_beam_kN, Mmax_kNm)
 
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
+            st.session_state["col_N_in"] = -max(abs(RA_kN), abs(RE_kN))
             _fill_VM_into_member_inputs("col_", F_kN, Mmax_kNm)
 
         elif cfg["apply"] == "apply_tmpr03":
@@ -9545,7 +9547,7 @@ def _render_ready_frame_cases():
             _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mc_kNm)
         
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
+            st.session_state["col_N_in"] = -abs(RA_kN)
             # Reference case: column moment must be zero
             _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
 
@@ -9564,7 +9566,7 @@ def _render_ready_frame_cases():
             _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
 
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
+            st.session_state["col_N_in"] = -abs(Vmax_kN)
             _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
 
         elif cfg["apply"] == "apply_tmpr06":
@@ -9622,7 +9624,7 @@ def _render_ready_frame_cases():
             _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
 
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
+            st.session_state["col_N_in"] = -abs(RA_kN)
             _fill_beam_vm_to_components("col_", V_kN=abs(w) * h_m, M_kNm=0.5 * abs(w) * h_m**2)
         # -----------------------------
         # TM-PP applies
@@ -9647,7 +9649,7 @@ def _render_ready_frame_cases():
             _fill_VM_into_member_inputs("beam_", float(np.max(np.abs(V))), float(np.max(np.abs(M))))
 
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
+            st.session_state["col_N_in"] = -abs(RA)
             _fill_VM_into_member_inputs("col_", abs(HA), abs(HA * h))
 
         elif cfg["apply"] == "apply_tmpp02":
@@ -9662,7 +9664,7 @@ def _render_ready_frame_cases():
             _fill_VM_into_member_inputs("beam_", 0.0, abs(MB))
 
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
+            st.session_state["col_N_in"] = -abs(RA)
             _fill_VM_into_member_inputs("col_", abs(HA), abs(MB))
 
         elif cfg["apply"] == "apply_tmpp03":
@@ -9678,7 +9680,7 @@ def _render_ready_frame_cases():
             _fill_VM_into_member_inputs("beam_", abs(RA), abs(RA * L))
 
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
+            st.session_state["col_N_in"] = -abs(RA)
             _fill_VM_into_member_inputs("col_", abs(HA), abs(HA * h))
 
         elif cfg["apply"] == "apply_tmpp04":
@@ -9716,7 +9718,7 @@ def _render_ready_frame_cases():
             _fill_VM_into_member_inputs("beam_", abs(RA), abs(MB) + abs(RA * L))
 
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
+            st.session_state["col_N_in"] = -abs(RA)
             _fill_VM_into_member_inputs("col_", abs(HA), abs(HA * h))
 
         # -----------------------------
@@ -9736,7 +9738,7 @@ def _render_ready_frame_cases():
             _fill_VM_into_member_inputs("beam_", abs(RA), abs(MB))
 
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
+            st.session_state["col_N_in"] = -abs(RA)
             _fill_VM_into_member_inputs("col_", abs(HA), abs(MB))
 
         elif cfg["apply"] == "apply_tmff02":
