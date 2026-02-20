@@ -7141,33 +7141,6 @@ def _render_member_section_panel(member_prefix: str, title: str):
     if L <= 0 or h <= 0:
         return
 
-    with st.expander("Frame sketch", expanded=False):
-        import matplotlib.pyplot as plt
-
-        fig, ax = plt.subplots(figsize=(4.5, 2.0))
-        ax.set_aspect("equal", adjustable="box")
-        ax.axis("off")
-
-        # Normalize to 0..1 for drawing (shape only)
-        FRAME_COLOR = "#1f77b4"
-        LW = 3.0
-
-        # frame lines
-        ax.plot([0, 0], [0, 1], color=FRAME_COLOR, linewidth=LW)  # left col
-        ax.plot([1, 1], [0, 1], color=FRAME_COLOR, linewidth=LW)  # right col
-        ax.plot([0, 1], [1, 1], color=FRAME_COLOR, linewidth=LW)  # top beam
-
-        # labels
-        ax.text(0.0, -0.10, "A", fontsize=10)
-        ax.text(0.0,  1.03, "B", fontsize=10)
-        ax.text(1.0, -0.10, "E", fontsize=10)
-        ax.text(1.0,  1.03, "D", fontsize=10)
-        ax.text(0.5,  1.06, f"L={L_mm:.0f} mm", ha="center", fontsize=9)
-        ax.text(-0.08, 0.5, f"h={h_mm:.0f} mm", va="center", rotation=90, fontsize=9)
-
-        st.pyplot(fig, clear_figure=True)
-
-
 def _render_design_settings():
     """
     Beam-app style Design settings (ULS) box.
