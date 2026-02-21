@@ -9387,17 +9387,18 @@ def _render_ready_frame_cases():
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
                 ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
-        
-                # NEW: y measured from TOP joint down to the side point load
-                ("y_m", "y (m) — from TOP joint down to side point load", 1.5, 0.1, 0.01),
-        
+                ("y_m", "y (mm) — from TOP joint down to side point load", 1500.0, 10.0, 1.0),
                 ("F_kN", "Side point load F (kN) (+ right)", 30.0, 1.0, None),
             ],
             "preview": lambda v: _render_tm_pp_03_whole_frame_diagrams(
-                L_mm=v["L_mm"], h_mm=v["h_mm"], y_m=v["y_m"], F_kN=v["F_kN"]
+                L_mm=v["L_mm"],
+                h_mm=v["h_mm"],
+                y_m=v["y_m"] / 1000.0,   # convert mm → m here
+                F_kN=v["F_kN"],
             ),
             "apply": "apply_tmpp03",
         },
+
         "TM-PP-04": {
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
