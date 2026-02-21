@@ -9849,20 +9849,63 @@ def _render_ready_frame_cases():
             _fill_VM_into_member_inputs("col_", abs(HA), abs(MB))
 
         elif cfg["apply"] == "apply_tmpp03":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            L = L_mm / 1000.0; h = h_mm / 1000.0
-            yload = 0.5 * h
-            RA = P * (h - yload) / max(L, 1e-9)
+            # Use SAME equations as the preview diagrams (with y input)
+            L_mm = float(vals["L_mm"])
+            h_mm = float(vals["h_mm"])
+            P = float(vals["F_kN"])
+        
+            # y is stored as mm in the inputs row
+            y_mm = float(vals["y_m"])
+            L = L_mm / 1000.0
+            h = h_mm / 1000.0
+            y = y_mm / 1000.0  # measured from TOP down to load
+        
+            # clamp y to [0, h]
+            if y < 0.0:
+                y = 0.0
+            elif y > h:
+                y = h
+        
             beta, e = _frame_beta_e("beam_", "col_")
-            HA = 0.5 * P  # stable default; preview shows more detailed approx
-
+        
+            # k = β y (2h - y) / [ h (2βh + 3L) ]
+            denom_h = h * (2.0 * beta * h + 3.0 * L)
+            k = (beta * y * (2.0 * h - y) / denom_h) if denom_h != 0 else 0.0
+        
+            # Support reactions (reference)
+            RA = P * (h - y) / max(L, 1e-9)
+            RE = RA
+        
+            HA = (P / (2.0 * h)) * (h + y - (h - y) * k) if h != 0 else 0.0
+            HE = (P * (h - y) / (2.0 * h)) * (1.0 + k) if h != 0 else 0.0
+        
+            # End moments (reference magnitudes)
+            MB_mag = (P * (h - y) / (2.0 * h)) * (h + y - (h - y) * k) if h != 0 else 0.0
+            MC_mag = (P * (h - y) / 2.0) * (1.0 - k)
+            MD_mag = (P * (h - y) / 2.0) * (1.0 + k)
+        
+            # Sign per reference: MC negative, MD positive (only for diagram; design uses abs)
+            MC = -abs(MC_mag)
+            MD = +abs(MD_mag)
+        
+            # Beam: V constant, M linear from MC to MD
+            V_beam = (MD - MC) / max(L, 1e-9)
+            Mmax_beam = max(abs(MC), abs(MD))
+        
+            # Column: use the critical left column magnitudes (kink at load point)
+            # Use max of top joint moment and kink moment
+            Mmax_col = max(abs(MC), abs(MB_mag))
+            Vmax_col = abs(HA)
+        
+            # ---- Fill beam inputs (match diagram maxima) ----
             st.session_state["beam_L_mm_in"] = L_mm
             st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", abs(RA), abs(RA * L))
-
+            _fill_VM_into_member_inputs("beam_", abs(V_beam), Mmax_beam)
+        
+            # ---- Fill column inputs (match critical column magnitudes) ----
             st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(RA)
-            _fill_VM_into_member_inputs("col_", abs(HA), abs(HA * h))
+            st.session_state["col_N_in"] = 0.0
+            _fill_VM_into_member_inputs("col_", Vmax_col, Mmax_col)
 
         elif cfg["apply"] == "apply_tmpp04":
             L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
