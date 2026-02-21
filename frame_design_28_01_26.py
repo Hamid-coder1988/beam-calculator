@@ -8677,6 +8677,7 @@ def _render_tm_pr_07_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     _render_support_forces("tmpr07", RA_kN=RA, RE_kN=RE, HA_kN=w * h)
 
+
 def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     """TM-PR-08: outward side UDL on right column."""
     L = float(L_mm) / 1000.0
@@ -8688,61 +8689,59 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     # Support reactions (per reference)
     RA = (w * h**2) / (2.0 * L)
     RE = RA
+    HA = w * h
 
     # -------------------
-    # Beam diagrams (match STRUCT reference):
-    # M(B)=Mmax = w*h^2
-    # M(C)=Mc   = w*h^2/2
-    # Linear between ends (no load on beam)
-    # Shear is constant: V = (M_B - M_C)/L = w*h^2/(2L) = RA
+    # Beam diagrams (reference):
+    # Mmax at B = w*h^2
+    # Mc at C   = w*h^2/2
+    # Linear between ends, constant shear = (M_B - M_C)/L = RA
     # -------------------
     x = np.linspace(0.0, L, 401)
     Vb = np.full_like(x, RA)
 
-    M_B = w * h**2          # Mmax at B (x=0)
-    M_C = w * h**2 / 2.0    # Mc at C (x=L)
-    Mb = M_B + (M_C - M_B) * (x / L)   # linear interpolation
+    M_B = w * h**2          # at B (x=0)
+    M_C = w * h**2 / 2.0    # at C (x=L)
+    Mb = M_B + (M_C - M_B) * (x / L)
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
-            x_m=x, V_kN=Vb, M_kNm=Mb,
-            member_prefix="beam_", key_prefix="tmpr08_beam_", x_label="x (m)"
+            x_m=x,
+            V_kN=Vb,
+            M_kNm=Mb,
+            member_prefix="beam_",
+            key_prefix="tmpr08_beam_",
+            x_label="x (m)",
         )
 
     # -------------------
-    # Column diagrams (match reference shape):
-    # V(y) starts 0 at base and increases to w*h at top
-    # M(y) starts 0 at base and increases to w*h^2/2 at top (= Mc)
+    # Column diagrams: SHOW THE CRITICAL COLUMN (AB)
+    # Reference BMD shows AB has M=0 at A and Mmax at B = w*h^2
+    # Since HA = w*h, the column AB has:
+    #   V_AB(y) = HA (constant)
+    #   M_AB(y) = HA * y  (linear), so M(h)=HA*h=w*h^2
     # -------------------
     y = np.linspace(0.0, h, 401)
-    V_c = w * y
-    M_c = w * y**2 / 2.0
+    V_ab = np.full_like(y, HA)
+    M_ab = HA * y
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
         _render_member_vm(
-            x_m=y, V_kN=V_c, M_kNm=M_c,
-            member_prefix="col_", key_prefix="tmpr08_col_", x_label="y (m)"
+            x_m=y,
+            V_kN=V_ab,
+            M_kNm=M_ab,
+            member_prefix="col_",
+            key_prefix="tmpr08_col_",
+            x_label="y (m)",
         )
 
-    # -------------------
-    # CRITICAL FIX:
-    # Clear widget-owned keys BEFORE _render_support_forces sets them.
-    # This keeps your global support-forces format unchanged.
-    # -------------------
+    # Prevent Streamlit "session_state key linked to widget" crash for this case only
     for k in ("tmpr08_RA_out", "tmpr08_RE_out", "tmpr08_HA_out", "tmpr08_HE_out", "tmpr08_HD_out"):
         st.session_state.pop(k, None)
 
-    _render_support_forces("tmpr08", RA_kN=RA, RE_kN=RE, HA_kN=w * h)
-    # -------------------
-    # Column diagrams (match reference shape):
-    # V(y) starts 0 at base and increases to w*h at top
-    # M(y) starts 0 at base and increases to w*h^2/2 at top (= Mc)
-    # -------------------
-    y = np.linspace(0.0, h, 401)
-    V_c = w * y
-    M_c = w * y**2 / 2.0
+    _render_support_forces("tmpr08", RA_kN=RA, RE_kN=RE, HA_kN=HA)
 
     # Optional: keep outputs available for any "apply case" logic,
     # but ONLY set them if they don't already exist (prevents crash).
