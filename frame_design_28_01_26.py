@@ -8250,8 +8250,8 @@ def _render_tm_pp_03_whole_frame_diagrams(L_mm: float, h_mm: float, y_m: float, 
     # Must satisfy M(0)=MC, M(L)=MD
     # -------------------
     x = np.linspace(0.0, L, 401)
-    V_beam = np.full_like(x, (MD - MC) / L)
-    M_beam = MC + ((MD - MC) / L) * x
+    V_beam = np.full_like(x, (MC - MD) / L)
+    M_beam = MD + ((MC - MD) / L) * x
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
