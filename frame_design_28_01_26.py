@@ -8707,35 +8707,24 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
-            x_m=x,
-            V_kN=Vb,
-            M_kNm=Mb,
-            member_prefix="beam_",
-            key_prefix="tmpr08_beam_",
-            x_label="x (m)",
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="tmpr08_beam_", x_label="x (m)"
         )
 
     # -------------------
-    # Column diagrams: SHOW THE CRITICAL COLUMN (AB)
-    # Reference BMD shows AB has M=0 at A and Mmax at B = w*h^2
-    # Since HA = w*h, the column AB has:
-    #   V_AB(y) = HA (constant)
-    #   M_AB(y) = HA * y  (linear), so M(h)=HA*h=w*h^2
+    # Column diagrams: CRITICAL column AB (NOT the loaded column CD)
+    # V_AB(y) = HA (constant)
+    # M_AB(y) = HA*y (linear), so M_AB(h)=wh^2 (same as beam max at B)
     # -------------------
     y = np.linspace(0.0, h, 401)
-    HA = w * h
-    V_c = np.full_like(y, HA)
-    M_c = HA * y
+    V_ab = np.full_like(y, HA)
+    M_ab = HA * y
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
         _render_member_vm(
-            x_m=y,
-            V_kN=V_ab,
-            M_kNm=M_ab,
-            member_prefix="col_",
-            key_prefix="tmpr08_col_",
-            x_label="y (m)",
+            x_m=y, V_kN=V_ab, M_kNm=M_ab,
+            member_prefix="col_", key_prefix="tmpr08_col_", x_label="y (m)"
         )
 
     # Prevent Streamlit "session_state key linked to widget" crash for this case only
