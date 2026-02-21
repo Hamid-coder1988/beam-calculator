@@ -8148,31 +8148,52 @@ def _render_tm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     if L <= 0 or h <= 0:
         return
 
-    # from your sheet
+    # From reference sheet (Pin/Pin, top horizontal point load)
     RA = (P * h) / L
     RE = RA
     HA = 0.5 * P
     HE = 0.5 * P
-    MB = 0.5 * P * h
-    MC = MB
 
+    # End moments at beam ends (B and E in your app)
+    MB = 0.5 * P * h
+    ME = MB
+
+    # -------------------
+    # Beam diagrams:
+    # Shear is NOT zero. The vertical reactions create constant shear in the beam.
+    # V(x) = RA (constant)
+    # M(x) = MB + RA*x  (linear, slope = V)
+    # This gives non-constant moment as in the reference BMD.
+    # -------------------
     x = np.linspace(0.0, L, 401)
-    V = np.zeros_like(x)
-    M = np.full_like(x, MB)
+    V = np.full_like(x, RA)
+    M = MB + RA * x
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpp02_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=V, M_kNm=M,
+            member_prefix="beam_", key_prefix="tmpp02_beam_", x_label="x (m)"
+        )
 
+    # -------------------
+    # Column diagrams (left column AB shown):
+    # V = HA (constant), M = HA*y (linear)
+    # -------------------
     y = np.linspace(0.0, h, 251)
     Mcol = HA * y
     Vcol = np.full_like(y, HA)
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmpp02_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vcol, M_kNm=Mcol,
+            member_prefix="col_", key_prefix="tmpp02_col_", x_label="y (m)"
+        )
 
     _render_support_forces("tmpp02", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
+    # Deflection based on the beam moment used above
     delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
 
