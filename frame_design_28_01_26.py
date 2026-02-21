@@ -8148,22 +8148,25 @@ def _render_tm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     if L <= 0 or h <= 0:
         return
 
-    # From reference sheet (Pin/Pin, top horizontal point load)
-    RA = (P * h) / L
-    RE = RA
-    HA = 0.5 * P
-    HE = 0.5 * P
+    # From reference sheet (magnitudes)
+    RA_mag = (P * h) / L
+    RE_mag = RA_mag
+    HA_mag = 0.5 * P
+    HE_mag = 0.5 * P
+    MB_mag = 0.5 * P * h  # magnitude of end moment
 
-    # End moments at beam ends (B and E in your app)
-    MB = 0.5 * P * h
-    ME = MB
+    # ---- Apply your desired sign convention ----
+    # You want: moment at B (beam start + column top) NEGATIVE and then increases along beam.
+    RA = RA_mag
+    RE = RE_mag
+    HA = HA_mag
+    HE = HE_mag
+    MB = -MB_mag  # NEGATIVE at B
 
     # -------------------
     # Beam diagrams:
-    # Shear is NOT zero. The vertical reactions create constant shear in the beam.
-    # V(x) = RA (constant)
-    # M(x) = MB + RA*x  (linear, slope = V)
-    # This gives non-constant moment as in the reference BMD.
+    # V constant (non-zero) and M increases from negative end moment.
+    # M(x) = MB + RA*x
     # -------------------
     x = np.linspace(0.0, L, 401)
     V = np.full_like(x, RA)
@@ -8177,11 +8180,12 @@ def _render_tm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
         )
 
     # -------------------
-    # Column diagrams (left column AB shown):
-    # V = HA (constant), M = HA*y (linear)
+    # Column diagrams (left column AB):
+    # Moment at top (y=h) should be same as beam at B: negative.
+    # Linear from 0 at base to MB at top.
     # -------------------
     y = np.linspace(0.0, h, 251)
-    Mcol = HA * y
+    Mcol = MB * (y / h)     # 0 at y=0, MB(negative) at y=h
     Vcol = np.full_like(y, HA)
 
     with st.expander("Column diagrams", expanded=False):
@@ -8193,10 +8197,8 @@ def _render_tm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
 
     _render_support_forces("tmpp02", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
-    # Deflection based on the beam moment used above
     delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
 
 # -----------------------------
 # TM-PP-03: Side point load at mid-height (y = h/2)  [since UI only F,L,h]
