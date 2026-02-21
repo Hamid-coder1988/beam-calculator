@@ -8723,8 +8723,9 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     #   M_AB(y) = HA * y  (linear), so M(h)=HA*h=w*h^2
     # -------------------
     y = np.linspace(0.0, h, 401)
-    V_ab = np.full_like(y, HA)
-    M_ab = HA * y
+    HA = w * h
+    V_c = np.full_like(y, HA)
+    M_c = HA * y
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
