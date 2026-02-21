@@ -8080,26 +8080,67 @@ def _render_tm_pp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     MD = MB
     MC = (P * x_load * (L - x_load) / (2.0 * L)) * ((4.0 * beta * e + 3.0) / denom) if denom != 0 else 0.0
 
+    # -------------------
+    # Beam V/M (keep physics as-is)
+    # -------------------
     x = np.linspace(0.0, L, 401)
     V = np.where(x <= x_load, RA, RA - P)
-    M = np.where(x <= x_load, MB + RA * x, MB + RA * x - P * (x - x_load))
+
+    # Physical moment function from your formulas
+    M_phys = np.where(
+        x <= x_load,
+        MB + RA * x,
+        MB + RA * x - P * (x - x_load),
+    )
+
+    # -------------------
+    # PLOT SIGN FIX (only for this case):
+    # Your _render_member_vm uses opposite sign compared to STRUCT reference.
+    # So we flip what we send to the plot so that:
+    # - M at B is positive
+    # - drops towards mid
+    # - rises again towards D
+    # -------------------
+    M_plot = -M_phys
+    V_plot = V  # shear direction in your plots is already consistent; don't flip unless you also want that
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpp01_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x,
+            V_kN=V_plot,
+            M_kNm=M_plot,
+            member_prefix="beam_",
+            key_prefix="tmpp01_beam_",
+            x_label="x (m)",
+        )
 
+    # -------------------
+    # Column diagrams
+    # Same story: show AB moment sign consistent with beam end sign in STRUCT sketch
+    # -------------------
     y = np.linspace(0.0, h, 251)
-    Mcol = HA * y
+    Mcol_phys = HA * y
     Vcol = np.full_like(y, HA)
+
+    Mcol_plot = -Mcol_phys
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmpp01_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y,
+            V_kN=Vcol,
+            M_kNm=Mcol_plot,
+            member_prefix="col_",
+            key_prefix="tmpp01_col_",
+            x_label="y (m)",
+        )
 
     _render_support_forces("tmpp01", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
-    delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
+    # Deflection must use the physical moment, not the plotted sign
+    delta = _deflection_from_M_numeric(x, M_phys, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
 
 # -----------------------------
 # TM-PP-02: Top horizontal point load at B (left top corner)
