@@ -9636,11 +9636,14 @@ def _render_ready_frame_cases():
 
     # --- Inputs
     vals = {}
-    c1, c2, c3 = st.columns(3)
-    cols = [c1, c2, c3]
+    n_cols = min(len(cfg["inputs"]), 4)  # allow up to 4 inputs per row
+    cols = st.columns(n_cols)
+    
     for i, (name, label, default, step, minv) in enumerate(cfg["inputs"]):
-        with cols[i % 3]:
-            vals[name] = float(_num(label, key=f"{case_key}_{name}", default=default, step=step, min_value=minv))
+        with cols[i % n_cols]:
+            vals[name] = float(
+                _num(label, key=f"{case_key}_{name}", default=default, step=step, min_value=minv)
+            )
 
     # --- Preview
     with st.expander("Diagrams & support forces", expanded=False):
