@@ -8202,7 +8202,7 @@ def _render_tm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
 
 # -----------------------------
 # TM-PP-03: Side point load on left column at distance y from top
-# (y is measured from the TOP joint down to the load point, per STRUCT reference)
+# Hogging at top joints is NEGATIVE (as you requested)
 # -----------------------------
 def _render_tm_pp_03_whole_frame_diagrams(L_mm: float, h_mm: float, y_m: float, F_kN: float):
     L = float(L_mm) / 1000.0
@@ -8221,28 +8221,29 @@ def _render_tm_pp_03_whole_frame_diagrams(L_mm: float, h_mm: float, y_m: float, 
 
     beta, e = _frame_beta_e("beam_", "col_")
 
-    # -------------------
-    # Reference helper term:
     # k = β y (2h - y) / [ h (2βh + 3L) ]
-    # -------------------
     denom_h = h * (2.0 * beta * h + 3.0 * L)
     k = (beta * y * (2.0 * h - y) / denom_h) if denom_h != 0 else 0.0
 
-    # -------------------
     # Support reactions (STRUCT reference)
-    # -------------------
     RA = P * (h - y) / L
     RE = RA
 
     HA = (P / (2.0 * h)) * (h + y - (h - y) * k) if h != 0 else 0.0
     HE = (P * (h - y) / (2.0 * h)) * (1.0 + k) if h != 0 else 0.0
 
+    # End moments (reference magnitudes)
+    MB_mag = (P * (h - y) / (2.0 * h)) * (h + y - (h - y) * k) if h != 0 else 0.0
+    MC_mag = (P * (h - y) / 2.0) * (1.0 - k)
+    MD_mag = (P * (h - y) / 2.0) * (1.0 + k)
+
     # -------------------
-    # End moments (STRUCT reference)
+    # SIGN CONVENTION FIX:
+    # Hogging at top joints (C and D) should be NEGATIVE.
     # -------------------
-    MB = (P * (h - y) / (2.0 * h)) * (h + y - (h - y) * k) if h != 0 else 0.0
-    MC = (P * (h - y) / 2.0) * (1.0 - k)
-    MD = (P * (h - y) / 2.0) * (1.0 + k)
+    MB = MB_mag          # moment at load point on column (keep as magnitude; sign handled by column shape below)
+    MC = -MC_mag         # NEGATIVE at left top joint
+    MD = -MD_mag         # NEGATIVE at right top joint
 
     # -------------------
     # Beam diagrams: no vertical load on beam -> V constant, M linear
@@ -8260,12 +8261,19 @@ def _render_tm_pp_03_whole_frame_diagrams(L_mm: float, h_mm: float, y_m: float, 
         )
 
     # -------------------
-    # Left column AB: kink at load point
-    # y is from TOP, so from base: y_load_base = h - y
-    # A: (0,0), Bload: (h-y, MB), Ctop: (h, MC)
+    # Left column AB moment: piecewise linear with kink at load point
+    # Use:
+    #   A: M=0
+    #   C(top): M=MC (negative)
+    # At load point B (from base): y_load = h - y
+    # We keep kink magnitude MB but enforce continuity up to MC.
     # -------------------
     y_base = np.linspace(0.0, h, 251)
     y_load_from_base = h - y
+
+    # Choose sign for MB to follow the same "hogging negative" family near the top:
+    # Put MB negative as well (this matches your request: top region negative).
+    MB = -abs(MB_mag)
 
     M_left = np.zeros_like(y_base)
     if y_load_from_base <= 0.0 or y_load_from_base >= h:
