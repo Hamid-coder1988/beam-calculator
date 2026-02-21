@@ -8201,7 +8201,8 @@ def _render_tm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     _set_deflection_summary(delta, L_ref_m=L)
 
 # -----------------------------
-# TM-PP-03: Side point load at mid-height (y = h/2)  [since UI only F,L,h]
+# TM-PP-03: Side point load on left column at distance y from top
+# (y is measured from the TOP joint down to the load point, per STRUCT reference)
 # -----------------------------
 def _render_tm_pp_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
     L = float(L_mm) / 1000.0
@@ -8211,42 +8212,123 @@ def _render_tm_pp_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
-    yload = 0.5 * h
 
-    # Use sheet reactions (requires y). We fix y=h/2 to keep UI minimal.
-    RA = P * (h - yload) / L
+    # ---- INPUT: y measured from TOP down to load point (STRUCT definition) ----
+    # Keep UI minimal: one input inside the preview block.
+    y_from_top = st.number_input(
+        "y (m) — distance from TOP joint down to side point load",
+        min_value=0.0,
+        max_value=float(h),
+        value=float(0.5 * h),
+        step=float(max(h / 50.0, 0.01)),
+        key="tmpp03_y_from_top_m",
+    )
+
+    y = float(y_from_top)
+
+    # -------------------
+    # Reference helper term:
+    # k = β y (2h - y) / [ h (2βh + 3L) ]
+    # where y is from TOP downwards
+    # -------------------
+    denom_h = h * (2.0 * beta * h + 3.0 * L)
+    k = (beta * y * (2.0 * h - y) / denom_h) if denom_h != 0 else 0.0
+
+    # -------------------
+    # Support reactions (STRUCT reference)
+    # -------------------
+    RA = P * (h - y) / L
     RE = RA
 
-    # The sheet has more detailed HA/HE; here we keep equilibrium-compatible portal approximation:
-    # assume column shear equals HA so that top joint moment ~ HA*h.
-    # choose HA such that beam end moments match a stiffness split (beta,e):
-    denom = (2.0 * beta * e + 3.0)
-    HA = (P / (2.0 * h)) * (h + yload - (h - yload) * (beta * (2.0 * h - yload) * yload) / (h * (2.0 * beta * h + 3.0 * L))) if denom != 0 else 0.0
-    HE = (P * (h - yload) / (2.0 * h)) * (1.0 + (beta * (2.0 * h - yload) * yload) / (h * (2.0 * beta * h + 3.0 * L))) if denom != 0 else 0.0
+    HA = (P / (2.0 * h)) * (h + y - (h - y) * k) if h != 0 else 0.0
+    HE = (P * (h - y) / (2.0 * h)) * (1.0 + k) if h != 0 else 0.0
 
-    # Beam: assume constant end moments proportional to shears (simple visualization)
-    MB = HA * h
-    MD = HE * h
+    # -------------------
+    # End moments (STRUCT reference)
+    # - MC at left top joint (C)
+    # - MD at right top joint (D)
+    # - MB at load point on left column (B)
+    #
+    # NOTE: These are magnitudes/signs per your plotting convention.
+    # If you want hogging negative, flip signs consistently here.
+    # -------------------
+    MB = (P * (h - y) / (2.0 * h)) * (h + y - (h - y) * k) if h != 0 else 0.0
+    MC = (P * (h - y) / 2.0) * (1.0 - k)
+    MD = (P * (h - y) / 2.0) * (1.0 + k)
+
+    # -------------------
+    # Beam diagrams:
+    # There is NO vertical load on the beam, so V is constant and M is linear.
+    # MUST satisfy M(0)=MC and M(L)=MD
+    # => V = (MD - MC)/L
+    # => M(x) = MC + V*x
+    # -------------------
     x = np.linspace(0.0, L, 401)
-    V = np.full_like(x, RA)
-    M = MB + RA * x  # simple linear (no beam-applied vertical load here)
+    V_beam = np.full_like(x, (MD - MC) / L)
+    M_beam = MC + ((MD - MC) / L) * x
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpp03_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x,
+            V_kN=V_beam,
+            M_kNm=M_beam,
+            member_prefix="beam_",
+            key_prefix="tmpp03_beam_",
+            x_label="x (m)",
+        )
 
-    y = np.linspace(0.0, h, 251)
-    Vcol = np.full_like(y, HA)
-    Mcol = HA * y
+    # -------------------
+    # Column diagrams:
+    # LEFT column is critical and has a kink at the load point.
+    # We plot moment vs y_base (0 at base A, h at top joint C).
+    #
+    # Load is at distance y from TOP, so from BASE:
+    # y_load_from_base = h - y
+    # Points:
+    #   A: (0, 0)   (pin)
+    #   B(load): (h-y, MB)
+    #   C(top): (h, MC)
+    # -------------------
+    y_base = np.linspace(0.0, h, 251)
+    y_load_from_base = h - y
+
+    # Piecewise linear through A -> B -> C (matches reference kink)
+    M_left = np.zeros_like(y_base)
+    if y_load_from_base <= 0.0:
+        # Load at top: collapse to A->C line
+        M_left = (MC / h) * y_base if h != 0 else np.zeros_like(y_base)
+    elif y_load_from_base >= h:
+        # Load at base: A->B is at h so A->C line
+        M_left = (MC / h) * y_base if h != 0 else np.zeros_like(y_base)
+    else:
+        m1 = MB / y_load_from_base
+        m2 = (MC - MB) / (h - y_load_from_base)
+        M_left = np.where(
+            y_base <= y_load_from_base,
+            m1 * y_base,
+            MB + m2 * (y_base - y_load_from_base),
+        )
+
+    # Use HA as the column shear visualization (constant is fine for your plotting tool)
+    V_left = np.full_like(y_base, HA)
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmpp03_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y_base,
+            V_kN=V_left,
+            M_kNm=M_left,
+            member_prefix="col_",
+            key_prefix="tmpp03_col_",
+            x_label="y (m)",
+        )
 
     _render_support_forces("tmpp03", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
-    delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
+    # Deflection (keep your existing numeric routine)
+    delta = _deflection_from_M_numeric(x, M_beam, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
 
 # -----------------------------
 # TM-PP-04: Top UDL on beam
