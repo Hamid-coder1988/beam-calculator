@@ -8237,21 +8237,19 @@ def _render_tm_pp_03_whole_frame_diagrams(L_mm: float, h_mm: float, y_m: float, 
     MC_mag = (P * (h - y) / 2.0) * (1.0 - k)
     MD_mag = (P * (h - y) / 2.0) * (1.0 + k)
 
-    # -------------------
-    # SIGN CONVENTION FIX:
-    # Hogging at top joints (C and D) should be NEGATIVE.
-    # -------------------
-    MB = MB_mag          # moment at load point on column (keep as magnitude; sign handled by column shape below)
-    MC = -MC_mag         # NEGATIVE at left top joint
-    MD = -MD_mag         # NEGATIVE at right top joint
+    # --- SIGN per STRUCT reference (TM-PP-03):
+    # MC is NEGATIVE, MD is POSITIVE
+    MB = MB_mag
+    MC = -abs(MC_mag)
+    MD = +abs(MD_mag)
 
     # -------------------
     # Beam diagrams: no vertical load on beam -> V constant, M linear
-    # Must satisfy M(0)=MC, M(L)=MD
+    # M(0)=MC (at left top joint C), M(L)=MD (at right top joint D)
     # -------------------
     x = np.linspace(0.0, L, 401)
-    V_beam = np.full_like(x, (MC - MD) / L)
-    M_beam = MD + ((MC - MD) / L) * x
+    V_beam = np.full_like(x, (MD - MC) / L)
+    M_beam = MC + ((MD - MC) / L) * x
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
