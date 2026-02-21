@@ -9387,7 +9387,7 @@ def _render_ready_frame_cases():
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
                 ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
-                ("y_m", "y (mm) — from TOP joint down to side point load", 1500.0, 10.0, 1.0),
+                ("y_m", "y (mm) — from TOP to load", 1500.0, 10.0, 1.0),
                 ("F_kN", "Side point load F (kN) (+ right)", 30.0, 1.0, None),
             ],
             "preview": lambda v: _render_tm_pp_03_whole_frame_diagrams(
