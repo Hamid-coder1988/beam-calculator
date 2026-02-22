@@ -7383,10 +7383,25 @@ def _render_member_vm(
     """
     Plot V and M like beam tool. Labels follow strong/weak selection per member.
     Also stores PNG bytes in session_state for later PDF/report use.
+
+    NEW: caches diagram maxima so Apply case can match the diagrams exactly:
+      st.session_state[f"{key_prefix}V_maxabs"]
+      st.session_state[f"{key_prefix}M_maxabs"]
     """
     weak = _axis_is_weak(member_prefix)
     V_lbl = "Vy (kN)" if weak else "Vz (kN)"
     M_lbl = "Mz (kN·m)" if weak else "My (kN·m)"
+
+    # --- NEW: cache maxima (absolute)
+    try:
+        st.session_state[f"{key_prefix}V_maxabs"] = float(np.max(np.abs(np.asarray(V_kN, dtype=float))))
+    except Exception:
+        st.session_state[f"{key_prefix}V_maxabs"] = 0.0
+
+    try:
+        st.session_state[f"{key_prefix}M_maxabs"] = float(np.max(np.abs(np.asarray(M_kNm, dtype=float))))
+    except Exception:
+        st.session_state[f"{key_prefix}M_maxabs"] = 0.0
 
     colV, colM = st.columns(2)
 
@@ -9655,591 +9670,49 @@ def _render_ready_frame_cases():
     with st.expander("Diagrams & support forces", expanded=False):
         cfg["preview"](vals)
 
-    # --- Apply (your original apply logic)
     if st.button("Apply case", key=f"btn_apply_{case_key}"):
 
-        if cfg["apply"] == "apply_tmpr01":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            P_kN = float(vals["F_kN"])
-
-            Vmax_kN = 0.5 * P_kN
-            Mmax_kNm = (P_kN * (L_mm / 1000.0)) / 4.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", Vmax_kN, Mmax_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -0.5 * P_kN
-            st.session_state["col_Vy_in"] = 0.0
-            st.session_state["col_Vz_in"] = 0.0
-            st.session_state["col_My_in"] = 0.0
-            st.session_state["col_Mz_in"] = 0.0
-
-        elif cfg["apply"] == "apply_tmpr02":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            F_kN = float(vals["F_kN"])
-
-            L_m = L_mm / 1000.0
-            h_m = h_mm / 1000.0
-
-            RA_kN = -(F_kN * h_m) / L_m
-            RE_kN = +(F_kN * h_m) / L_m
-
-            Mmax_kNm = F_kN * h_m
-            V_beam_kN = RE_kN  # signed
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", V_beam_kN, Mmax_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -max(abs(RA_kN), abs(RE_kN))
-            _fill_VM_into_member_inputs("col_", F_kN, Mmax_kNm)
-
-        elif cfg["apply"] == "apply_tmpr03":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            F_kN = float(vals["F_kN"])
-
-            h_m = h_mm / 1000.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=F_kN * h_m)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=F_kN, M_kNm=F_kN * h_m)
-
-        elif cfg["apply"] == "apply_tmpr04":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            Mc_kNm = float(vals["Mc_kNm"])
-        
-            L_m = max(L_mm / 1000.0, 1e-9)
-        
-            RA_kN = Mc_kNm / L_m
-        
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mc_kNm)
-        
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(RA_kN)
-            # Reference case: column moment must be zero
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        elif cfg["apply"] == "apply_tmpr05":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            Mc_kNm = float(vals["Mc_kNm"])
-
-            L_m = max(L_mm / 1000.0, 1e-9)
-
-            Vmax_kN = Mc_kNm / L_m
-            Mmax_kNm = 0.5 * Mc_kNm
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(Vmax_kN)
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        elif cfg["apply"] == "apply_tmpr06":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            w = float(vals["w_kNm"])
-
-            L_m = max(L_mm / 1000.0, 1e-9)
-
-            Vmax_kN = abs(w) * L_m / 2.0
-            Mmax_kNm = abs(w) * (L_m ** 2) / 8.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax_kN, M_kNm=Mmax_kNm)
-
-            Ncol_kN = -abs(w) * L_m / 2.0
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = Ncol_kN
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        elif cfg["apply"] == "apply_tmpr07":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            w = float(vals["w_kNm"])
-
-            L_m = max(L_mm / 1000.0, 1e-9)
-            h_m = h_mm / 1000.0
-
-            RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
-            Mmax_kNm = abs(w) * h_m**2 / 2.0
-            Vcol_kN = abs(w) * h_m
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=Vcol_kN, M_kNm=Mmax_kNm)
-
-        elif cfg["apply"] == "apply_tmpr08":
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            w = float(vals["w_kNm"])
-
-            L_m = max(L_mm / 1000.0, 1e-9)
-            h_m = h_mm / 1000.0
-
-            RA_kN = abs(w) * h_m**2 / (2.0 * L_m)
-            Mmax_kNm = abs(w) * h_m**2
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=RA_kN, M_kNm=Mmax_kNm)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(RA_kN)
-            _fill_beam_vm_to_components("col_", V_kN=abs(w) * h_m, M_kNm=0.5 * abs(w) * h_m**2)
-        # -----------------------------
-        # TM-PP applies
-        # -----------------------------
-        elif cfg["apply"] == "apply_tmpp01":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            L = L_mm / 1000.0; h = h_mm / 1000.0
-            beta, e = _frame_beta_e("beam_", "col_")
-            x_load = 0.5 * L
-            RA = P * (L - x_load) / L
-            denom = (2.0 * beta * e + 3.0)
-            HA = (3.0 * P * x_load * (L - x_load)) / (2.0 * h * L * denom) if (h != 0 and denom != 0) else 0.0
-            MB = (3.0 * P * x_load / (2.0 * L)) * ((L - x_load) / denom) if denom != 0 else 0.0
-
-            # Beam max from diagram
-            x = np.linspace(0.0, L, 401)
-            V = np.where(x <= x_load, RA, RA - P)
-            M = np.where(x <= x_load, MB + RA * x, MB + RA * x - P * (x - x_load))
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", float(np.max(np.abs(V))), float(np.max(np.abs(M))))
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(RA)
-            _fill_VM_into_member_inputs("col_", abs(HA), abs(HA * h))
-
-        elif cfg["apply"] == "apply_tmpp02":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            L = L_mm / 1000.0; h = h_mm / 1000.0
-            RA = (P * h) / max(L, 1e-9)
-            HA = 0.5 * P
-            MB = 0.5 * P * h
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", 0.0, abs(MB))
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(RA)
-            _fill_VM_into_member_inputs("col_", abs(HA), abs(MB))
-
-        elif cfg["apply"] == "apply_tmpp03":
-            # Use SAME equations as the preview diagrams (with y input)
-            L_mm = float(vals["L_mm"])
-            h_mm = float(vals["h_mm"])
-            P = float(vals["F_kN"])
-        
-            # y is stored as mm in the inputs row
-            y_mm = float(vals["y_m"])
-            L = L_mm / 1000.0
-            h = h_mm / 1000.0
-            y = y_mm / 1000.0  # measured from TOP down to load
-        
-            # clamp y to [0, h]
-            if y < 0.0:
-                y = 0.0
-            elif y > h:
-                y = h
-        
-            beta, e = _frame_beta_e("beam_", "col_")
-        
-            # k = β y (2h - y) / [ h (2βh + 3L) ]
-            denom_h = h * (2.0 * beta * h + 3.0 * L)
-            k = (beta * y * (2.0 * h - y) / denom_h) if denom_h != 0 else 0.0
-        
-            # Support reactions (reference)
-            RA = P * (h - y) / max(L, 1e-9)
-            RE = RA
-        
-            HA = (P / (2.0 * h)) * (h + y - (h - y) * k) if h != 0 else 0.0
-            HE = (P * (h - y) / (2.0 * h)) * (1.0 + k) if h != 0 else 0.0
-        
-            # End moments (reference magnitudes)
-            MB_mag = (P * (h - y) / (2.0 * h)) * (h + y - (h - y) * k) if h != 0 else 0.0
-            MC_mag = (P * (h - y) / 2.0) * (1.0 - k)
-            MD_mag = (P * (h - y) / 2.0) * (1.0 + k)
-        
-            # Sign per reference: MC negative, MD positive (only for diagram; design uses abs)
-            MC = -abs(MC_mag)
-            MD = +abs(MD_mag)
-        
-            # Beam: V constant, M linear from MC to MD
-            V_beam = (MD - MC) / max(L, 1e-9)
-            Mmax_beam = max(abs(MC), abs(MD))
-        
-            # Column: use the critical left column magnitudes (kink at load point)
-            # Use max of top joint moment and kink moment
-            Mmax_col = max(abs(MC), abs(MB_mag))
-            Vmax_col = abs(HA)
-        
-            # ---- Fill beam inputs (match diagram maxima) ----
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", abs(V_beam), Mmax_beam)
-        
-            # ---- Fill column inputs (match critical column magnitudes) ----
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_VM_into_member_inputs("col_", Vmax_col, Mmax_col)
-
-        elif cfg["apply"] == "apply_tmpp04":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
-            L = L_mm / 1000.0; h = h_mm / 1000.0
-            beta, e = _frame_beta_e("beam_", "col_")
-            denom = (2.0 * beta * e + 3.0)
-            RA = 0.5 * w * L
-            HA = (w * L) / (4.0 * e * denom) if (e != 0 and denom != 0) else 0.0
-            MB = (w * L**2) / (4.0 * denom) if denom != 0 else 0.0
-
-            x = np.linspace(0.0, L, 401)
-            V = RA - w * x
-            M = MB + RA * x - 0.5 * w * x**2
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", float(np.max(np.abs(V))), float(np.max(np.abs(M))))
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(w) * L / 2.0  # compression
-            _fill_VM_into_member_inputs("col_", abs(HA), abs(HA * h))
-
-        elif cfg["apply"] == "apply_tmpp05":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
-            L = L_mm / 1000.0; h = h_mm / 1000.0
-            beta, e = _frame_beta_e("beam_", "col_")
-            denom = (2.0 * beta * e + 3.0)
-            RA = (w * h**2) / (2.0 * max(L, 1e-9))
-            HA = (w * h / 8.0) * ((11.0 * beta * e + 18.0) / denom) if denom != 0 else 0.0
-            MB = (3.0 * w * h**2 / 8.0) * ((beta * e + 2.0) / denom) if denom != 0 else 0.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", abs(RA), abs(MB) + abs(RA * L))
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(RA)
-            _fill_VM_into_member_inputs("col_", abs(HA), abs(HA * h))
-
-        # -----------------------------
-        # TM-FF applies
-        # -----------------------------
-        elif cfg["apply"] == "apply_tmff01":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            L = L_mm / 1000.0; h = h_mm / 1000.0
-            beta, e = _frame_beta_e("beam_", "col_")
-            denom = (beta * e + 2.0)
-            RA = 0.5 * P
-            HA = (3.0 * P * L) / (8.0 * h * denom) if (h != 0 and denom != 0) else 0.0
-            MB = (P * L) / (4.0 * denom) if denom != 0 else 0.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", abs(RA), abs(MB))
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(RA)
-            _fill_VM_into_member_inputs("col_", abs(HA), abs(MB))
-
-        elif cfg["apply"] == "apply_tmff02":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
-            L = L_mm / 1000.0; h = h_mm / 1000.0
-            beta, e = _frame_beta_e("beam_", "col_")
-            denom = (beta * e + 2.0)
-            RA = 0.5 * w * L
-            HA = (w * L**2) / (4.0 * h * denom) if (h != 0 and denom != 0) else 0.0
-            MB = (w * L**2) / (6.0 * denom) if denom != 0 else 0.0
-
-            x = np.linspace(0.0, L, 401)
-            V = RA - w * x
-            M = MB + RA * x - 0.5 * w * x**2
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", float(np.max(np.abs(V))), float(np.max(np.abs(M))))
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(w) * L / 2.0
-            _fill_VM_into_member_inputs("col_", abs(HA), abs(HA * h))
-
-        elif cfg["apply"] == "apply_tmff03":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
-            L = L_mm / 1000.0; h = h_mm / 1000.0
-            H = w * h
-            HA = 0.5 * H
-            MB = HA * h
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_VM_into_member_inputs("beam_", 0.0, abs(MB))
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_VM_into_member_inputs("col_", abs(HA), abs(MB))
-
-        # -----------------------------
-        # TM-FR applies
-        # -----------------------------
-        elif cfg["apply"] == "apply_tmfr01":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            L = L_mm / 1000.0; h = h_mm / 1000.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=abs(P), M_kNm=abs(P) * h)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=abs(P), M_kNm=abs(P) * h)
-
-        elif cfg["apply"] == "apply_tmfr02":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            L = L_mm / 1000.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=abs(P), M_kNm=abs(P) * L)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(P)
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        elif cfg["apply"] == "apply_tmfr03":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            h = (h_mm / 1000.0)
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=abs(P), M_kNm=abs(P) * h)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=abs(P), M_kNm=abs(P) * h)
-
-        elif cfg["apply"] == "apply_tmfr04":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); MD = float(vals["M_kNm"])
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=abs(MD))
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=abs(MD))
-
-        elif cfg["apply"] == "apply_tmfr05":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
-            L = L_mm / 1000.0
-
-            Vmax = abs(w) * L
-            Mmax = abs(w) * (L**2) / 2.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax, M_kNm=Mmax)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(w) * L
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        # -----------------------------
-        # DM-PP applies
-        # -----------------------------
-        elif cfg["apply"] == "apply_dmpp01":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            L = L_mm / 1000.0
-            beta, e = _frame_beta_e("beam_", "col_")
-            x = 0.5 * L
-
-            RA = (P * x * (L**2 * (2.0 * beta * e + 3.0) - x**2)) / (2.0 * L**3 * (beta * e + 1.0))
-            Mmax = abs(RA) * (L)  # simple envelope
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=abs(P), M_kNm=Mmax)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(P)
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        elif cfg["apply"] == "apply_dmpp02":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
-            L = L_mm / 1000.0
-
-            Vmax = abs(w) * L / 2.0
-            Mmax = abs(w) * (L**2) / 8.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax, M_kNm=Mmax)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(w) * L / 2.0
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        # -----------------------------
-        # DM-FF applies
-        # -----------------------------
-        elif cfg["apply"] == "apply_dmff01":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            L = L_mm / 1000.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=abs(P), M_kNm=abs(P) * L / 4.0)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(P)
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        elif cfg["apply"] == "apply_dmff02":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
-            L = L_mm / 1000.0
-
-            Vmax = abs(w) * L / 2.0
-            Mmax = abs(w) * (L**2) / 12.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax, M_kNm=Mmax)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(w) * L / 2.0
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-        # -----------------------------
-        # DM-FP applies
-        # -----------------------------
-        elif cfg["apply"] == "apply_dmfp01":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            L = L_mm / 1000.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=abs(P), M_kNm=abs(P) * L / 4.0)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(P) / 2.0
-            _fill_beam_vm_to_components("col_", V_kN=abs(P) / 2.0, M_kNm=abs(P) * (h_mm / 1000.0))
-
-        elif cfg["apply"] == "apply_dmfp02":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            h = h_mm / 1000.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=abs(P) * h)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=abs(P), M_kNm=abs(P) * h)
-
-        elif cfg["apply"] == "apply_dmfp03":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
-            L = L_mm / 1000.0
-
-            Vmax = abs(w) * L / 2.0
-            Mmax = abs(w) * (L**2) / 8.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax, M_kNm=Mmax)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(w) * L / 2.0
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=0.0)
-
-        elif cfg["apply"] == "apply_dmfp04":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
-            h = h_mm / 1000.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=abs(w) * h**2 / 2.0)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=abs(w) * h, M_kNm=abs(w) * h**2 / 2.0)
-
-        # -----------------------------
-        # DM-FR applies
-        # -----------------------------
-        elif cfg["apply"] == "apply_dmfr01":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            L = L_mm / 1000.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=abs(P), M_kNm=abs(P) * L)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(P)
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=abs(P) * L)
-
-        elif cfg["apply"] == "apply_dmfr02":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); P = float(vals["F_kN"])
-            h = h_mm / 1000.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=abs(P) * h)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=abs(P), M_kNm=abs(P) * h)
-
-        elif cfg["apply"] == "apply_dmfr03":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); M = float(vals["M_kNm"])
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=0.0, M_kNm=abs(M))
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = 0.0
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=abs(M))
-
-        elif cfg["apply"] == "apply_dmfr04":
-            L_mm = float(vals["L_mm"]); h_mm = float(vals["h_mm"]); w = float(vals["w_kNm"])
-            L = L_mm / 1000.0
-
-            Vmax = abs(w) * L
-            Mmax = abs(w) * (L**2) / 2.0
-
-            st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
-            _fill_beam_vm_to_components("beam_", V_kN=Vmax, M_kNm=Mmax)
-
-            st.session_state["col_L_mm_in"] = h_mm
-            st.session_state["col_N_in"] = -abs(w) * L
-            _fill_beam_vm_to_components("col_", V_kN=0.0, M_kNm=Mmax)
-
-
-        else:
+        # Case tag that matches your diagram key_prefix naming:
+        # e.g. "TM-PP-03" -> "tmpp03"
+        tag = case_key.lower().replace("-", "")
+    
+        beam_kp = f"{tag}_beam_"
+        col_kp  = f"{tag}_col_"
+    
+        # These must be cached by _render_member_vm (V_maxabs / M_maxabs)
+        Vb = float(st.session_state.get(f"{beam_kp}V_maxabs", 0.0))
+        Mb = float(st.session_state.get(f"{beam_kp}M_maxabs", 0.0))
+        Vc = float(st.session_state.get(f"{col_kp}V_maxabs", 0.0))
+        Mc = float(st.session_state.get(f"{col_kp}M_maxabs", 0.0))
+    
+        # Geometry
+        L_mm = float(vals.get("L_mm", 0.0))
+        h_mm = float(vals.get("h_mm", 0.0))
+    
+        # If diagrams were not rendered (or caching missing), fall back to your old apply
+        # so the app doesn't break.
+        if (Vb == 0.0 and Mb == 0.0 and Vc == 0.0 and Mc == 0.0) and cfg.get("apply"):
             _apply_ready_frame_case(case)
+        else:
+            # Beam design forces (use maxima from diagrams)
+            st.session_state["beam_L_mm_in"] = L_mm
+            st.session_state["beam_N_in"] = 0.0
+            _fill_VM_into_member_inputs("beam_", Vb, Mb)
+    
+            # Column design forces (use maxima from diagrams)
+            st.session_state["col_L_mm_in"] = h_mm
+    
+            # Column axial from reactions if available (your convention: compression negative)
+            RA_out = st.session_state.get(f"{tag}_RA_out", None)
+            RE_out = st.session_state.get(f"{tag}_RE_out", None)
+            if RA_out is not None or RE_out is not None:
+                ra = float(RA_out) if RA_out is not None else 0.0
+                re = float(RE_out) if RE_out is not None else 0.0
+                st.session_state["col_N_in"] = -max(abs(ra), abs(re))
+            else:
+                st.session_state["col_N_in"] = 0.0
+    
+            _fill_VM_into_member_inputs("col_", Vc, Mc)
 
         for k in ["beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
                   "col_df_rows", "col_overall_ok", "col_governing", "col_extras"]:
