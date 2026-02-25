@@ -8443,8 +8443,13 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     # End moments at beam-column joints (Pin/Pin Side UDL sheet)
     # (These are the TOP joint moments; bases are pins => base moments = 0)
     # -------------------------
-    MB = (3.0 * w * h**2 / 8.0) * ((beta * e + 2.0) / denom)
-    MC = (w * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom)
+    MB_mag = (3.0 * abs(w) * h**2 / 8.0) * ((beta * e + 2.0) / denom)
+    MC_mag = (abs(w) * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom)
+    
+    # Reference sign: MB negative, MC positive (for w outward positive)
+    sgn = 1.0 if w >= 0 else -1.0   # if user flips w, flip the whole diagram
+    MB = -sgn * MB_mag
+    MC = +sgn * MC_mag
 
     # -------------------------
     # Beam diagrams
