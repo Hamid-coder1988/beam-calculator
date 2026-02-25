@@ -8318,43 +8318,51 @@ def _render_tm_pp_03_whole_frame_diagrams(L_mm: float, h_mm: float, y_m: float, 
 def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w_in = float(w_kNm)  # kN/m (downward negative)
+    w_in = float(w_kNm)  # kN/m (downward negative is allowed)
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
     denom = (2.0 * beta * e + 3.0)
 
-    # ✅ KEEP UI SIGN (downward negative stays negative)
-    w = w_in
+    # Reference sheet assumes downward load is +w.
+    # Your UI is downward negative -> use magnitude for sheet equations.
+    w = -w_in  # so default -10 => w = +10
 
-    # Reactions (keep consistent with your sign convention)
+    # Reactions (sheet)
     RA = 0.5 * w * L
     RE = RA
     HA = (w * L) / (4.0 * e * denom) if (e != 0 and denom != 0) else 0.0
     HE = HA
 
-    # End moments
+    # Moments from sheet:
+    # MB is shown POSITIVE in the diagram
     MB = (w * L**2) / (4.0 * denom) if denom != 0 else 0.0
     MD = MB
 
-    # Beam diagrams
-    x = np.linspace(0.0, L, 401)
-    V = RA - w * x
-    M = MB + RA * x - 0.5 * w * x**2
+    # MC is shown NEGATIVE in the diagram (even though many sheets list magnitude only)
+    MC_mag = (w * L**2 / 8.0) * ((2.0 * beta * e + 1.0) / denom) if denom != 0 else 0.0
+    MC = -MC_mag  # <-- THIS is the key sign
 
-    # ✅ PLOT FLIP ONLY (to match STRUCT reference direction)
-    V_plot = -V
-    M_plot = -M
+    # Beam x-grid
+    x = np.linspace(0.0, L, 401)
+
+    # Shear (keep as your current triangular: +RA to -RA)
+    V = RA - w * x
+
+    # Build a parabola that EXACTLY matches the reference signs:
+    # M(0)=MB, M(L)=MB, M(L/2)=MC (negative)
+    a = 4.0 * (MB - MC) / (L**2)  # symmetric parabola coefficient
+    M_plot = a * (x - 0.5 * L) ** 2 + MC
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
-            x_m=x, V_kN=V_plot, M_kNm=M_plot,
+            x_m=x, V_kN=V, M_kNm=M_plot,
             member_prefix="beam_", key_prefix="tmpp04_beam_", x_label="x (m)"
         )
 
-    # Column diagrams (as before)
+    # Column diagrams (linear)
     y = np.linspace(0.0, h, 251)
     Vcol = np.full_like(y, HA)
     Mcol = HA * y
@@ -8368,24 +8376,29 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     _render_support_forces("tmpp04", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
-    # Deflection: use REAL internal M (not flipped)
-    delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
+    # Use the plotted moment shape for deflection too (matches your diagram convention)
+    delta = _deflection_from_M_numeric(x, M_plot, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
     
 def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w_in = float(w_kNm)  # kN/m (keep sign)
+    w_in = float(w_kNm)  # kN/m (UI sign is kept)
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
     denom = (2.0 * beta * e + 3.0)
 
-    # ✅ KEEP UI SIGN
+    # -------------------------------------------------------
+    # SIGN CONVENTION:
+    # Keep your UI sign for this case (as you already do).
+    # But your reference wants the BEAM diagrams drawn in the opposite direction.
+    # So: flip ONLY what you PLOT for the beam (V, M).
+    # -------------------------------------------------------
     w = w_in
 
-    # Reactions / end moments (your sheet-based formulas)
+    # Reactions / end moments from reference (use w directly)
     RA = (w * h**2) / (2.0 * max(L, 1e-9))
     RE = RA
 
@@ -8395,12 +8408,12 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     MB = (3.0 * w * h**2 / 8.0) * ((beta * e + 2.0) / denom) if denom != 0 else 0.0
     MC = (w * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
 
-    # Beam diagrams (linear)
+    # Beam diagrams (linear from MB to MC)
     x = np.linspace(0.0, L, 401)
     V = np.full_like(x, (MC - MB) / max(L, 1e-9))
     M = MB + (MC - MB) * (x / max(L, 1e-9))
 
-    # ✅ PLOT FLIP ONLY
+    # ✅ Plot in opposite direction (reference-style)
     V_plot = -V
     M_plot = -M
 
@@ -8411,7 +8424,7 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
             member_prefix="beam_", key_prefix="tmpp05_beam_", x_label="x (m)"
         )
 
-    # Column diagrams (as before)
+    # Column diagrams (keep as-is)
     y = np.linspace(0.0, h, 251)
     Vcol = np.full_like(y, HA)
     Mcol = HA * y
@@ -8425,7 +8438,7 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     _render_support_forces("tmpp05", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
-    # Deflection: use REAL internal M
+    # Deflection: use the real internal moment (not the flipped plot moment)
     delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
 
