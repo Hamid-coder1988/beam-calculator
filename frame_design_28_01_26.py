@@ -8391,11 +8391,11 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)  # kN/m (UI sign kept)
+    w_in = float(w_kNm)  # kN/m (UI sign kept)
     if L <= 0 or h <= 0:
         return
 
-    # --- Require selected sections (beta needs I_beam and I_col) ---
+    # --- Need β = I_beam / I_col ---
     Ib = _member_I_m4("beam_")
     Ic = _member_I_m4("col_")
     if (Ib is None) or (Ic is None) or (Ib <= 0) or (Ic <= 0):
@@ -8405,28 +8405,57 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     beta = Ib / Ic
     e = h / max(L, 1e-9)
 
-    denom = (2.0 * beta * e + 3.0)
+    # -------------------------------------------------------
+    # FIXED / FIXED — Side UDL sheet uses denominators (6βe + 1) and (βe + 2)
+    # -------------------------------------------------------
+    d1 = (6.0 * beta * e + 1.0)
+    d2 = (beta * e + 2.0)
 
-    # Reactions (your existing formulas)
-    RA = (w * h**2) / (2.0 * max(L, 1e-9))
-    RE = RA
-
-    HA = (w * h / 8.0) * ((11.0 * beta * e + 18.0) / denom) if denom != 0 else 0.0
-    HD = (w * h / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
-
-    # End moments from formulas (take magnitudes, then enforce the reference sign pattern)
-    MB_mag = (3.0 * abs(w) * h**2 / 8.0) * ((beta * e + 2.0) / denom) if denom != 0 else 0.0
-    MC_mag = (abs(w) * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
-
-    # Reference requirement you stated:
-    # beam at beginning NEGATIVE, beam at end POSITIVE.
-    # Keep this consistent with the input sign (flip if w is negative).
-    s = 1.0 if w >= 0 else -1.0
-    MB = -s * MB_mag
-    MC = +s * MC_mag
+    w = w_in  # keep UI sign
 
     # -------------------------
-    # Beam diagrams (no vertical load on beam here => linear M, constant V)
+    # Support reactions (from your reference image)
+    # RA = RD = w h β e^2 / (6 β e + 1)
+    # -------------------------
+    RA = (w * h * beta * e**2) / d1 if d1 != 0 else 0.0
+    RD = RA
+
+    # Horizontal reactions (from reference image)
+    # HA = (w h / 4) * [ (8βe+17)/(2(βe+2))  -  (4βe+3)/(6βe+1) ]
+    # HD = (w h / 4) * [ (4βe+3)/(6βe+1)  -  1/(2(βe+2)) ]
+    HA = (w * h / 4.0) * (
+        ((8.0 * beta * e + 17.0) / (2.0 * d2) if d2 != 0 else 0.0)
+        - ((4.0 * beta * e + 3.0) / d1 if d1 != 0 else 0.0)
+    )
+    HD = (w * h / 4.0) * (
+        ((4.0 * beta * e + 3.0) / d1 if d1 != 0 else 0.0)
+        - (1.0 / (2.0 * d2) if d2 != 0 else 0.0)
+    )
+
+    # -------------------------
+    # End moments (from reference image)
+    # MA = MD = (w h^2 /4) * [ (4βe+1)/(6βe+1)  +  (βe+3)/(6(βe+2)) ]
+    # MB = -(w h^2 βe /4) * [ 6/(6βe+1)  -  1/(6(βe+2)) ]
+    # MC = +(w h^2 βe /4) * [ 2/(6βe+1)  -  1/(6(βe+2)) ]
+    # -------------------------
+    MA = (w * h**2 / 4.0) * (
+        ((4.0 * beta * e + 1.0) / d1 if d1 != 0 else 0.0)
+        + ((beta * e + 3.0) / (6.0 * d2) if d2 != 0 else 0.0)
+    )
+    MD = MA
+
+    MB = -(w * h**2 * beta * e / 4.0) * (
+        (6.0 / d1 if d1 != 0 else 0.0)
+        - (1.0 / (6.0 * d2) if d2 != 0 else 0.0)
+    )
+    MC = +(w * h**2 * beta * e / 4.0) * (
+        (2.0 / d1 if d1 != 0 else 0.0)
+        - (1.0 / (6.0 * d2) if d2 != 0 else 0.0)
+    )
+
+    # -------------------------
+    # BEAM diagrams (no vertical load on beam in side-UDL case)
+    # Linear moment MB -> MC, constant shear
     # -------------------------
     x = np.linspace(0.0, L, 401)
     V_beam = np.full_like(x, (MC - MB) / max(L, 1e-9))
@@ -8440,23 +8469,24 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
         )
 
     # -------------------------
-    # Column diagrams
-    # LEFT column carries side UDL => curved M(y)
-    # Enforce joint continuity exactly: M_left(h) = MB
-    # Base assumed pin in this family => M_left(0) = 0
-    # Use quadratic M(y)=a y^2 + b y with a=-w/2 to represent UDL curvature
+    # LEFT COLUMN diagrams (has side UDL w):
+    # dV/dy = -w  => M is quadratic
+    # Enforce fixed end moments: M(0)=MA, M(h)=MB
+    # Use M(y)=a y^2 + b y + MA with a=-w/2
     # -------------------------
     y = np.linspace(0.0, h, 251)
     a = -0.5 * w
-    b = (MB - a * h**2) / max(h, 1e-9)
+    b = (MB - MA - a * h**2) / max(h, 1e-9)
 
-    M_col_L = a * y**2 + b * y
+    M_col_L = a * y**2 + b * y + MA
     V_col_L = 2.0 * a * y + b
 
-    # RIGHT column assumed not laterally loaded in this case model => linear M(y)
-    # Enforce joint continuity exactly: M_right(h) = MC, and M_right(0)=0
-    M_col_R = (MC / max(h, 1e-9)) * y
-    V_col_R = np.full_like(y, MC / max(h, 1e-9))
+    # -------------------------
+    # RIGHT COLUMN diagrams (no side UDL shown on right column in this sheet):
+    # Linear between fixed end moments M(0)=MD and M(h)=MC
+    # -------------------------
+    M_col_R = MD + (MC - MD) * (y / max(h, 1e-9))
+    V_col_R = np.full_like(y, (MC - MD) / max(h, 1e-9))
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
@@ -8473,10 +8503,11 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
             member_prefix="col_", key_prefix="tmpp05_colR_", x_label="y (m)"
         )
 
-    _render_support_forces("tmpp05", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HD)
+    # Support forces display (map to your UI fields)
+    _render_support_forces("tmpp05", RA_kN=RA, RE_kN=RD, HA_kN=HA, HE_kN=HD)
 
-    # Deflection: use the beam moment
-    delta = _deflection_from_M_numeric(x, M_beam, bc="ss", member_prefix="beam_")
+    # Deflection: beam moment is linear here (no beam UDL)
+    delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
 
 # -----------------------------
