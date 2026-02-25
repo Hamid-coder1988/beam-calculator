@@ -8321,41 +8321,75 @@ def _render_tm_pp_03_whole_frame_diagrams(L_mm: float, h_mm: float, y_m: float, 
 def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)  # kN/m (downward negative is allowed)
+    w_in = float(w_kNm)  # kN/m (downward negative is allowed)
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
     denom = (2.0 * beta * e + 3.0)
 
-    RA = 0.5 * w * L
-    RE = RA
-    HA = (w * L) / (4.0 * e * denom) if (e != 0 and denom != 0) else 0.0
-    HE = HA
+    # -------------------------------------------------------
+    # IMPORTANT SIGN HANDLING:
+    # Use magnitudes for the reference formulas (w0 >= 0),
+    # then apply direction so that:
+    # - w_in < 0 (downward) -> diagrams/reactions follow reference sign expectation
+    # - w_in > 0 (upward)   -> flips everything consistently
+    # -------------------------------------------------------
+    w0 = abs(w_in)
+    dirn = 0.0
+    if w_in < 0:
+        dirn = 1.0     # downward (default) -> keep base sign
+    elif w_in > 0:
+        dirn = -1.0    # upward -> flip sign
 
-    MB = (w * L**2) / (4.0 * denom) if denom != 0 else 0.0
-    MD = MB
+    # Reactions (base, using w0)
+    RA0 = 0.5 * w0 * L
+    RE0 = RA0
+    HA0 = (w0 * L) / (4.0 * e * denom) if (e != 0 and denom != 0) else 0.0
+    HE0 = HA0
 
+    # End moments (base, using w0)
+    MB0 = (w0 * L**2) / (4.0 * denom) if denom != 0 else 0.0
+    MD0 = MB0
+
+    # Apply direction
+    RA = dirn * RA0
+    RE = dirn * RE0
+    HA = dirn * HA0
+    HE = dirn * HE0
+    MB = dirn * MB0
+    MD = dirn * MD0
+
+    # Beam diagrams (use w0 in shape equations, then apply dirn)
     x = np.linspace(0.0, L, 401)
-    V = RA - w * x
-    M = MB + RA * x - 0.5 * w * x**2
+    V0 = RA0 - w0 * x
+    M0 = MB0 + RA0 * x - 0.5 * w0 * x**2
+    V = dirn * V0
+    M = dirn * M0
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpp04_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=V, M_kNm=M,
+            member_prefix="beam_", key_prefix="tmpp04_beam_", x_label="x (m)"
+        )
 
+    # Column diagrams (linear, pinned base -> M(0)=0, max at top)
     y = np.linspace(0.0, h, 251)
     Vcol = np.full_like(y, HA)
     Mcol = HA * y
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmpp04_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vcol, M_kNm=Mcol,
+            member_prefix="col_", key_prefix="tmpp04_col_", x_label="y (m)"
+        )
 
     _render_support_forces("tmpp04", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
     delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
 
 # -----------------------------
 # TM-PP-05: Side UDL on left column (use sheet moments/reactions)
@@ -8363,42 +8397,79 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)  # kN/m (outward +)
+    w_in = float(w_kNm)  # kN/m (downward negative allowed)
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
     denom = (2.0 * beta * e + 3.0)
 
-    RA = (w * h**2) / (2.0 * L)
-    RE = RA
+    # ---- sign handling (same idea as TM-PP-04) ----
+    w0 = abs(w_in)
+    if w_in < 0:
+        dirn = 1.0   # downward default
+    elif w_in > 0:
+        dirn = -1.0  # upward flips sign
+    else:
+        dirn = 0.0
 
-    HA = (w * h / 8.0) * ((11.0 * beta * e + 18.0) / denom) if denom != 0 else 0.0
-    HE = (w * h / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
+    # ---- Reactions / end moments from reference (use w0 in formulas) ----
+    # RA = RE = w*h^2/(2L)
+    RA0 = (w0 * h**2) / (2.0 * max(L, 1e-9))
+    RE0 = RA0
 
-    MB = (3.0 * w * h**2 / 8.0) * ((beta * e + 2.0) / denom) if denom != 0 else 0.0
-    MC = (w * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
+    # HA, HE per your existing reference implementation
+    # (you already had this exact formula, just make it use w0)
+    HA0 = (w0 * h / 8.0) * ((11.0 * beta * e + 18.0) / denom) if denom != 0 else 0.0
+    HE0 = (w0 * h / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
 
+    # Moments at beam ends (reference)
+    # MB = 3*w*h^2/8 * ((beta*e + 2)/(2*beta*e + 3))
+    # MC = w*h^2/8 * ((5*beta*e + 6)/(2*beta*e + 3))
+    MB0 = (3.0 * w0 * h**2 / 8.0) * ((beta * e + 2.0) / denom) if denom != 0 else 0.0
+    MC0 = (w0 * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
+
+    # Apply direction (so w=- gives “reference sign look”)
+    RA = dirn * RA0
+    RE = dirn * RE0
+    HA = dirn * HA0
+    HE = dirn * HE0
+    MB = dirn * MB0
+    MC = dirn * MC0
+
+    # ---- Beam diagrams ----
+    # No distributed load on the beam itself for this case in your model,
+    # so V is constant and M is linear from MB at x=0 to MC at x=L.
     x = np.linspace(0.0, L, 401)
-    V = np.full_like(x, RA)
-    M = MB + RA * x  # simple linear visualization
+    V = np.full_like(x, (MC - MB) / max(L, 1e-9))
+    M = MB + (MC - MB) * (x / max(L, 1e-9))
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmpp05_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=V, M_kNm=M,
+            member_prefix="beam_", key_prefix="tmpp05_beam_", x_label="x (m)"
+        )
 
+    # ---- Column diagrams ----
+    # Column shear is constant = HA or HE depending on which column you’re plotting.
+    # Your column tab represents one column; keep using left column (HA) consistently.
     y = np.linspace(0.0, h, 251)
     Vcol = np.full_like(y, HA)
     Mcol = HA * y
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmpp05_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vcol, M_kNm=Mcol,
+            member_prefix="col_", key_prefix="tmpp05_col_", x_label="y (m)"
+        )
 
     _render_support_forces("tmpp05", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
+    # Deflection based on beam M(x)
     delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
 
 # -----------------------------
 # TM-FF-01: Central point load
