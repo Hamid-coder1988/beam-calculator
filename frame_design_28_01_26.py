@@ -8387,42 +8387,24 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     beta, e = _frame_beta_e("beam_", "col_")
     denom = (2.0 * beta * e + 3.0)
 
-    # ---- sign handling (same idea as TM-PP-04) ----
-    w0 = abs(w_in)
-    if w_in < 0:
-        dirn = 1.0   # downward default
-    elif w_in > 0:
-        dirn = -1.0  # upward flips sign
-    else:
-        dirn = 0.0
+    # -------------------------------------------------------
+    # SIGN FIX (IMPORTANT):
+    # For this case, KEEP your UI sign.
+    # Reference you sent expects start moment negative for your default sign.
+    # -------------------------------------------------------
+    w = w_in
 
-    # ---- Reactions / end moments from reference (use w0 in formulas) ----
-    # RA = RE = w*h^2/(2L)
-    RA0 = (w0 * h**2) / (2.0 * max(L, 1e-9))
-    RE0 = RA0
+    # Reactions / end moments from reference (use w directly)
+    RA = (w * h**2) / (2.0 * max(L, 1e-9))
+    RE = RA
 
-    # HA, HE per your existing reference implementation
-    # (you already had this exact formula, just make it use w0)
-    HA0 = (w0 * h / 8.0) * ((11.0 * beta * e + 18.0) / denom) if denom != 0 else 0.0
-    HE0 = (w0 * h / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
+    HA = (w * h / 8.0) * ((11.0 * beta * e + 18.0) / denom) if denom != 0 else 0.0
+    HE = (w * h / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
 
-    # Moments at beam ends (reference)
-    # MB = 3*w*h^2/8 * ((beta*e + 2)/(2*beta*e + 3))
-    # MC = w*h^2/8 * ((5*beta*e + 6)/(2*beta*e + 3))
-    MB0 = (3.0 * w0 * h**2 / 8.0) * ((beta * e + 2.0) / denom) if denom != 0 else 0.0
-    MC0 = (w0 * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
+    MB = (3.0 * w * h**2 / 8.0) * ((beta * e + 2.0) / denom) if denom != 0 else 0.0
+    MC = (w * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom) if denom != 0 else 0.0
 
-    # Apply direction (so w=- gives “reference sign look”)
-    RA = dirn * RA0
-    RE = dirn * RE0
-    HA = dirn * HA0
-    HE = dirn * HE0
-    MB = dirn * MB0
-    MC = dirn * MC0
-
-    # ---- Beam diagrams ----
-    # No distributed load on the beam itself for this case in your model,
-    # so V is constant and M is linear from MB at x=0 to MC at x=L.
+    # Beam diagrams (linear from MB to MC)
     x = np.linspace(0.0, L, 401)
     V = np.full_like(x, (MC - MB) / max(L, 1e-9))
     M = MB + (MC - MB) * (x / max(L, 1e-9))
@@ -8434,9 +8416,7 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
             member_prefix="beam_", key_prefix="tmpp05_beam_", x_label="x (m)"
         )
 
-    # ---- Column diagrams ----
-    # Column shear is constant = HA or HE depending on which column you’re plotting.
-    # Your column tab represents one column; keep using left column (HA) consistently.
+    # Column diagrams (use left column consistently)
     y = np.linspace(0.0, h, 251)
     Vcol = np.full_like(y, HA)
     Mcol = HA * y
@@ -8450,7 +8430,6 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     _render_support_forces("tmpp05", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
-    # Deflection based on beam M(x)
     delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
 
