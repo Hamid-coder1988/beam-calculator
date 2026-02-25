@@ -8499,15 +8499,19 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 # -----------------------------
 # TM-FF-02: Top UDL
 # -----------------------------
-def _render_tm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float):
+def _render_tm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
     """
-    TM-FF-01 — Three member frame (Fixed / Fixed) — Central point load on beam.
-    UI convention: default P is negative = downward.
-    Reference (STRUCT) formulas assume downward load is +P.
+    TM-FF-01 — Three member frame (Fixed / Fixed) — Central point load at midspan.
+
+    UI convention:
+      F_kN is negative for downward (default in your app).
+
+    We use the STRUCT sheet formulas which are written for a downward load magnitude P>0.
+    So internally: P = -F_kN.
     """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    P_in = float(P_kN)  # kN (downward negative in UI)
+    F = float(F_kN)
     if L <= 0 or h <= 0:
         return
 
@@ -8521,37 +8525,25 @@ def _render_tm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
         return
 
     beta = Ib / Ic
-    e = h / max(L, 1e-9)
-
-    # Reference uses (βe + 2)
+    e = h / max(L, 1e-12)
     denom = (beta * e + 2.0)
-    if denom == 0:
-        st.error("Invalid geometry/section combination (βe + 2 = 0).")
+    if denom == 0.0:
+        st.error("Invalid combination: βe + 2 = 0.")
         return
 
-    # -------------------------
-    # Convert UI sign -> sheet sign
-    # Sheet assumes downward load is +P
-    # -------------------------
-    P = -P_in  # default P_in=-10 => P=+10
+    # Convert to downward magnitude used by sheet
+    P = -F  # if F is negative (downward), P is positive
 
     # -------------------------
-    # Support reactions (from reference)
+    # Support reactions (sheet)
     # -------------------------
     RA = P / 2.0
     RE = RA
-
-    HA = (3.0 * P * L) / (8.0 * h * denom) if h != 0 else 0.0
+    HA = (3.0 * P * L) / (8.0 * h * denom) if h != 0.0 else 0.0
     HE = HA
 
     # -------------------------
-    # End / key moments (from reference magnitudes)
-    # MA = ME = PL / [8(βe+2)]
-    # MB = MD = PL / [4(βe+2)]
-    # MC (magnitude) = (PL/4)*((βe+1)/(βe+2))
-    #
-    # SIGN CONVENTION to match the STRUCT BMD drawing:
-    # MB and MD are POSITIVE, MC is NEGATIVE (V-shape down at mid).
+    # Key moments (sheet magnitudes)
     # -------------------------
     MA = (P * L) / (8.0 * denom)
     ME = MA
@@ -8559,28 +8551,38 @@ def _render_tm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
     MB = (P * L) / (4.0 * denom)
     MD = MB
 
-    MC_mag = (P * L / 4.0) * ((beta * e + 1.0) / denom)
-    MC = -MC_mag
+    MC = (P * L / 4.0) * ((beta * e + 1.0) / denom)
 
     # -------------------------
-    # Beam diagrams (piecewise linear M with kink at mid due to point load)
-    # Enforce exactly: M(0)=MB, M(L/2)=MC, M(L)=MD
+    # SIGN / DIAGRAM DIRECTION (match your convention and the sheet picture)
+    # For downward load, the beam diagram has MB,MD positive and MC negative (V-shape down).
+    # So we plot: MB_plot = +MB, MD_plot = +MD, MC_plot = -MC.
+    # If user reverses load (F positive upward), everything flips automatically.
     # -------------------------
-    x = np.linspace(0.0, L, 401)
+    s = 1.0 if P >= 0 else -1.0  # normally +1
+    MB_plot = s * abs(MB)
+    MD_plot = s * abs(MD)
+    MC_plot = -s * abs(MC)
+
+    # Columns: fixed bases MA/ME are positive in the shown reference for downward case.
+    MA_plot = s * abs(MA)
+    ME_plot = s * abs(ME)
+
+    # -------------------------
+    # Beam diagrams (piecewise linear moment through B-C-D)
+    # Enforce exactly: M(0)=MB_plot, M(L/2)=MC_plot, M(L)=MD_plot
+    # -------------------------
+    x = np.linspace(0.0, L, 801)
     xm = 0.5 * L
+    left = x <= xm
 
     M_beam = np.empty_like(x)
-    left = x <= xm
-    right = ~left
+    M_beam[left]  = MB_plot + (MC_plot - MB_plot) * (x[left] / max(xm, 1e-12))
+    M_beam[~left] = MC_plot + (MD_plot - MC_plot) * ((x[~left] - xm) / max(xm, 1e-12))
 
-    # linear from (0,MB) to (L/2,MC)
-    M_beam[left] = MB + (MC - MB) * (x[left] / max(xm, 1e-9))
-    # linear from (L/2,MC) to (L,MD)
-    M_beam[right] = MC + (MD - MC) * ((x[right] - xm) / max(xm, 1e-9))
-
-    # Shear = dM/dx (constant on each half)
-    V_left = (MC - MB) / max(xm, 1e-9)
-    V_right = (MD - MC) / max(xm, 1e-9)
+    # Shear as slope dM/dx (piecewise constant)
+    V_left  = (MC_plot - MB_plot) / max(xm, 1e-12)
+    V_right = (MD_plot - MC_plot) / max(xm, 1e-12)
     V_beam = np.where(left, V_left, V_right)
 
     with st.expander("Beam diagrams", expanded=False):
@@ -8591,19 +8593,17 @@ def _render_tm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
         )
 
     # -------------------------
-    # Column diagrams
-    # No distributed load along column in this idealized sheet model -> linear M(y)
-    # Enforce joint continuity exactly:
-    # Left column: M(0)=MA, M(h)=MB
-    # Right column: M(0)=ME, M(h)=MD
+    # Column diagrams — enforce joint continuity exactly
+    # Left column: M(0)=MA_plot, M(h)=MB_plot
+    # Right column: M(0)=ME_plot, M(h)=MD_plot
     # -------------------------
-    y = np.linspace(0.0, h, 251)
+    y = np.linspace(0.0, h, 401)
 
-    M_col_L = MA + (MB - MA) * (y / max(h, 1e-9))
-    V_col_L = np.full_like(y, (MB - MA) / max(h, 1e-9))
+    M_col_L = MA_plot + (MB_plot - MA_plot) * (y / max(h, 1e-12))
+    V_col_L = np.full_like(y, (MB_plot - MA_plot) / max(h, 1e-12))
 
-    M_col_R = ME + (MD - ME) * (y / max(h, 1e-9))
-    V_col_R = np.full_like(y, (MD - ME) / max(h, 1e-9))
+    M_col_R = ME_plot + (MD_plot - ME_plot) * (y / max(h, 1e-12))
+    V_col_R = np.full_like(y, (MD_plot - ME_plot) / max(h, 1e-12))
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
@@ -8620,15 +8620,9 @@ def _render_tm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float)
             member_prefix="col_", key_prefix="tmff01_colR_", x_label="y (m)"
         )
 
-    # -------------------------
-    # Support forces display
-    # -------------------------
     _render_support_forces("tmff01", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
-    # -------------------------
-    # Deflection (beam)
-    # Use fixed-fixed for beam in this case family
-    # -------------------------
+    # Deflection: use the plotted beam moment convention (fixed-fixed)
     delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
     
