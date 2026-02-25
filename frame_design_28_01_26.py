@@ -8495,6 +8495,142 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     # Deflection (beam)
     delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
+
+# -----------------------------
+# TM-FF-02: Top UDL
+# -----------------------------
+def _render_tm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, P_kN: float):
+    """
+    TM-FF-01 — Three member frame (Fixed / Fixed) — Central point load on beam.
+    UI convention: default P is negative = downward.
+    Reference (STRUCT) formulas assume downward load is +P.
+    """
+    L = float(L_mm) / 1000.0
+    h = float(h_mm) / 1000.0
+    P_in = float(P_kN)  # kN (downward negative in UI)
+    if L <= 0 or h <= 0:
+        return
+
+    # -------------------------
+    # Require selected sections (beta needs I)
+    # -------------------------
+    Ib = _member_I_m4("beam_")
+    Ic = _member_I_m4("col_")
+    if (Ib is None) or (Ic is None) or (Ib <= 0) or (Ic <= 0):
+        st.info("Select **Beam** and **Column** sections first (β = I_beam / I_col is required).")
+        return
+
+    beta = Ib / Ic
+    e = h / max(L, 1e-9)
+
+    # Reference uses (βe + 2)
+    denom = (beta * e + 2.0)
+    if denom == 0:
+        st.error("Invalid geometry/section combination (βe + 2 = 0).")
+        return
+
+    # -------------------------
+    # Convert UI sign -> sheet sign
+    # Sheet assumes downward load is +P
+    # -------------------------
+    P = -P_in  # default P_in=-10 => P=+10
+
+    # -------------------------
+    # Support reactions (from reference)
+    # -------------------------
+    RA = P / 2.0
+    RE = RA
+
+    HA = (3.0 * P * L) / (8.0 * h * denom) if h != 0 else 0.0
+    HE = HA
+
+    # -------------------------
+    # End / key moments (from reference magnitudes)
+    # MA = ME = PL / [8(βe+2)]
+    # MB = MD = PL / [4(βe+2)]
+    # MC (magnitude) = (PL/4)*((βe+1)/(βe+2))
+    #
+    # SIGN CONVENTION to match the STRUCT BMD drawing:
+    # MB and MD are POSITIVE, MC is NEGATIVE (V-shape down at mid).
+    # -------------------------
+    MA = (P * L) / (8.0 * denom)
+    ME = MA
+
+    MB = (P * L) / (4.0 * denom)
+    MD = MB
+
+    MC_mag = (P * L / 4.0) * ((beta * e + 1.0) / denom)
+    MC = -MC_mag
+
+    # -------------------------
+    # Beam diagrams (piecewise linear M with kink at mid due to point load)
+    # Enforce exactly: M(0)=MB, M(L/2)=MC, M(L)=MD
+    # -------------------------
+    x = np.linspace(0.0, L, 401)
+    xm = 0.5 * L
+
+    M_beam = np.empty_like(x)
+    left = x <= xm
+    right = ~left
+
+    # linear from (0,MB) to (L/2,MC)
+    M_beam[left] = MB + (MC - MB) * (x[left] / max(xm, 1e-9))
+    # linear from (L/2,MC) to (L,MD)
+    M_beam[right] = MC + (MD - MC) * ((x[right] - xm) / max(xm, 1e-9))
+
+    # Shear = dM/dx (constant on each half)
+    V_left = (MC - MB) / max(xm, 1e-9)
+    V_right = (MD - MC) / max(xm, 1e-9)
+    V_beam = np.where(left, V_left, V_right)
+
+    with st.expander("Beam diagrams", expanded=False):
+        small_title("Beam diagrams")
+        _render_member_vm(
+            x_m=x, V_kN=V_beam, M_kNm=M_beam,
+            member_prefix="beam_", key_prefix="tmff01_beam_", x_label="x (m)"
+        )
+
+    # -------------------------
+    # Column diagrams
+    # No distributed load along column in this idealized sheet model -> linear M(y)
+    # Enforce joint continuity exactly:
+    # Left column: M(0)=MA, M(h)=MB
+    # Right column: M(0)=ME, M(h)=MD
+    # -------------------------
+    y = np.linspace(0.0, h, 251)
+
+    M_col_L = MA + (MB - MA) * (y / max(h, 1e-9))
+    V_col_L = np.full_like(y, (MB - MA) / max(h, 1e-9))
+
+    M_col_R = ME + (MD - ME) * (y / max(h, 1e-9))
+    V_col_R = np.full_like(y, (MD - ME) / max(h, 1e-9))
+
+    with st.expander("Column diagrams", expanded=False):
+        small_title("Column diagrams")
+
+        st.caption("Left column")
+        _render_member_vm(
+            x_m=y, V_kN=V_col_L, M_kNm=M_col_L,
+            member_prefix="col_", key_prefix="tmff01_colL_", x_label="y (m)"
+        )
+
+        st.caption("Right column")
+        _render_member_vm(
+            x_m=y, V_kN=V_col_R, M_kNm=M_col_R,
+            member_prefix="col_", key_prefix="tmff01_colR_", x_label="y (m)"
+        )
+
+    # -------------------------
+    # Support forces display
+    # -------------------------
+    _render_support_forces("tmff01", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
+
+    # -------------------------
+    # Deflection (beam)
+    # Use fixed-fixed for beam in this case family
+    # -------------------------
+    delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
+    _set_deflection_summary(delta, L_ref_m=L)
     
 # -----------------------------
 # TM-FF-02: Top UDL
