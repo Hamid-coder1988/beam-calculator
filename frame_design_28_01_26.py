@@ -8391,82 +8391,64 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w_in = float(w_kNm)  # kN/m (UI sign kept)
+    w = float(w_kNm)  # kN/m (+ outward)
     if L <= 0 or h <= 0:
         return
 
-    # -------------------------
-    # Require beam + column sections (beta needs I)
-    # -------------------------
+    # Need β = I_beam / I_col (if your sheet uses the opposite, swap it here)
     Ib = _member_I_m4("beam_")
     Ic = _member_I_m4("col_")
     if (Ib is None) or (Ic is None) or (Ib <= 0) or (Ic <= 0):
-        st.info("Select **Beam** and **Column** sections first (β = I_beam / I_col is required).")
+        st.info("Select **Beam** and **Column** sections first (β is required).")
         return
 
     beta = Ib / Ic
     e = h / max(L, 1e-9)
 
-    # Fixed/Fixed side UDL denominators (from STRUCT sheet family)
+    # (Optional) show what the app is actually using
+    st.caption(f"Using β = {beta:.4g}, e = {e:.4g}")
+
+    # Fixed/Fixed – Side UDL (STRUCT sheet)
     d1 = (6.0 * beta * e + 1.0)
     d2 = (beta * e + 2.0)
 
-    # Use magnitude in formulas, then apply load-direction sign
-    w = abs(w_in)
-    s = 1.0 if w_in >= 0 else -1.0  # if user flips load direction, flip whole solution
+    # Support reactions (from sheet)
+    RA = (w * h * beta * e**2) / d1 if d1 != 0 else 0.0
+    RD = RA
 
-    # -------------------------
-    # Reactions (magnitudes from sheet; then apply sign with s)
-    # -------------------------
-    RA_mag = (w * h * beta * e**2) / d1 if d1 != 0 else 0.0
-    RD_mag = RA_mag
-
-    HA_mag = (w * h / 4.0) * (
+    HA = (w * h / 4.0) * (
         ((8.0 * beta * e + 17.0) / (2.0 * d2) if d2 != 0 else 0.0)
         - ((4.0 * beta * e + 3.0) / d1 if d1 != 0 else 0.0)
     )
-    HD_mag = (w * h / 4.0) * (
+    HD = (w * h / 4.0) * (
         ((4.0 * beta * e + 3.0) / d1 if d1 != 0 else 0.0)
         - (1.0 / (2.0 * d2) if d2 != 0 else 0.0)
     )
 
-    RA = s * RA_mag
-    RD = s * RD_mag
-    HA = s * HA_mag
-    HD = s * HD_mag
-
-    # -------------------------
-    # End moments magnitudes (from sheet family)
-    # -------------------------
-    MA_mag = (w * h**2 / 4.0) * (
+    # End moments (from sheet) — NO manual sign forcing
+    MA = (w * h**2 / 4.0) * (
         ((4.0 * beta * e + 1.0) / d1 if d1 != 0 else 0.0)
         + ((beta * e + 3.0) / (6.0 * d2) if d2 != 0 else 0.0)
     )
 
-    MB_mag = (w * h**2 * beta * e / 4.0) * (
+    MB = -(w * h**2 * beta * e / 4.0) * (
         (6.0 / d1 if d1 != 0 else 0.0)
         - (1.0 / (6.0 * d2) if d2 != 0 else 0.0)
     )
 
-    MC_mag = (w * h**2 * beta * e / 4.0) * (
+    MC = +(w * h**2 * beta * e / 4.0) * (
         (2.0 / d1 if d1 != 0 else 0.0)
         - (1.0 / (6.0 * d2) if d2 != 0 else 0.0)
     )
 
-    # -------------------------
-    # YOUR REQUIRED SIGN PATTERN (for w_in > 0):
-    # MA +, MB -, ME(=MD) -, MC +
-    # If w_in < 0, flip all signs with s.
-    # -------------------------
-    MA = s * abs(MA_mag)          # +
-    MB = s * (-abs(MB_mag))       # -
-    MC = s * (abs(MC_mag))        # +
-    MD = s * (-abs(MA_mag))       # right base moment negative (you call it ME)
+    MD = (w * h**2 / 4.0) * (
+        ((4.0 * beta * e + 1.0) / d1 if d1 != 0 else 0.0)
+        - ((beta * e + 3.0) / (6.0 * d2) if d2 != 0 else 0.0)
+    )
 
     # -------------------------
-    # BEAM diagrams (no vertical load on beam here)
-    # Linear M from MB to MC; V constant
-    # This guarantees: M_beam(0)=MB and M_beam(L)=MC
+    # Beam (no vertical load on beam in side-UDL case)
+    # Linear M from MB to MC, constant V
     # -------------------------
     x = np.linspace(0.0, L, 401)
     M_beam = MB + (MC - MB) * (x / max(L, 1e-9))
@@ -8480,22 +8462,18 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
         )
 
     # -------------------------
-    # LEFT COLUMN (has side UDL w along height) -> quadratic
-    # Enforce exactly: M(0)=MA and M(h)=MB
-    #
-    # Use: M(y)=a y^2 + b y + MA with a=-w_in/2 (keeps the correct curvature direction)
+    # Left column (loaded by side UDL): quadratic
+    # Enforce M(0)=MA and M(h)=MB with curvature from w
+    # M(y)=a y^2 + b y + MA, with a = -w/2
     # -------------------------
     y = np.linspace(0.0, h, 251)
-    aL = -0.5 * w_in
+    aL = -0.5 * w
     bL = (MB - MA - aL * h**2) / max(h, 1e-9)
 
     M_col_L = aL * y**2 + bL * y + MA
     V_col_L = 2.0 * aL * y + bL
 
-    # -------------------------
-    # RIGHT COLUMN (no side UDL shown on right column in your sheet) -> linear
-    # Enforce exactly: M(0)=MD(=ME) and M(h)=MC
-    # -------------------------
+    # Right column (no side UDL in this sheet): linear between MD and MC
     M_col_R = MD + (MC - MD) * (y / max(h, 1e-9))
     V_col_R = np.full_like(y, (MC - MD) / max(h, 1e-9))
 
@@ -8514,10 +8492,10 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
             member_prefix="col_", key_prefix="tmpp05_colR_", x_label="y (m)"
         )
 
-    # Support forces display (map to your UI fields)
+    # Support forces display
     _render_support_forces("tmpp05", RA_kN=RA, RE_kN=RD, HA_kN=HA, HE_kN=HD)
 
-    # Deflection (beam only; use fixed-fixed if that’s what your report expects)
+    # Deflection (beam)
     delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
     
