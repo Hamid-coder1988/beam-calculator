@@ -8405,9 +8405,6 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     beta = Ib / Ic
     e = h / max(L, 1e-9)
 
-    # (Optional) show what the app is actually using
-    st.caption(f"Using β = {beta:.4g}, e = {e:.4g}")
-
     # Fixed/Fixed – Side UDL (STRUCT sheet)
     d1 = (6.0 * beta * e + 1.0)
     d2 = (beta * e + 2.0)
