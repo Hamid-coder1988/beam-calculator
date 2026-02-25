@@ -8389,67 +8389,70 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     _set_deflection_summary(delta, L_ref_m=L)
     
 def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    """
+    TM-PP-05 — Three Member Frame (Pin / Pin) — Side UDL on LEFT column.
+
+    Reference (STRUCT: Pin/Pin - Side UDL):
+      e = h/L
+      β = Ih/Iv (you implemented as I_beam / I_col)
+
+      RA = RD = w*h^2 / (2L)
+
+      HA = (w*h/8) * (11βe + 18) / (2βe + 3)
+      HD = (w*h/8) * ( 5βe +  6) / (2βe + 3)
+
+      MB = (3 w h^2 / 8) * (βe + 2) / (2βe + 3)
+      MC = (  w h^2 / 8) * (5βe + 6) / (2βe + 3)
+
+    IMPORTANT:
+      - Bases are pins => M at column feet is ZERO.
+      - Joint moment continuity:
+          beam(0)=MB = left column top
+          beam(L)=MC = right column top
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)  # kN/m (+ outward)
+    w = float(w_kNm)  # kN/m (+ outward in your UI)
     if L <= 0 or h <= 0:
         return
 
-    # Need β = I_beam / I_col (if your sheet uses the opposite, swap it here)
+    # Require sections (β needs I)
     Ib = _member_I_m4("beam_")
     Ic = _member_I_m4("col_")
     if (Ib is None) or (Ic is None) or (Ib <= 0) or (Ic <= 0):
-        st.info("Select **Beam** and **Column** sections first (β is required).")
+        st.info("Select **Beam** and **Column** sections first (β = I_beam / I_col is required).")
         return
 
     beta = Ib / Ic
-    e = h / max(L, 1e-9)
+    e = h / max(L, 1e-12)
+    denom = (2.0 * beta * e + 3.0)
+    if denom == 0.0:
+        st.error("Invalid combination: 2βe + 3 = 0.")
+        return
 
-    # Fixed/Fixed – Side UDL (STRUCT sheet)
-    d1 = (6.0 * beta * e + 1.0)
-    d2 = (beta * e + 2.0)
-
-    # Support reactions (from sheet)
-    RA = (w * h * beta * e**2) / d1 if d1 != 0 else 0.0
+    # -------------------------
+    # Support reactions (Pin/Pin Side UDL sheet)
+    # -------------------------
+    RA = w * h**2 / (2.0 * max(L, 1e-12))
     RD = RA
 
-    HA = (w * h / 4.0) * (
-        ((8.0 * beta * e + 17.0) / (2.0 * d2) if d2 != 0 else 0.0)
-        - ((4.0 * beta * e + 3.0) / d1 if d1 != 0 else 0.0)
-    )
-    HD = (w * h / 4.0) * (
-        ((4.0 * beta * e + 3.0) / d1 if d1 != 0 else 0.0)
-        - (1.0 / (2.0 * d2) if d2 != 0 else 0.0)
-    )
-
-    # End moments (from sheet) — NO manual sign forcing
-    MA = (w * h**2 / 4.0) * (
-        ((4.0 * beta * e + 1.0) / d1 if d1 != 0 else 0.0)
-        + ((beta * e + 3.0) / (6.0 * d2) if d2 != 0 else 0.0)
-    )
-
-    MB = -(w * h**2 * beta * e / 4.0) * (
-        (6.0 / d1 if d1 != 0 else 0.0)
-        - (1.0 / (6.0 * d2) if d2 != 0 else 0.0)
-    )
-
-    MC = +(w * h**2 * beta * e / 4.0) * (
-        (2.0 / d1 if d1 != 0 else 0.0)
-        - (1.0 / (6.0 * d2) if d2 != 0 else 0.0)
-    )
-
-    MD = (w * h**2 / 4.0) * (
-        ((4.0 * beta * e + 1.0) / d1 if d1 != 0 else 0.0)
-        - ((beta * e + 3.0) / (6.0 * d2) if d2 != 0 else 0.0)
-    )
+    HA = (w * h / 8.0) * ((11.0 * beta * e + 18.0) / denom)
+    HD = (w * h / 8.0) * ((5.0 * beta * e + 6.0) / denom)
 
     # -------------------------
-    # Beam (no vertical load on beam in side-UDL case)
-    # Linear M from MB to MC, constant V
+    # End moments at beam-column joints (Pin/Pin Side UDL sheet)
+    # (These are the TOP joint moments; bases are pins => base moments = 0)
+    # -------------------------
+    MB = (3.0 * w * h**2 / 8.0) * ((beta * e + 2.0) / denom)
+    MC = (w * h**2 / 8.0) * ((5.0 * beta * e + 6.0) / denom)
+
+    # -------------------------
+    # Beam diagrams
+    # No vertical load on beam; moment varies linearly MB -> MC
     # -------------------------
     x = np.linspace(0.0, L, 401)
-    M_beam = MB + (MC - MB) * (x / max(L, 1e-9))
-    V_beam = np.full_like(x, (MC - MB) / max(L, 1e-9))
+    M_beam = MB + (MC - MB) * (x / max(L, 1e-12))
+    V_beam = np.full_like(x, (MC - MB) / max(L, 1e-12))
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
@@ -8459,20 +8462,26 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
         )
 
     # -------------------------
-    # Left column (loaded by side UDL): quadratic
-    # Enforce M(0)=MA and M(h)=MB with curvature from w
-    # M(y)=a y^2 + b y + MA, with a = -w/2
+    # Column diagrams
+    # LEFT column is loaded by side UDL w => quadratic M(y)
+    # Base is PIN => M(0)=0
+    # Top must match joint moment => M(h)=MB
+    #
+    # Use: M(y) = a y^2 + b y, with a = -w/2 (since dV/dy = -w)
+    # b from M(h)=MB
     # -------------------------
     y = np.linspace(0.0, h, 251)
-    aL = -0.5 * w
-    bL = (MB - MA - aL * h**2) / max(h, 1e-9)
 
-    M_col_L = aL * y**2 + bL * y + MA
+    aL = -0.5 * w
+    bL = (MB - aL * h**2) / max(h, 1e-12)
+
+    M_col_L = aL * y**2 + bL * y
     V_col_L = 2.0 * aL * y + bL
 
-    # Right column (no side UDL in this sheet): linear between MD and MC
-    M_col_R = MD + (MC - MD) * (y / max(h, 1e-9))
-    V_col_R = np.full_like(y, (MC - MD) / max(h, 1e-9))
+    # RIGHT column has no side UDL in this sheet model => linear M from 0 to MC
+    # Base is PIN => M(0)=0, Top => M(h)=MC
+    M_col_R = (MC / max(h, 1e-12)) * y
+    V_col_R = np.full_like(y, MC / max(h, 1e-12))
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
@@ -8489,11 +8498,11 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
             member_prefix="col_", key_prefix="tmpp05_colR_", x_label="y (m)"
         )
 
-    # Support forces display
+    # Support forces display (map RD/HD into RE/HE)
     _render_support_forces("tmpp05", RA_kN=RA, RE_kN=RD, HA_kN=HA, HE_kN=HD)
 
-    # Deflection (beam)
-    delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
+    # Deflection: keep what you were using for TM-PP cases (don’t change if you already tuned it)
+    delta = _deflection_from_M_numeric(x, M_beam, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
 
 # -----------------------------
