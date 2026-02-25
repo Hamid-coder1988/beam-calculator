@@ -8329,9 +8329,9 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     denom = (2.0 * beta * e + 3.0)
 
     # -------------------------------------------------------
-    # SIGN FIX (IMPORTANT):
+    # Keep your existing sign convention:
     # Reference formulas assume downward UDL is +w.
-    # Your UI uses downward negative, so flip here.
+    # Your UI default is negative for downward -> flip here.
     # -------------------------------------------------------
     w = -w_in
 
@@ -8341,23 +8341,30 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     HA = (w * L) / (4.0 * e * denom) if (e != 0 and denom != 0) else 0.0
     HE = HA
 
-    # End moments
+    # End moments (magnitudes per reference formulas)
     MB = (w * L**2) / (4.0 * denom) if denom != 0 else 0.0
     MD = MB
 
-    # Beam diagrams
+    # Beam diagrams (physics)
     x = np.linspace(0.0, L, 401)
     V = RA - w * x
     M = MB + RA * x - 0.5 * w * x**2
 
+    # -------------------------------------------------------
+    # PLOT SIGN FIX:
+    # STRUCT reference draws the BMD downward.
+    # So invert ONLY the plotted bending moment.
+    # -------------------------------------------------------
+    M_plot = -M
+
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
-            x_m=x, V_kN=V, M_kNm=M,
+            x_m=x, V_kN=V, M_kNm=M_plot,
             member_prefix="beam_", key_prefix="tmpp04_beam_", x_label="x (m)"
         )
 
-    # Column diagrams (linear)
+    # Column diagrams (keep as-is)
     y = np.linspace(0.0, h, 251)
     Vcol = np.full_like(y, HA)
     Mcol = HA * y
@@ -8371,6 +8378,7 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     _render_support_forces("tmpp04", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
+    # Deflection: use the REAL internal moment (sign doesn't matter because you take abs/max)
     delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
     
@@ -8380,18 +8388,14 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w_in = float(w_kNm)  # kN/m (downward negative allowed)
+    w_in = float(w_kNm)  # kN/m
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
     denom = (2.0 * beta * e + 3.0)
 
-    # -------------------------------------------------------
-    # SIGN FIX (IMPORTANT):
-    # For this case, KEEP your UI sign.
-    # Reference you sent expects start moment negative for your default sign.
-    # -------------------------------------------------------
+    # Keep your UI sign for this load case (as your code already does)
     w = w_in
 
     # Reactions / end moments from reference (use w directly)
@@ -8409,14 +8413,21 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     V = np.full_like(x, (MC - MB) / max(L, 1e-9))
     M = MB + (MC - MB) * (x / max(L, 1e-9))
 
+    # -------------------------------------------------------
+    # PLOT SIGN FIX:
+    # STRUCT reference draws the beam BMD downward.
+    # So invert ONLY the plotted bending moment.
+    # -------------------------------------------------------
+    M_plot = -M
+
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
-            x_m=x, V_kN=V, M_kNm=M,
+            x_m=x, V_kN=V, M_kNm=M_plot,
             member_prefix="beam_", key_prefix="tmpp05_beam_", x_label="x (m)"
         )
 
-    # Column diagrams (use left column consistently)
+    # Column diagrams (keep as-is, left column)
     y = np.linspace(0.0, h, 251)
     Vcol = np.full_like(y, HA)
     Mcol = HA * y
@@ -8430,54 +8441,9 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     _render_support_forces("tmpp05", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
+    # Deflection: use the REAL internal moment
     delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
-# -----------------------------
-# TM-FF-01: Central point load
-# -----------------------------
-def _render_tm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    L = float(L_mm) / 1000.0
-    h = float(h_mm) / 1000.0
-    P = float(F_kN)
-    if L <= 0 or h <= 0:
-        return
-
-    beta, e = _frame_beta_e("beam_", "col_")
-    denom = (beta * e + 2.0)
-
-    RA = 0.5 * P
-    RE = RA
-    HA = (3.0 * P * L) / (8.0 * h * denom) if (h != 0 and denom != 0) else 0.0
-    HE = HA
-
-    MB = (P * L) / (4.0 * denom) if denom != 0 else 0.0
-    MD = MB
-    x_load = 0.5 * L
-
-    x = np.linspace(0.0, L, 401)
-    V = np.where(x <= x_load, RA, RA - P)
-    M = np.where(x <= x_load, MB + RA * x, MB + RA * x - P * (x - x_load))
-
-    with st.expander("Beam diagrams", expanded=False):
-        small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmff01_beam_", x_label="x (m)")
-
-    y = np.linspace(0.0, h, 251)
-    # fixed base: include base moment MA (from sheet)
-    MA = (P * L) / (8.0 * denom) if denom != 0 else 0.0
-    Mcol = MA + (MB - MA) * (y / h)
-    Vcol = np.full_like(y, (MB - MA) / h if h != 0 else 0.0)
-
-    with st.expander("Column diagrams", expanded=False):
-        small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmff01_col_", x_label="y (m)")
-
-    _render_support_forces("tmff01", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
-
-    delta = _deflection_from_M_numeric(x, M, bc="ff", member_prefix="beam_")
-    _set_deflection_summary(delta, L_ref_m=L)
-
 
 # -----------------------------
 # TM-FF-02: Top UDL
