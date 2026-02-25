@@ -8509,7 +8509,6 @@ def _render_tm_pp_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     # Deflection: beam moment is linear here (no beam UDL)
     delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
 # -----------------------------
 # TM-FF-02: Top UDL
 # -----------------------------
