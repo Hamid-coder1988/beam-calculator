@@ -8329,43 +8329,26 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     denom = (2.0 * beta * e + 3.0)
 
     # -------------------------------------------------------
-    # IMPORTANT SIGN HANDLING:
-    # Use magnitudes for the reference formulas (w0 >= 0),
-    # then apply direction so that:
-    # - w_in < 0 (downward) -> diagrams/reactions follow reference sign expectation
-    # - w_in > 0 (upward)   -> flips everything consistently
+    # SIGN FIX (IMPORTANT):
+    # Reference formulas assume downward UDL is +w.
+    # Your UI uses downward negative, so flip here.
     # -------------------------------------------------------
-    w0 = abs(w_in)
-    dirn = 0.0
-    if w_in < 0:
-        dirn = 1.0     # downward (default) -> keep base sign
-    elif w_in > 0:
-        dirn = -1.0    # upward -> flip sign
+    w = -w_in
 
-    # Reactions (base, using w0)
-    RA0 = 0.5 * w0 * L
-    RE0 = RA0
-    HA0 = (w0 * L) / (4.0 * e * denom) if (e != 0 and denom != 0) else 0.0
-    HE0 = HA0
+    # Reactions
+    RA = 0.5 * w * L
+    RE = RA
+    HA = (w * L) / (4.0 * e * denom) if (e != 0 and denom != 0) else 0.0
+    HE = HA
 
-    # End moments (base, using w0)
-    MB0 = (w0 * L**2) / (4.0 * denom) if denom != 0 else 0.0
-    MD0 = MB0
+    # End moments
+    MB = (w * L**2) / (4.0 * denom) if denom != 0 else 0.0
+    MD = MB
 
-    # Apply direction
-    RA = dirn * RA0
-    RE = dirn * RE0
-    HA = dirn * HA0
-    HE = dirn * HE0
-    MB = dirn * MB0
-    MD = dirn * MD0
-
-    # Beam diagrams (use w0 in shape equations, then apply dirn)
+    # Beam diagrams
     x = np.linspace(0.0, L, 401)
-    V0 = RA0 - w0 * x
-    M0 = MB0 + RA0 * x - 0.5 * w0 * x**2
-    V = dirn * V0
-    M = dirn * M0
+    V = RA - w * x
+    M = MB + RA * x - 0.5 * w * x**2
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
@@ -8374,7 +8357,7 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
             member_prefix="beam_", key_prefix="tmpp04_beam_", x_label="x (m)"
         )
 
-    # Column diagrams (linear, pinned base -> M(0)=0, max at top)
+    # Column diagrams (linear)
     y = np.linspace(0.0, h, 251)
     Vcol = np.full_like(y, HA)
     Mcol = HA * y
@@ -8390,7 +8373,7 @@ def _render_tm_pp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     delta = _deflection_from_M_numeric(x, M, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
+    
 # -----------------------------
 # TM-PP-05: Side UDL on left column (use sheet moments/reactions)
 # -----------------------------
