@@ -9705,10 +9705,14 @@ def _render_ready_frame_cases():
             # Column axial from reactions if available (your convention: compression negative)
             RA_out = st.session_state.get(f"{tag}_RA_out", None)
             RE_out = st.session_state.get(f"{tag}_RE_out", None)
-            if RA_out is not None or RE_out is not None:
-                ra = float(RA_out) if RA_out is not None else 0.0
-                re = float(RE_out) if RE_out is not None else 0.0
-                st.session_state["col_N_in"] = -max(abs(ra), abs(re))
+            
+            # In your app the "Column" member represents ONE column.
+            # Use RA if available (left support), otherwise RE.
+            # Compression is negative in your convention.
+            if RA_out is not None:
+                st.session_state["col_N_in"] = -abs(float(RA_out))
+            elif RE_out is not None:
+                st.session_state["col_N_in"] = -abs(float(RE_out))
             else:
                 st.session_state["col_N_in"] = 0.0
     
