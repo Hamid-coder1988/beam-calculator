@@ -7893,28 +7893,72 @@ def _render_tm_fr_05_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
         _set_deflection_summary(abs(Dy), L_ref_m=L)
 
 def _render_dm_pp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    """DM-PP-01: Two Member Frame (Pin/Pin) — Top Point Load at C (assumed midspan)."""
+    """
+    DM-PP-01: Two Member Frame (Pin/Pin) — Top Point Load at C (assumed midspan).
+
+    Match STRUCT reference shape:
+      - Beam BMD: starts POSITIVE at B, goes NEGATIVE at C, ends ZERO at D (pin at D).
+      - Column BMD: ZERO at A (pin), increases linearly to MAX at B.
+      - Also set axial forces (beam from HA, column from RA) into session_state inputs.
+
+    Sign convention:
+      - In your app, default F is negative for downward.
+      - STRUCT formulas assume downward magnitude P > 0.
+      - We compute with Pmag = abs(F), then flip everything with s = +1 for downward, -1 for upward.
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    P = float(F_kN)
+    F_in = float(F_kN)
+
     if L <= 0 or h <= 0:
         return
 
-    beta, e = _frame_beta_e("beam_", "col_")
-    x0 = 0.5 * L  # C at midspan
+    # C assumed at midspan
+    x0 = 0.5 * L
 
-    # reactions from your STRUCT image (Pin/Pin)
-    RA = (P * x0 * (L**2 * (2.0 * beta * e + 3.0) - x0**2)) / (2.0 * L**3 * (beta * e + 1.0))
-    RD = P - RA
-    HA = (P * x0 * (L**2 - x0**2)) / (2.0 * h * L**2 * (beta * e + 1.0))  # HA = HD
+    beta, e = _frame_beta_e("beam_", "col_")
+
+    # reference uses downward magnitude P>0
+    Pmag = abs(F_in)
+    s = 1.0 if F_in <= 0.0 else -1.0  # downward(default negative) -> s=+1
 
     # -------------------------
-    # Beam diagrams (first)
+    # Reactions from STRUCT (Pin/Pin)
+    # -------------------------
+    # RA = P*x*(L^2(2βe+3) - x^2) / (2 L^3 (βe+1))
+    denom = 2.0 * (L**3) * (beta * e + 1.0)
+    RA_mag = (Pmag * x0 * (L**2 * (2.0 * beta * e + 3.0) - x0**2)) / denom
+    RD_mag = Pmag - RA_mag
+
+    # HA = HD = P*x*(L^2 - x^2) / (2 h L^2 (βe+1))
+    HA_mag = (Pmag * x0 * (L**2 - x0**2)) / (2.0 * h * (L**2) * (beta * e + 1.0))
+
+    # Apply sign (upward + for R; right + for H)
+    RA = s * RA_mag
+    RD = s * RD_mag
+    HA = s * HA_mag
+    HD = HA
+
+    # -------------------------
+    # Beam end moment at D must be ZERO (pin at D)
+    # Build beam moment as:
+    #   M(x) = MB + RA*x                     for x < x0
+    #   M(x) = MB + RA*x - P*(x-x0)          for x >= x0
+    # Enforce M(L)=0  -> MB = P*(L-x0) - RA*L
+    # (Use signed P = s*Pmag so it flips with input)
+    # -------------------------
+    P = s * Pmag
+    MB = P * (L - x0) - RA * L   # this gives the required BMD start value (positive for default downward)
+
+    # -------------------------
+    # Beam diagrams
     # -------------------------
     x = np.linspace(0.0, L, 801)
     step = (x >= x0).astype(float)
+
     Vb = RA - P * step
-    Mb = RA * x - P * (x - x0) * step
+    Mb = MB + RA * x - P * (x - x0) * step
+
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
@@ -7923,12 +7967,13 @@ def _render_dm_pp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
         )
 
     # -------------------------
-    # Column diagrams (second)
-    # Use the horizontal reaction to generate a consistent column envelope
+    # Column diagrams (pin at A => M(0)=0; top moment must equal beam start moment MB)
+    # Linear: M(y)=MB*(y/h)
     # -------------------------
     y = np.linspace(0.0, h, 401)
-    Vc = np.full_like(y, HA)
-    Mc = HA * (h - y)
+    Mc = (MB / max(h, 1e-12)) * y
+    Vc = np.full_like(y, MB / max(h, 1e-12))
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
         _render_member_vm(
@@ -7937,15 +7982,32 @@ def _render_dm_pp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
         )
 
     # -------------------------
-    # Support forces (last)
+    # Support forces (same format as all cases)
     # -------------------------
-    _render_support_forces("dmpp01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
+    _render_support_forces("dmpp01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HD)
 
-    # Deflection summary (simple beam ref, optional)
+    # -------------------------
+    # Store design forces (include axial)
+    # Convention in your app: compression negative.
+    # Column axial ~ vertical reaction (use RA).
+    # Beam axial ~ horizontal reaction (use HA).
+    # -------------------------
+    st.session_state["beam_L_mm_in"] = float(L_mm)
+    st.session_state["col_L_mm_in"] = float(h_mm)
+
+    st.session_state["beam_N_in"] = -abs(float(HA))  # axial in beam (compression negative)
+    st.session_state["col_N_in"] = -abs(float(RA))   # axial in column (compression negative)
+
+    # Use maxima for design shear/moment
+    _fill_VM_into_member_inputs("beam_", float(np.max(np.abs(Vb))), float(np.max(np.abs(Mb))))
+    _fill_VM_into_member_inputs("col_",  float(np.max(np.abs(Vc))), float(np.max(np.abs(Mc))))
+
+    # Deflection (optional simple reference; keep if you want)
     E = get_E_Pa()
     I = _member_I_m4("beam_")
     if E > 0 and I > 0:
-        delta = abs(P) * L**3 / (48.0 * E * I)
+        # crude simply-supported midspan point load deflection (placeholder)
+        delta = Pmag * L**3 / (48.0 * E * I)
         _set_deflection_summary(delta, L_ref_m=L)
         
 def _render_dm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
