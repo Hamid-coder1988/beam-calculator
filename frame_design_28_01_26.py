@@ -8016,57 +8016,125 @@ def _render_dm_pp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     _fill_VM_into_member_inputs("col_",  float(np.max(np.abs(Vc_plot))), float(np.max(np.abs(Mc_plot))))
         
 def _render_dm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    """DM-PP-02: Two Member Frame (Pin/Pin) — Top UDL."""
+    """
+    DM-PP-02 — Two Member Frame (Pin / Pin) — Top UDL on beam.
+
+    Match STRUCT reference:
+      e = h/L
+      β = Ih/Iv (in app: I_beam / I_col)
+
+      RA = wL/8 * (4βe + 5)/(βe + 1)
+      RC = wL/8 * (4βe + 3)/(βe + 1)
+      HA = HC = wL^2 / (8 h (βe + 1))
+      MB = wL^2 / (8 (βe + 1))
+
+    Diagram shape (reference):
+      - Beam BMD starts POSITIVE at B and ends 0 at C (pin), with sagging curve.
+      - Column BMD is 0 at A (pin) to max at B (joint), linear.
+      - Beam has axial (from H), column has axial (from R). We store these but don’t change UI format.
+
+    App sign convention:
+      - Top UDL input is negative for downward (default).
+      - We compute with w = abs(w_in) then apply sign flip only for plotting to keep
+        "positive at top of column & beginning of beam" like you asked before.
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)
+    w_in = float(w_kNm)  # kN/m, downward negative (default)
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
 
-    # reactions from your STRUCT image (Pin/Pin)
-    RA = (w * L / 8.0) * ((4.0 * beta * e + 5.0) / (beta * e + 1.0))
-    RC = (w * L / 8.0) * ((4.0 * beta * e + 3.0) / (beta * e + 1.0))
-    HA = (w * L**2) / (8.0 * h * (beta * e + 1.0))  # HA = HC
+    # Reference uses downward magnitude w>0
+    w = abs(w_in)
+    if (beta * e + 1.0) == 0.0:
+        st.error("Invalid combination: βe + 1 = 0.")
+        return
 
     # -------------------------
-    # Beam diagrams (first)
+    # Support reactions (reference magnitudes)
+    # -------------------------
+    RA_mag = (w * L / 8.0) * ((4.0 * beta * e + 5.0) / (beta * e + 1.0))
+    RC_mag = (w * L / 8.0) * ((4.0 * beta * e + 3.0) / (beta * e + 1.0))
+    HA_mag = (w * L**2) / (8.0 * h * (beta * e + 1.0)) if h != 0 else 0.0
+    HC_mag = HA_mag
+
+    # Apply sign for app reactions:
+    # downward UDL means upward reactions positive.
+    sR = 1.0 if w_in <= 0.0 else -1.0
+    RA = sR * RA_mag
+    RC = sR * RC_mag
+    HA = sR * HA_mag
+    HC = sR * HC_mag
+
+    # -------------------------
+    # Key joint moment at B (reference magnitude)
+    # -------------------------
+    MB_mag = (w * L**2) / (8.0 * (beta * e + 1.0))
+
+    # Build beam moment from equilibrium with UDL and reaction RA:
+    # Take x from B(0) -> C(L).
+    # V(x) = RA - w*x
+    # M(x) = MB + RA*x - w*x^2/2
+    # Enforce pin at C: M(L)=0 => MB = wL^2/2 - RA*L   (use signed RA and signed w)
+    #
+    # Use signed w for internal consistency:
+    w_signed = sR * w  # downward -> +w_signed (since sR=+1)
+    MB = (w_signed * L**2) / 2.0 - RA * L
+
+    # -------------------------
+    # Beam diagrams
     # -------------------------
     x = np.linspace(0.0, L, 801)
-    Vb = RA - w * x
-    Mb = RA * x - 0.5 * w * x**2
+    Vb = RA - w_signed * x
+    Mb = MB + RA * x - 0.5 * w_signed * x**2
+
+    # -------------------------
+    # Column diagrams (pin at A => M(0)=0; top moment equals beam start moment MB)
+    # Linear: M(y)=MB*(y/h)
+    # -------------------------
+    y = np.linspace(0.0, h, 401)
+    Mc = (MB / max(h, 1e-12)) * y
+    Vc = np.full_like(y, MB / max(h, 1e-12))
+
+    # -------------------------
+    # DISPLAY SIGN FLIP (same "learned" convention from DM-PP-01):
+    # Make bending POSITIVE at top column and beginning of beam.
+    # -------------------------
+    Vb_plot = -Vb
+    Mb_plot = -Mb
+    Vc_plot = -Vc
+    Mc_plot = -Mc
+
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
-            x_m=x, V_kN=Vb, M_kNm=Mb,
+            x_m=x, V_kN=Vb_plot, M_kNm=Mb_plot,
             member_prefix="beam_", key_prefix="dmpp02_beam_", x_label="x (m)"
         )
 
-    # -------------------------
-    # Column diagrams (second)
-    # -------------------------
-    y = np.linspace(0.0, h, 401)
-    Vc = np.full_like(y, HA)
-    Mc = HA * (h - y)
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
         _render_member_vm(
-            x_m=y, V_kN=Vc, M_kNm=Mc,
+            x_m=y, V_kN=Vc_plot, M_kNm=Mc_plot,
             member_prefix="col_", key_prefix="dmpp02_col_", x_label="y (m)"
         )
 
-    # -------------------------
-    # Support forces (last)
-    # -------------------------
-    _render_support_forces("dmpp02", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HA)
+    # Support forces — keep SAME block style
+    # Map C support into "E" slot your UI expects (RE/HE)
+    _render_support_forces("dmpp02", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HC)
 
-    # Deflection (simple SS beam ref)
-    E = get_E_Pa()
-    I = _member_I_m4("beam_")
-    if E > 0 and I > 0:
-        delta = 5.0 * abs(w) * L**4 / (384.0 * E * I)
-        _set_deflection_summary(delta, L_ref_m=L)
+    # Store axial forces (compression negative convention)
+    try:
+        st.session_state["beam_N_in"] = -abs(float(HA))  # beam axial
+        st.session_state["col_N_in"] = -abs(float(RA))   # column axial
+    except Exception:
+        pass
+
+    # Fill design V/M magnitudes for checks
+    _fill_VM_into_member_inputs("beam_", float(np.max(np.abs(Vb_plot))), float(np.max(np.abs(Mb_plot))))
+    _fill_VM_into_member_inputs("col_",  float(np.max(np.abs(Vc_plot))), float(np.max(np.abs(Mc_plot))))
         
 def _render_dm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
     """DM-FF-01: Two Member Frame (Fixed/Fixed) — Top Point Load at C (assumed midspan)."""
