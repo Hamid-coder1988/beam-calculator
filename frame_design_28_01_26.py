@@ -8636,31 +8636,18 @@ def _render_tm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     """
     TM-FF-02 — Three Member Frame (Fixed / Fixed) — Top UDL on beam.
 
-    UI convention:
-      w_kNm is negative for downward (default).
-    STRUCT reference assumes downward load magnitude w > 0.
-
-    Reference formulas:
-      e = h/L
-      β = Ih/Iv  (in app: I_beam / I_col)
-
-      RA = RE = wL/2
-      HA = HE = wL^2 / (4 h (βe + 2))
-
-      MA = ME = wL^2 / (12 (βe + 2))
-      MB = MD = wL^2 / ( 6 (βe + 2))
-      MC = wL^2 / 24 * ((3βe + 2)/(βe + 2))
-
-    Required BMD sign (as in reference picture):
-      Beam: + at ends (MB, MD), − at mid (MC)
+    Beam (per reference): + at ends (MB, MD), − at mid (MC)
+    Columns (per reference): crosses zero => base NEGATIVE, top POSITIVE
+        Left column: MA negative, MB positive
+        Right column: ME negative, MD positive
     """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w_in = float(w_kNm)  # downward negative
+    w_in = float(w_kNm)  # downward negative in UI
     if L <= 0 or h <= 0:
         return
 
-    # Require sections (β needs I)
+    # Need β = I_beam / I_col
     Ib = _member_I_m4("beam_")
     Ic = _member_I_m4("col_")
     if (Ib is None) or (Ic is None) or (Ib <= 0) or (Ic <= 0):
@@ -8674,7 +8661,7 @@ def _render_tm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
         st.error("Invalid combination: βe + 2 = 0.")
         return
 
-    # Use reference magnitude (downward positive)
+    # Reference uses downward magnitude w>0
     w = abs(w_in)
 
     # Support reactions (reference)
@@ -8683,23 +8670,21 @@ def _render_tm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     HA = (w * L**2) / (4.0 * h * denom) if h != 0 else 0.0
     HE = HA
 
-    # Key moments (reference magnitudes)
-    MA = (w * L**2) / (12.0 * denom)
-    ME = MA
-    MB = (w * L**2) / (6.0 * denom)
+    # Key moment magnitudes (reference)
+    MA_mag = (w * L**2) / (12.0 * denom)
+    MB = (w * L**2) / (6.0 * denom)          # beam end / column top (positive)
     MD = MB
     MC_mag = (w * L**2 / 24.0) * ((3.0 * beta * e + 2.0) / denom)
-    MC = -MC_mag  # reference BMD shows mid negative
+    MC = -MC_mag                              # mid negative (reference)
 
     # -------------------------
-    # Beam diagrams
-    # Enforce exactly: M(0)=+MB, M(L/2)=MC (negative), M(L)=+MD
-    # Use symmetric parabola: M = a(x-L/2)^2 + MC
+    # Beam diagrams (keep as you already have it correct)
+    # Enforce: M(0)=+MB, M(L/2)=MC (neg), M(L)=+MD
     # -------------------------
     x = np.linspace(0.0, L, 401)
-    a = 4.0 * (MB - MC) / (L**2)  # ensures end moments MB when mid is MC
+    a = 4.0 * (MB - MC) / (L**2)
     M_beam = a * (x - 0.5 * L) ** 2 + MC
-    V_beam = 2.0 * a * (x - 0.5 * L)  # derivative of M (consistent with this BMD)
+    V_beam = 2.0 * a * (x - 0.5 * L)
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
@@ -8709,12 +8694,15 @@ def _render_tm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
         )
 
     # -------------------------
-    # Column diagrams (Fixed bases)
-    # Left column: M(0)=MA, M(h)=MB
-    # Right column: M(0)=ME, M(h)=MD
-    # Linear (no distributed load along column in this reference idealization)
+    # Column diagrams (FIXED TO MATCH REFERENCE)
+    # base must be NEGATIVE, top POSITIVE -> crosses zero
+    # Left column: M(0)= -MA_mag, M(h)= +MB
+    # Right column: M(0)= -MA_mag, M(h)= +MD
     # -------------------------
     y = np.linspace(0.0, h, 251)
+
+    MA = -MA_mag
+    ME = -MA_mag
 
     M_col_L = MA + (MB - MA) * (y / max(h, 1e-12))
     V_col_L = np.full_like(y, (MB - MA) / max(h, 1e-12))
@@ -8739,7 +8727,7 @@ def _render_tm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     _render_support_forces("tmff02", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
-    # Deflection: use the plotted beam moment convention (fixed-fixed)
+    # Deflection: fixed-fixed beam
     delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
 
