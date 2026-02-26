@@ -8633,45 +8633,115 @@ def _render_tm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
 # TM-FF-02: Top UDL
 # -----------------------------
 def _render_tm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    """
+    TM-FF-02 — Three Member Frame (Fixed / Fixed) — Top UDL on beam.
+
+    UI convention:
+      w_kNm is negative for downward (default).
+    STRUCT reference assumes downward load magnitude w > 0.
+
+    Reference formulas:
+      e = h/L
+      β = Ih/Iv  (in app: I_beam / I_col)
+
+      RA = RE = wL/2
+      HA = HE = wL^2 / (4 h (βe + 2))
+
+      MA = ME = wL^2 / (12 (βe + 2))
+      MB = MD = wL^2 / ( 6 (βe + 2))
+      MC = wL^2 / 24 * ((3βe + 2)/(βe + 2))
+
+    Required BMD sign (as in reference picture):
+      Beam: + at ends (MB, MD), − at mid (MC)
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)
+    w_in = float(w_kNm)  # downward negative
     if L <= 0 or h <= 0:
         return
 
-    beta, e = _frame_beta_e("beam_", "col_")
-    denom = (beta * e + 2.0)
+    # Require sections (β needs I)
+    Ib = _member_I_m4("beam_")
+    Ic = _member_I_m4("col_")
+    if (Ib is None) or (Ic is None) or (Ib <= 0) or (Ic <= 0):
+        st.info("Select **Beam** and **Column** sections first (β = I_beam / I_col is required).")
+        return
 
+    beta = Ib / Ic
+    e = h / max(L, 1e-12)
+    denom = (beta * e + 2.0)
+    if denom == 0.0:
+        st.error("Invalid combination: βe + 2 = 0.")
+        return
+
+    # Use reference magnitude (downward positive)
+    w = abs(w_in)
+
+    # Support reactions (reference)
     RA = 0.5 * w * L
     RE = RA
-    HA = (w * L**2) / (4.0 * h * denom) if (h != 0 and denom != 0) else 0.0
+    HA = (w * L**2) / (4.0 * h * denom) if h != 0 else 0.0
     HE = HA
 
-    MB = (w * L**2) / (6.0 * denom) if denom != 0 else 0.0
+    # Key moments (reference magnitudes)
+    MA = (w * L**2) / (12.0 * denom)
+    ME = MA
+    MB = (w * L**2) / (6.0 * denom)
     MD = MB
+    MC_mag = (w * L**2 / 24.0) * ((3.0 * beta * e + 2.0) / denom)
+    MC = -MC_mag  # reference BMD shows mid negative
 
+    # -------------------------
+    # Beam diagrams
+    # Enforce exactly: M(0)=+MB, M(L/2)=MC (negative), M(L)=+MD
+    # Use symmetric parabola: M = a(x-L/2)^2 + MC
+    # -------------------------
     x = np.linspace(0.0, L, 401)
-    V = RA - w * x
-    M = MB + RA * x - 0.5 * w * x**2
+    a = 4.0 * (MB - MC) / (L**2)  # ensures end moments MB when mid is MC
+    M_beam = a * (x - 0.5 * L) ** 2 + MC
+    V_beam = 2.0 * a * (x - 0.5 * L)  # derivative of M (consistent with this BMD)
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmff02_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=V_beam, M_kNm=M_beam,
+            member_prefix="beam_", key_prefix="tmff02_beam_", x_label="x (m)"
+        )
 
+    # -------------------------
+    # Column diagrams (Fixed bases)
+    # Left column: M(0)=MA, M(h)=MB
+    # Right column: M(0)=ME, M(h)=MD
+    # Linear (no distributed load along column in this reference idealization)
+    # -------------------------
     y = np.linspace(0.0, h, 251)
-    MA = (w * L**2) / (12.0 * denom) if denom != 0 else 0.0
-    Mcol = MA + (MB - MA) * (y / h)
-    Vcol = np.full_like(y, (MB - MA) / h if h != 0 else 0.0)
+
+    M_col_L = MA + (MB - MA) * (y / max(h, 1e-12))
+    V_col_L = np.full_like(y, (MB - MA) / max(h, 1e-12))
+
+    M_col_R = ME + (MD - ME) * (y / max(h, 1e-12))
+    V_col_R = np.full_like(y, (MD - ME) / max(h, 1e-12))
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmff02_col_", x_label="y (m)")
+
+        st.caption("Left column")
+        _render_member_vm(
+            x_m=y, V_kN=V_col_L, M_kNm=M_col_L,
+            member_prefix="col_", key_prefix="tmff02_colL_", x_label="y (m)"
+        )
+
+        st.caption("Right column")
+        _render_member_vm(
+            x_m=y, V_kN=V_col_R, M_kNm=M_col_R,
+            member_prefix="col_", key_prefix="tmff02_colR_", x_label="y (m)"
+        )
 
     _render_support_forces("tmff02", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
 
-    delta = _deflection_from_M_numeric(x, M, bc="ff", member_prefix="beam_")
+    # Deflection: use the plotted beam moment convention (fixed-fixed)
+    delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
 
 # -----------------------------
 # TM-FF-03: Side UDL (sheet is messy; keep a stable implementation)
