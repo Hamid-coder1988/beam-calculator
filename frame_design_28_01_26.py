@@ -8735,49 +8735,137 @@ def _render_tm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 # TM-FF-03: Side UDL (sheet is messy; keep a stable implementation)
 # -----------------------------
 def _render_tm_ff_03_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
+    """
+    TM-FF-03 — Three Member Frame (Fixed / Fixed) — Side UDL (on left column).
+
+    UI convention: w_kNm is (+ outward). If user flips sign, whole solution flips.
+
+    IMPORTANT (per your reference BMD shape):
+      - Beam moment crosses zero => MB and MC opposite signs
+      - BOTH column moments cross zero:
+          Left column: MA opposite MB
+          Right column: MD opposite MC
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)
+    w_in = float(w_kNm)
     if L <= 0 or h <= 0:
         return
 
-    beta, e = _frame_beta_e("beam_", "col_")
+    # Need β = I_beam / I_col
+    Ib = _member_I_m4("beam_")
+    Ic = _member_I_m4("col_")
+    if (Ib is None) or (Ic is None) or (Ib <= 0) or (Ic <= 0):
+        st.info("Select **Beam** and **Column** sections first (β = I_beam / I_col is required).")
+        return
 
-    # Keep a conservative portal approximation:
-    # base fixed -> bigger column moments; beam moments taken from joint shear * h.
-    H = w * h  # resultant horizontal
-    HA = 0.5 * H
-    HE = 0.5 * H
+    beta = Ib / Ic
+    e = h / max(L, 1e-12)
 
-    RA = 0.0
-    RE = 0.0
+    d1 = (6.0 * beta * e + 1.0)
+    d2 = (beta * e + 2.0)
+    if d1 == 0.0 or d2 == 0.0:
+        st.error("Invalid combination: denominators become zero.")
+        return
 
-    MB = HA * h
-    MD = HE * h
+    # Use magnitudes for formula, then apply a consistent sign flip with input direction
+    w = abs(w_in)
+    s = 1.0 if w_in >= 0 else -1.0
 
+    # -------------------------
+    # Support reactions (from reference magnitudes)
+    # -------------------------
+    RA = s * (w * h * beta * e**2) / d1
+    RD = RA
+
+    HA = s * (w * h / 4.0) * (
+        (8.0 * beta * e + 17.0) / (2.0 * d2) - (4.0 * beta * e + 3.0) / d1
+    )
+    HD = s * (w * h / 4.0) * (
+        (4.0 * beta * e + 3.0) / d1 - 1.0 / (2.0 * d2)
+    )
+
+    # -------------------------
+    # End moments magnitudes (from reference)
+    # -------------------------
+    MA_mag = (w * h**2 / 4.0) * (
+        (4.0 * beta * e + 1.0) / d1 + (beta * e + 3.0) / (6.0 * d2)
+    )
+    MB_mag = (w * h**2 * beta * e / 4.0) * (
+        6.0 / d1 - 1.0 / (6.0 * d2)
+    )
+    MC_mag = (w * h**2 * beta * e / 4.0) * (
+        2.0 / d1 - 1.0 / (6.0 * d2)
+    )
+    MD_mag = (w * h**2 / 4.0) * (
+        (4.0 * beta * e + 1.0) / d1 - (beta * e + 3.0) / (6.0 * d2)
+    )
+
+    # -------------------------
+    # SIGN PATTERN to match your reference shape (zero-crossing in beam + both columns)
+    #   Left column:  MA (+) -> MB (-)  crosses
+    #   Beam:         MB (-) -> MC (+)  crosses
+    #   Right column: MD (-) -> MC (+)  crosses
+    # -------------------------
+    MA = s * (+MA_mag)
+    MB = s * (-MB_mag)
+    MC = s * (+MC_mag)
+    MD = s * (-MD_mag)
+
+    # -------------------------
+    # Beam diagrams (no vertical load on beam here) -> linear M
+    # Enforce exact: M(0)=MB, M(L)=MC  (crosses zero because opposite signs)
+    # -------------------------
     x = np.linspace(0.0, L, 401)
-    V = np.zeros_like(x)
-    M = MB + (MD - MB) * (x / L)
+    M_beam = MB + (MC - MB) * (x / max(L, 1e-12))
+    V_beam = np.full_like(x, (MC - MB) / max(L, 1e-12))
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=V, M_kNm=M, member_prefix="beam_", key_prefix="tmff03_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=V_beam, M_kNm=M_beam,
+            member_prefix="beam_", key_prefix="tmff03_beam_", x_label="x (m)"
+        )
 
+    # -------------------------
+    # Column diagrams
+    # Left column is loaded by side UDL -> quadratic M(y)
+    # Enforce exact: M(0)=MA, M(h)=MB
+    # Use: M(y)=a y^2 + b y + MA, with a = -w_in/2 (keeps curvature direction)
+    # -------------------------
     y = np.linspace(0.0, h, 251)
-    # fixed base: moment at base not zero (approx MB/2)
-    MA = 0.5 * MB
-    Mcol = MA + (MB - MA) * (y / h)
-    Vcol = np.full_like(y, (MB - MA) / h if h != 0 else 0.0)
+
+    aL = -0.5 * w_in
+    bL = (MB - MA - aL * h**2) / max(h, 1e-12)
+
+    M_col_L = aL * y**2 + bL * y + MA
+    V_col_L = 2.0 * aL * y + bL
+
+    # Right column unloaded in this sheet model -> linear between MD and MC
+    M_col_R = MD + (MC - MD) * (y / max(h, 1e-12))
+    V_col_R = np.full_like(y, (MC - MD) / max(h, 1e-12))
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vcol, M_kNm=Mcol, member_prefix="col_", key_prefix="tmff03_col_", x_label="y (m)")
 
-    _render_support_forces("tmff03", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
+        st.caption("Left column (loaded)")
+        _render_member_vm(
+            x_m=y, V_kN=V_col_L, M_kNm=M_col_L,
+            member_prefix="col_", key_prefix="tmff03_colL_", x_label="y (m)"
+        )
 
-    delta = _deflection_from_M_numeric(x, M, bc="ff", member_prefix="beam_")
+        st.caption("Right column (unloaded)")
+        _render_member_vm(
+            x_m=y, V_kN=V_col_R, M_kNm=M_col_R,
+            member_prefix="col_", key_prefix="tmff03_colR_", x_label="y (m)"
+        )
+
+    # Support forces display (map RD/HD -> RE/HE)
+    _render_support_forces("tmff03", RA_kN=RA, RE_kN=RD, HA_kN=HA, HE_kN=HD)
+
+    # Deflection (beam)
+    delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
 
 # ============================================================
 # TM-PR-01..08 — diagram preview functions (MUST exist globally)
