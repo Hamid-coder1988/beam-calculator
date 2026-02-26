@@ -7736,52 +7736,39 @@ def _render_tm_fr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
         
 def _render_tm_fr_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
     """
-    TM-FR-03 — Three Member Frame (Fixed / Free) — Side Top Point Load at C.
+    TM-FR-03 — Three Member Frame (Fixed / Free) — Side Top Point Load.
 
-    Geometry:
-      Left column A-B (fixed at A)
-      Beam B-C
-      Right column C-D is free (no support) in this 'Fixed/Free' template
-
-    Reference behavior:
+    Reference:
       RA = 0
-      HA = P
-      Beam: M = 0 everywhere, V = 0 everywhere, but axial force exists
-      Left column: bending with M_max at A = P*h, shear = P, plus axial
+      HA = P  (magnitude; direction opposes applied load)
+      Beam: V = 0, M = 0 everywhere (pure axial only)
+      Left column: cantilever with tip horizontal force => Mmax at A = P*h, V constant
+      Right column: free/unloaded => zero diagrams
+
+    App sign convention (support forces):
+      Upward positive for R, positive to the right for H.
+      If F_kN is applied to the right (+), then support HA is to the left (-).
     """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    F = float(F_kN)  # in your UI: sign convention (often negative = downward). Here it's horizontal load.
+    P = float(F_kN)  # horizontal point load at top (positive to the right)
     if L <= 0 or h <= 0:
         return
 
-    # Interpret input as horizontal point load P at top right (STRUCT shows P to the right).
-    # If user enters negative, it simply flips directions.
-    P = F
-
     # -------------------------
-    # Support reactions (reference)
+    # Support reactions (match app sign convention)
     # -------------------------
     RA = 0.0
-    HA = P
-
-    # If you display right support, it's free => 0
     RE = 0.0
+    HA = -P     # reaction opposite to applied horizontal load
     HE = 0.0
 
-    _render_support_forces("tmfr03", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
-
     # -------------------------
-    # BEAM diagrams: pure axial, no shear, no bending
+    # Beam diagrams: zero bending & shear (axial only, not plotted here)
     # -------------------------
     x = np.linspace(0.0, L, 401)
     V_beam = np.zeros_like(x)
     M_beam = np.zeros_like(x)
-
-    # Axial (choose sign consistent with your app:
-    # Here: horizontal load to the right puts beam in axial force.
-    # Use N = -P so tension/compression flips with input sign.
-    N_beam = -P * np.ones_like(x)
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
@@ -7789,45 +7776,42 @@ def _render_tm_fr_03_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
             x_m=x, V_kN=V_beam, M_kNm=M_beam,
             member_prefix="beam_", key_prefix="tmfr03_beam_", x_label="x (m)"
         )
-        # If you have an axial diagram renderer, use it; otherwise store/display as text:
-        st.caption(f"Beam axial force (constant): N = {N_beam[0]:.3g} kN")
 
     # -------------------------
-    # LEFT COLUMN diagrams:
-    # shear is constant, moment is linear with max at base: M_A = P*h
-    # define y=0 at base A, y=h at top B
+    # Column diagrams
+    # Left column behaves like a cantilever of height h with tip horizontal force P at top:
+    #   V = -P (constant, sign consistent with moment expression below)
+    #   M(y) = -P*(h - y)  -> M(0) = -P*h (max at base), M(h) = 0 (at top)
+    # Right column is free/unloaded -> zeros
     # -------------------------
-    y = np.linspace(0.0, h, 401)
+    y = np.linspace(0.0, h, 251)
 
-    # Shear (sign to match typical convention): take V = -P constant
-    V_col = -P * np.ones_like(y)
+    V_col_L = -P * np.ones_like(y)
+    M_col_L = -P * (h - y)
 
-    # Moment: M(y) = -P*(h - y) so M(0) = -P*h, M(h) = 0
-    # (If your plotting expects opposite sign, flip here only.)
-    M_col = -P * (h - y)
-
-    # Axial in column is same magnitude as beam axial (frame drag)
-    N_col = -P * np.ones_like(y)
+    V_col_R = np.zeros_like(y)
+    M_col_R = np.zeros_like(y)
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        st.caption("Left column (A→B)")
+
+        st.caption("Left column (loaded)")
         _render_member_vm(
-            x_m=y, V_kN=V_col, M_kNm=M_col,
+            x_m=y, V_kN=V_col_L, M_kNm=M_col_L,
             member_prefix="col_", key_prefix="tmfr03_colL_", x_label="y (m)"
         )
-        st.caption(f"Left column axial force (constant): N = {N_col[0]:.3g} kN")
 
-        st.caption("Right column (free) — diagrams are zero")
-        V_zero = np.zeros_like(y)
-        M_zero = np.zeros_like(y)
+        st.caption("Right column (free)")
         _render_member_vm(
-            x_m=y, V_kN=V_zero, M_kNm=M_zero,
+            x_m=y, V_kN=V_col_R, M_kNm=M_col_R,
             member_prefix="col_", key_prefix="tmfr03_colR_", x_label="y (m)"
         )
 
-    # Deflection: your app likely computes beam deflection from M; here M_beam=0.
-    # If you want to show deflection per reference formulas, that needs a dedicated function.
+    # Keep the SAME support-forces block style as all other cases
+    _render_support_forces("tmfr03", RA_kN=RA, RE_kN=RE, HA_kN=HA, HE_kN=HE)
+
+    # Deflection: your numeric routine uses beam M; here M_beam=0 -> deflection 0 in that routine.
+    # (Reference deflections are sway-based; if you later want them, we add a dedicated expression.)
     delta = _deflection_from_M_numeric(x, M_beam, bc="ff", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
 
