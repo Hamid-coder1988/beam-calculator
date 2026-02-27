@@ -8137,30 +8137,83 @@ def _render_dm_pp_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     _fill_VM_into_member_inputs("col_",  float(np.max(np.abs(Vc_plot))), float(np.max(np.abs(Mc_plot))))
         
 def _render_dm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    """DM-FF-01: Two Member Frame (Fixed/Fixed) — Top Point Load at C (assumed midspan)."""
+    """
+    DM-FF-01 — Two Member Frame (Fixed / Fixed) — Top Point Load
+
+    Reference target shapes (your STRUCT sheet):
+      - Beam BMD: starts POSITIVE at B, dips to NEGATIVE around the load, then goes toward the right end.
+      - Column BMD: NEGATIVE at foot (A) and POSITIVE at top (B) (linear variation).
+
+    Notes on sign:
+      Your UI uses "downward negative".
+      The STRUCT formulas assume downward as the reference direction.
+      So we compute magnitudes with P0 = abs(F_kN), then flip outputs if the user entered upward.
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    P = float(F_kN)
+    F_in = float(F_kN)
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
-    x0 = 0.5 * L
 
-    # reactions from your STRUCT image (Fixed/Fixed)
-    RA = (P * x0**2 / (2.0 * L**3 * (beta * e + 1.0))) * (
-        beta * e * (3.0 * L - x0) + 2.0 * (3.0 * L - 2.0 * x0)
-    )
-    RD = P - RA
-    HA = (3.0 * P * x0**2 * (L - x0)) / (2.0 * h * L**2 * (beta * e + 1.0))  # HA = HD
+    # UI convention: downward is negative.
+    # STRUCT reference direction: downward.
+    P0 = abs(F_in)
+    s_ref = 1.0 if (F_in < 0.0) else -1.0  # downward input -> keep as reference; upward -> flip
+
+    # ---- Load position ----
+    # Your current UI has no "x", so we keep the assumption used elsewhere: load at midspan.
+    # STRUCT formulas in your reference use x = distance from RIGHT support to the load.
+    xR = 0.5 * L                # distance from right end to load
+    a = L - xR                  # distance from left end (B) to load
+
+    denom = (beta * e + 1.0)
 
     # -------------------------
-    # Beam diagrams (first)
+    # Support reactions (from your reference)
+    # -------------------------
+    # RA = P x^2 /(2 L^3 (βe+1)) * ( βe(3L-x) + 2(3L-2x) )
+    RA_ref = (P0 * xR**2 / (2.0 * L**3 * denom)) * (beta * e * (3.0 * L - xR) + 2.0 * (3.0 * L - 2.0 * xR))
+    RD_ref = P0 - RA_ref
+
+    # HA = HD = (3 P x^2 (L-x)) /(2 h L^2 (βe+1))
+    HA_ref = (3.0 * P0 * xR**2 * (L - xR)) / (2.0 * h * L**2 * denom)
+
+    RA = s_ref * RA_ref
+    RD = s_ref * RD_ref
+    HA = s_ref * HA_ref
+
+    # -------------------------
+    # End moments (sign to match your reference shapes)
+    # Column: negative at base, positive at top
+    # -------------------------
+    # MA magnitude from reference:
+    # MA = P x^2 /(2 L^2) * (L-x)/(βe+1)
+    MA_mag = (P0 * xR**2 / (2.0 * L**2)) * ((L - xR) / denom)
+
+    # MB magnitude from reference:
+    # MB = P x^2 /(L^2) * (L-x)/(βe+1)
+    MB_mag = (P0 * xR**2 / (L**2)) * ((L - xR) / denom)
+
+    # Apply sign so that (downward case): MA negative, MB positive
+    M_A = s_ref * (-MA_mag)
+    M_B = s_ref * (+MB_mag)
+
+    # -------------------------
+    # Beam diagrams (piecewise with correct start moment M_B)
+    # V(x) = RA  (left of load), RA - P (right of load)
+    # M(x) = M_B + RA*x - P*(x-a) for x>=a
     # -------------------------
     x = np.linspace(0.0, L, 801)
-    step = (x >= x0).astype(float)
+    step = (x >= a).astype(float)
+
+    # Use reference-direction point load magnitude, then flip consistently
+    P = s_ref * P0
+
     Vb = RA - P * step
-    Mb = RA * x - P * (x - x0) * step
+    Mb = M_B + RA * x - P * (x - a) * step
+
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
@@ -8169,11 +8222,13 @@ def _render_dm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
         )
 
     # -------------------------
-    # Column diagrams (second)
+    # Column diagrams (linear moment from M_A to M_B)
+    # Shear is horizontal HA (constant)
     # -------------------------
     y = np.linspace(0.0, h, 401)
     Vc = np.full_like(y, HA)
-    Mc = HA * (h - y)
+    Mc = M_A + (M_B - M_A) * (y / h)
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
         _render_member_vm(
@@ -8186,12 +8241,12 @@ def _render_dm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     # -------------------------
     _render_support_forces("dmff01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
 
-    # Deflection (simple fixed-fixed beam ref)
+    # Deflection (keep your simple fixed-fixed beam reference)
     E = get_E_Pa()
     I = _member_I_m4("beam_")
     if E > 0 and I > 0:
-        delta = abs(P) * L**3 / (192.0 * E * I)
-        _set_deflection_summary(delta, L_ref_m=L)
+        delta = (P0 * 1000.0) * L**3 / (192.0 * E * I)  # N used inside; consistent with your earlier style
+        _set_deflection_summary(abs(delta), L_ref_m=L)
         
 def _render_dm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     """DM-FF-02: Two Member Frame (Fixed/Fixed) — Top UDL."""
