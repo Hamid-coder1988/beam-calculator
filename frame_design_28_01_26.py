@@ -10018,41 +10018,59 @@ def _render_dm_fr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
 
 
 def _render_dm_fr_03_whole_frame_diagrams(L_mm: float, h_mm: float, M_kNm: float):
-    """DM-FR-03: Two Member Frame (Fixed/Free) — Free End Bending Moment."""
+    """
+    DM-FR-03: Two Member Frame (Fixed / Free) — Free End Bending Moment (M_C)
+
+    Reference:
+      - RA = 0
+      - HA = 0
+      - Beam: V = 0, M = constant = M_C
+      - Column: V = 0, M = constant = M_C
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    M = float(M_kNm)
+    Mc = float(M_kNm)  # kN·m (sign as entered)
     if L <= 0 or h <= 0:
         return
 
+    # -------------------------
+    # Support reactions
+    # -------------------------
     RA = 0.0
     HA = 0.0
 
-    # Beam: constant end moment envelope
-    x = np.linspace(0.0, L, 401)
-    Vb = np.zeros_like(x)
-    Mb = np.full_like(x, M)
+    # -------------------------
+    # Beam diagrams (B -> C): constant moment, zero shear
+    # -------------------------
+    xb = np.linspace(0.0, L, 201)
+    Vb = np.zeros_like(xb)
+    Mb = np.full_like(xb, Mc)
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfr03_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=xb, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="dmfr03_beam_", x_label="x (m)"
+        )
 
-    # Column: constant moment envelope
-    y = np.linspace(0.0, h, 251)
-    Vc = np.zeros_like(y)
-    Mc = np.full_like(y, M)
+    # -------------------------
+    # Column diagrams (A -> B): constant moment, zero shear
+    # -------------------------
+    yc = np.linspace(0.0, h, 201)
+    Vc = np.zeros_like(yc)
+    Mc_col = np.full_like(yc, Mc)
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfr03_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=yc, V_kN=Vc, M_kNm=Mc_col,
+            member_prefix="col_", key_prefix="dmfr03_col_", x_label="y (m)"
+        )
 
-    _render_support_forces("dmfr03", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
-
-    EI = _EI_col()
-    if EI > 0:
-        Dy = (M * L / (2.0 * EI)) * (L + 2.0 * h)
-        _set_deflection_summary(abs(Dy), L_ref_m=L)
-
+    # -------------------------
+    # Support forces box
+    # -------------------------
+    _render_support_forces("dmfr03", RA_kN=RA, RE_kN=0.0, HA_kN=HA, HD_kN=0.0)
 
 def _render_dm_fr_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     """DM-FR-04: Two Member Frame (Fixed/Free) — Top UDL."""
