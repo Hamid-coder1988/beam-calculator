@@ -9813,24 +9813,22 @@ def _render_dm_fp_03_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
 def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     """
-    DM-FP-04: Two Member Frame (Fixed / Pin) — Side UDL on COLUMN.
+    DM-FP-04: Two Member Frame (Fixed / Pin) — Side UDL (horizontal UDL on column).
 
-    Reference requirements:
-      - Column shear MUST be linear (UDL).
-      - Column moment MUST be quadratic (UDL).
-      - Column: MA>0 and MB>0 but curve goes downward first and can become negative in-between.
-        That requires base slope dM/dy at y=0 to be NEGATIVE (i.e. HA negative in the plotting convention).
+    What the reference requires:
+      - Column shear is LINEAR.
+      - Column moment is QUADRATIC and goes: +MA -> down (negative zone) -> up -> +MB.
+      - Beam moment is LINEAR (triangle): MB at B to 0 at C (pin).
 
-    Strategy:
-      1) Use STRUCT closed-form HA (reaction) as the base shear => enforces correct initial slope.
-      2) Build column diagrams from:
-            V(y) = HA - w*y
-            M(y) = MA + HA*y - (w*y^2)/2
-      3) Compute MB from M(h) (compatibility), then use that MB for the beam triangle (pin at C => M(C)=0).
+    To get that shape, we use:
+      V_col(y) = HA + w*y
+      M_col(y) = MA + HA*y + 0.5*w*y^2
+
+    (the +0.5*w*y^2 is the critical sign to match the reference).
     """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w_in = float(w_kNm)  # kN/m horizontal UDL on column (+ right)
+    w_in = float(w_kNm)  # kN/m, (+ right)
     if L <= 0 or h <= 0:
         return
 
@@ -9846,7 +9844,7 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     s = 1.0 if (w_in >= 0.0) else -1.0
 
     # -------------------------
-    # STRUCT support reactions (magnitudes)
+    # STRUCT reactions (magnitudes from your sheet)
     # -------------------------
     # RA = RC = (w h / 4) * (β e^2)/(3βe+4)
     RA_mag = (w0 * h / 4.0) * ((beta * e**2) / denom)
@@ -9857,34 +9855,45 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     HA_mag = (w0 * h / 2.0) * ((3.0 * beta * e + 5.0) / denom)
     HC_mag = (3.0 * w0 * h / 2.0) * ((beta * e + 1.0) / denom)
 
-    # Directions: reactions oppose applied load direction.
-    # If load is +right, HA and HC act left => negative in +right convention.
+    # Directions: for load +right, reactions are to the LEFT (negative in +right convention)
     HA = -s * HA_mag
     HC = -s * HC_mag
 
-    # Vertical reactions (not critical for this shape discussion)
+    # Vertical reactions (not driving your diagrams here, but keep consistent)
     RA = s * RA_mag
     RC = s * RC_mag
 
     # -------------------------
-    # STRUCT base moment MA (magnitude)
+    # STRUCT end moments (magnitudes)
     # -------------------------
     # MA = (w h^2 / 4) * (βe + 2)/(3βe+4)
+    # MB = (w h^2 / 4) * (βe)/(3βe+4)
     MA_mag = (w0 * h**2 / 4.0) * ((beta * e + 2.0) / denom)
+    MB_mag = (w0 * h**2 / 4.0) * ((beta * e) / denom)
 
-    # In the reference BMD, MA is shown positive for +right load (plot convention)
+    # Reference shows MA, MB positive for +right load
     MA = s * MA_mag
+    MB_ref = s * MB_mag
 
     # -------------------------
-    # Column diagrams (A->B): linear shear + quadratic moment (UDL physics)
+    # Column diagrams (A -> B): enforce linear shear + quadratic moment (UDL)
+    # IMPORTANT: use +0.5*w*y^2 to match the reference shape
     # -------------------------
     yy = np.linspace(0.0, h, 401)
 
-    V_col = HA - w * yy                 # linear
-    M_col = MA + HA * yy - 0.5 * w * yy**2   # quadratic
+    V_col = HA + w * yy
+    M_col = MA + HA * yy + 0.5 * w * yy**2
 
-    # Top joint moment from compatibility (THIS is the MB the beam must use)
+    # Make sure top joint moment used for beam is consistent with the column curve
     MB = float(M_col[-1])
+
+    # If your plotted MB ends up flipped compared to the sheet value, flip both V and M consistently
+    # (this handles your app-wide sign convention quirks inside _render_member_vm)
+    if (MB_ref != 0.0) and (MB * MB_ref < 0.0):
+        M_col = -M_col
+        V_col = -V_col
+        MA = -MA
+        MB = -MB
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
@@ -9894,11 +9903,11 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
         )
 
     # -------------------------
-    # Beam diagrams (B->C), pin at C => M(C)=0 (triangle)
+    # Beam diagrams (B -> C): pin at C => M(C)=0 (LINEAR triangle)
     # -------------------------
     x = np.linspace(0.0, L, 401)
-    M_beam = MB * (1.0 - x / L)
-    V_beam = np.full_like(x, (M_beam[1] - M_beam[0]) / (x[1] - x[0]))
+    M_beam = MB * (1.0 - x / L)  # linear
+    V_beam = np.full_like(x, (M_beam[1] - M_beam[0]) / (x[1] - x[0]))  # constant
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
@@ -9908,7 +9917,7 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
         )
 
     _render_support_forces("dmfp04", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HC)
-
+    
 # ============================================================
 # DM-FR-01..04 — Two Member Frame (Fixed / Free) preview functions
 # ============================================================
