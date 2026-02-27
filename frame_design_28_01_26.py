@@ -9494,52 +9494,113 @@ def _render_tm_pr_08_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 # ============================================================
 
 def _render_dm_fp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    """DM-FP-01: Two Member Frame (Fixed/Pin) — Top Point Load at C (we assume C at midspan)."""
+    """
+    DM-FP-01: Two Member Frame (Fixed/Pin) — Top Point Load.
+    Target (STRUCT reference plotting):
+      - Beam: MB positive, MC negative, MD = 0   (hogging +, sagging -)
+      - Column: MA negative at base, MB positive at top
+
+    Notes:
+      - Your UI uses downward load as negative.
+      - STRUCT equations assume downward as reference.
+      - We compute magnitudes with P0=abs(F), then apply s_ref to flip if user entered upward.
+      - We compute beam moment in "sagging(+)" internally, then FLIP sign for plotting to match STRUCT.
+      - Pin at D enforced by M(L)=0 (internal), so MD_plot = 0 automatically.
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    P = float(F_kN)
+    F_in = float(F_kN)
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
-    x0 = 0.5 * L
+
+    # Load position: no x input in UI -> assume midspan
+    # STRUCT uses x measured from RIGHT end to the load
+    xR = 0.5 * L
+    a = L - xR  # distance from LEFT end (B) to load
+
     denom = (3.0 * beta * e + 4.0)
 
-    # From your STRUCT sheet (using x = L/2 to keep UI minimal)
-    # RA = (P x / L) * (1 + (2/L^2)*((L^2-x^2)/(3βe+4)))
-    # RD = P - RA (kept by equilibrium here)
-    RA = (P * x0 / L) * (1.0 + (2.0 / (L**2)) * ((L**2 - x0**2) / denom)) if denom != 0 else (P * 0.5)
-    RD = P - RA
+    # Downward in your UI is negative; STRUCT assumes downward as reference
+    P0 = abs(F_in)
+    s_ref = 1.0 if (F_in < 0.0) else -1.0  # downward input => keep; upward => flip
 
-    # HA = HD = (3 P x /(h L^2)) * ((L^2 - x^2)/(3βe+4))
-    HA = (3.0 * P * x0 / (h * L**2)) * ((L**2 - x0**2) / denom) if (h != 0 and denom != 0) else 0.0
-    HD = HA
+    # -------------------------
+    # Support reactions (STRUCT)
+    # -------------------------
+    # RA = (P x / L) * ( 1 + (2/L^2) * (L^2 - x^2)/(3βe+4) )
+    RA_ref = (P0 * xR / L) * (1.0 + (2.0 / L**2) * ((L**2 - xR**2) / denom))
 
-    # Beam diagrams (piecewise SS-style with the computed RA)
+    # RD = P - RA (also matches STRUCT printed form)
+    RD_ref = P0 - RA_ref
+
+    # HA = HD = 3 P x (L^2 - x^2) / (h L^2 (3βe+4))
+    HA_ref = (3.0 * P0 * xR * (L**2 - xR**2)) / (h * L**2 * denom)
+
+    RA = s_ref * RA_ref
+    RD = s_ref * RD_ref
+    HA = s_ref * HA_ref
+
+    # -------------------------
+    # Beam diagrams (statics, pin at D => M(L)=0)
+    # -------------------------
+    # Internal sign: sagging positive.
+    # Shear:
+    #   V = RA                    for 0 <= x < a
+    #   V = RA - P                for a <= x <= L
+    # Moment in sagging(+):
+    #   M(x) = M_B + RA*x                   (x < a)
+    #   M(x) = M_B + RA*x - P*(x-a)         (x >= a)
+    # Enforce pin at D: M(L)=0  =>  M_B = -RA*L + P*(L-a) = -RA*L + P*xR
+    P = s_ref * P0
+
+    M_B_sag = (-RA * L + P * xR)
+
     x = np.linspace(0.0, L, 801)
-    step = (x >= x0).astype(float)
+    step = (x >= a).astype(float)
+
     Vb = RA - P * step
-    Mb = RA * x - P * (x - x0) * step
+    Mb_sag = M_B_sag + RA * x - P * (x - a) * step
+
+    # Convert to STRUCT plotting convention (hogging +):
+    Mb_plot = -Mb_sag  # this makes MB positive, MC negative (as in the reference)
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfp01_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb_plot,
+            member_prefix="beam_", key_prefix="dmfp01_beam_", x_label="x (m)"
+        )
 
-    # Column diagrams (use HA as column shear envelope)
+    # -------------------------
+    # Column diagrams
+    # -------------------------
+    # Use STRUCT MA and MB magnitudes for the column end moments:
+    # MA = P x (L^2 - x^2) / (L^2 (3βe+4))
+    # MB = 2 P x (L^2 - x^2) / (L^2 (3βe+4))
+    MA_mag = (P0 * xR * (L**2 - xR**2)) / (L**2 * denom)
+    MB_mag = (2.0 * P0 * xR * (L**2 - xR**2)) / (L**2 * denom)
+
+    # Plot convention requested: MA negative at base, MB positive at top
+    M_A_plot = s_ref * (-MA_mag)
+    M_Bcol_plot = s_ref * (+MB_mag)
+
     y = np.linspace(0.0, h, 401)
     Vc = np.full_like(y, HA)
-    Mc = HA * (h - y)
+    Mc_plot = M_A_plot + (M_Bcol_plot - M_A_plot) * (y / h)
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfp01_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc_plot,
+            member_prefix="col_", key_prefix="dmfp01_col_", x_label="y (m)"
+        )
 
-    _render_support_forces("dmfp01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HD)
-
-    # Deflection (use numeric integration on beam moment as you do elsewhere)
-    delta = _deflection_from_M_numeric(x, Mb, bc="ss", member_prefix="beam_")
-    _set_deflection_summary(delta, L_ref_m=L)
-
+    # -------------------------
+    # Support forces (show HA too)
+    # -------------------------
+    _render_support_forces("dmfp01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
 
 def _render_dm_fp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
     """DM-FP-02: Two Member Frame (Fixed/Pin) — Side Point Load (we assume load at mid-height)."""
