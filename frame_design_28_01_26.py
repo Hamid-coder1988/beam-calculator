@@ -10202,26 +10202,42 @@ def _render_ready_frame_cases():
         else:
             # Beam design forces (use maxima from diagrams)
             st.session_state["beam_L_mm_in"] = L_mm
-            st.session_state["beam_N_in"] = 0.0
+            
+            # ---------------------------------------------------------
+            # Beam axial force rule (general):
+            # Beam axial comes from the frame horizontal reaction (H).
+            # Keep SIGN. Your convention: compression negative.
+            # So we store: N_beam = -H
+            # ---------------------------------------------------------
+            H_keys = (f"{tag}_HA_out", f"{tag}_HE_out", f"{tag}_HC_out", f"{tag}_HD_out")
+            H_use = None
+            for k in H_keys:
+                v = st.session_state.get(k, None)
+                if v is not None:
+                    H_use = float(v)
+                    break
+            st.session_state["beam_N_in"] = -H_use if H_use is not None else 0.0
+            
             _fill_VM_into_member_inputs("beam_", Vb, Mb)
-    
+            
             # Column design forces (use maxima from diagrams)
             st.session_state["col_L_mm_in"] = h_mm
-    
-            # Column axial from reactions if available (your convention: compression negative)
-            RA_out = st.session_state.get(f"{tag}_RA_out", None)
-            RE_out = st.session_state.get(f"{tag}_RE_out", None)
             
-            # In your app the "Column" member represents ONE column.
-            # Use RA if available (left support), otherwise RE.
-            # Compression is negative in your convention.
-            if RA_out is not None:
-                st.session_state["col_N_in"] = -abs(float(RA_out))
-            elif RE_out is not None:
-                st.session_state["col_N_in"] = -abs(float(RE_out))
-            else:
-                st.session_state["col_N_in"] = 0.0
-    
+            # ---------------------------------------------------------
+            # Column axial force rule (general):
+            # Column axial comes from the vertical reaction (R).
+            # Keep SIGN. Your convention: compression negative.
+            # So we store: N_col = -R
+            # ---------------------------------------------------------
+            R_keys = (f"{tag}_RA_out", f"{tag}_RE_out", f"{tag}_RC_out", f"{tag}_RD_out")
+            R_use = None
+            for k in R_keys:
+                v = st.session_state.get(k, None)
+                if v is not None:
+                    R_use = float(v)
+                    break
+            st.session_state["col_N_in"] = -R_use if R_use is not None else 0.0
+            
             _fill_VM_into_member_inputs("col_", Vc, Mc)
 
         for k in ["beam_df_rows", "beam_overall_ok", "beam_governing", "beam_extras",
