@@ -9709,42 +9709,107 @@ def _render_dm_fp_02_whole_frame_diagrams(L_mm: float, h_mm: float, y_m: float, 
     _render_support_forces("dmfp02", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HD)
 
 def _render_dm_fp_03_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    """DM-FP-03: Two Member Frame (Fixed/Pin) — Top UDL."""
+    """
+    DM-FP-03: Two Member Frame (Fixed / Pin) — Top UDL (STRUCT equations).
+
+    Plot convention to match your STRUCT sheets:
+      - Beam moment plotted with hogging positive (so end moment at B is +, midspan sagging is -).
+      - Right end is a PIN => M(C)=0.
+
+    Sign handling:
+      - Your UI commonly uses downward UDL as negative.
+      - We compute magnitudes with w0=abs(w_in) and flip everything if user enters upward.
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)
+    w_in = float(w_kNm)  # kN/m
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
     denom = (3.0 * beta * e + 4.0)
 
-    # From your sheet:
-    RA = (w * L / 2.0) * ((3.0 * beta * e + 5.0) / denom) if denom != 0 else 0.5 * w * L
-    RC = (3.0 * w * L / 2.0) * ((beta * e + 1.0) / denom) if denom != 0 else 0.5 * w * L
-    HA = (3.0 * w * L**2) / (4.0 * h * denom) if (h != 0 and denom != 0) else 0.0
+    # Reference formulas assume downward. Your UI: downward often negative.
+    w0 = abs(w_in)
+    s_ref = 1.0 if (w_in < 0.0) else -1.0  # downward -> keep; upward -> flip
+    w = s_ref * w0
 
+    # -------------------------
+    # Support reactions (STRUCT)
+    # -------------------------
+    # RA = wL/2 * (3βe + 5)/(3βe + 4)
+    # RC = 3wL/2 * (βe + 1)/(3βe + 4)
+    # HA = HC = 3 w L^2 /(4 h (3βe + 4))
+    if denom != 0:
+        RA_ref = (w0 * L / 2.0) * ((3.0 * beta * e + 5.0) / denom)
+        RC_ref = (3.0 * w0 * L / 2.0) * ((beta * e + 1.0) / denom)
+        HA_ref = (3.0 * w0 * L**2) / (4.0 * h * denom) if h != 0 else 0.0
+    else:
+        # fallback (should not happen unless denom=0)
+        RA_ref = 0.5 * w0 * L
+        RC_ref = 0.5 * w0 * L
+        HA_ref = 0.0
+
+    RA = s_ref * RA_ref
+    RC = s_ref * RC_ref
+    HA = s_ref * HA_ref
+
+    # -------------------------
+    # Beam diagrams (B→C), enforce pin at C: M(L)=0
+    # Internal sign used for building M(x): sagging positive.
+    # For UDL: M(x) = M_B + RA*x - w*x^2/2
+    # Pin at C => 0 = M_B + RA*L - w*L^2/2  =>  M_B = -RA*L + w*L^2/2
+    # Then convert to STRUCT plotting convention (hogging +): M_plot = -M_sag
+    # -------------------------
     x = np.linspace(0.0, L, 801)
-    Vb = RA - w * x
-    Mb = RA * x - 0.5 * w * x**2
+    V_sag = RA - w * x
+
+    M_B_sag = (-RA * L + 0.5 * w * L**2)
+    M_sag = M_B_sag + RA * x - 0.5 * w * x**2
+
+    M_plot = -M_sag  # makes joint hogging positive like your reference
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfp03_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=V_sag, M_kNm=M_plot,
+            member_prefix="beam_", key_prefix="dmfp03_beam_", x_label="x (m)"
+        )
+
+    # -------------------------
+    # Column diagrams (A→B)
+    # Use STRUCT end-moment magnitudes:
+    # MA = w L^2 /(4(3βe+4))
+    # MB = w L^2 /(2(3βe+4))
+    # Plot convention (consistent with your earlier requests):
+    #   base A negative, top B positive
+    # -------------------------
+    if denom != 0:
+        MA_mag = (w0 * L**2) / (4.0 * denom)
+        MB_mag = (w0 * L**2) / (2.0 * denom)
+    else:
+        MA_mag = 0.0
+        MB_mag = 0.0
+
+    M_A_plot = s_ref * (-MA_mag)
+    M_B_plot = s_ref * (+MB_mag)
 
     y = np.linspace(0.0, h, 401)
     Vc = np.full_like(y, HA)
-    Mc = HA * (h - y)
+    Mc = M_A_plot + (M_B_plot - M_A_plot) * (y / h) if h > 0 else np.zeros_like(y)
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfp03_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="dmfp03_col_", x_label="y (m)"
+        )
 
+    # Right support horizontal is HC (same as HA). Your support box uses HE for the far support.
     _render_support_forces("dmfp03", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HA)
 
-    delta = _deflection_from_M_numeric(x, Mb, bc="ss", member_prefix="beam_")
+    delta = _deflection_from_M_numeric(x, M_plot, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
-
 
 def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     """DM-FP-04: Two Member Frame (Fixed/Pin) — Side UDL."""
