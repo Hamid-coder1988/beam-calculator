@@ -9602,38 +9602,36 @@ def _render_dm_fp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     # -------------------------
     _render_support_forces("dmfp01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
 
-def _render_dm_fp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
+def _render_dm_fp_02_whole_frame_diagrams(L_mm: float, h_mm: float, y_m: float, F_kN: float):
     """
-    DM-FP-02: Two Member Frame (Fixed / Pin) — Side Point Load (P on column at distance y from top).
+    DM-FP-02: Two Member Frame (Fixed / Pin) — Side Point Load (P on column at distance y from TOP).
 
-    Target signs per your message:
-      - Beam: MC positive, MD = 0
-      - Column: MA positive, MB negative, MC positive
-
-    We use the STRUCT sheet equations (with a = L). UI has no y input -> we assume y = h/2.
+    Uses STRUCT equations (your screenshot).
+    Required input: y measured from TOP to load (in meters).
     """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    P_in = float(F_kN)  # horizontal point load on column
+    P_in = float(F_kN)
+
     if L <= 0 or h <= 0:
         return
+
+    # y given from TOP → clamp to [0, h]
+    y = float(y_m)
+    if y < 0.0:
+        y = 0.0
+    elif y > h:
+        y = h
 
     beta, e = _frame_beta_e("beam_", "col_")
     denom = (3.0 * beta * e + 4.0)
 
-    # No y input in UI -> keep mid-height load as before
-    y = 0.5 * h  # distance from TOP (C) down to load point B
-    a = L        # sheet uses "a" in MA expression; for this case it's the top beam length
+    # Sheet assumes P positive to the right
+    P = P_in
 
-    # Sign handling: assume sheet P is positive to the right. Keep that.
-    # If user enters negative (left), flip everything consistently.
-    P0 = abs(P_in)
-    s = 1.0 if (P_in >= 0.0) else -1.0
-    P = s * P0
+    a = L  # in this case, "a" in the sheet equals beam span
 
-    # ---- helper term from sheet ----
-    # NOTE: the screenshot shows (h - y^2) but dimensionally it must be (h^2 - y^2)
-    # to keep RA in units of force. We'll use (h^2 - y^2).
+    # IMPORTANT: the sheet shows (h - y^2) but dimensionally must be (h^2 - y^2)
     h2_minus_y2 = (h**2 - y**2)
 
     # -------------------------
@@ -9658,66 +9656,57 @@ def _render_dm_fp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     # MB = HA(h - y) - MA
     MB = HA * (h - y) - MA
 
-    # MC (top joint / beam left end moment) = [3 P y (h-y)^2 / (h L)] * [β/(3βe+4)]
+    # MC (top joint / beam left end) = [3 P y (h-y)^2 / (h L)] * [β/(3βe+4)]
     MC = (3.0 * P * y * (h - y)**2) / (h * L) * (beta / denom)
 
     # -------------------------
-    # Beam diagrams (C->D)
-    # MD = 0 (pin at D), so moment is linear from MC to 0
+    # Beam diagrams (C→D)
+    # MD = 0 (pin at D) ⇒ linear moment from MC to 0
     # -------------------------
     x = np.linspace(0.0, L, 401)
-    Mb = MC * (1.0 - x / L)  # MC at x=0, 0 at x=L
-    Vb = np.full_like(x, (Mb[1] - Mb[0]) / (x[1] - x[0]))  # constant slope dM/dx
+    M_beam = MC * (1.0 - x / L)
+    V_beam = np.full_like(x, (M_beam[1] - M_beam[0]) / (x[1] - x[0]))  # constant
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
-            x_m=x, V_kN=Vb, M_kNm=Mb,
+            x_m=x, V_kN=V_beam, M_kNm=M_beam,
             member_prefix="beam_", key_prefix="dmfp02_beam_", x_label="x (m)"
         )
 
     # -------------------------
-    # Column diagrams (A->C) with point B in between
-    # Build piecewise-linear moment through (A:MA), (B:MB), (C:MC)
+    # Column diagrams (A→C) with load point B
+    # y is from TOP, so point B is at height yB from base:
+    # yB = h - y
     # -------------------------
-    yB = h - y  # height of point B measured from base A
+    yB = h - y
 
     yy = np.linspace(0.0, h, 401)
-    Mc_col = np.zeros_like(yy)
+    M_col = np.zeros_like(yy)
 
-    # A->B
+    # A→B
     mask1 = yy <= yB
     if np.any(mask1):
         t1 = yy[mask1] / max(yB, 1e-12)
-        Mc_col[mask1] = MA + (MB - MA) * t1
+        M_col[mask1] = MA + (MB - MA) * t1
 
-    # B->C
+    # B→C
     mask2 = yy > yB
     if np.any(mask2):
         t2 = (yy[mask2] - yB) / max((h - yB), 1e-12)
-        Mc_col[mask2] = MB + (MC - MB) * t2
+        M_col[mask2] = MB + (MC - MB) * t2
 
-    # Column "shear" plot: keep it simple & consistent (piecewise constant)
-    # Below B: shear = HA
-    # Above B: shear = HA - P (jump at point load)
-    Vc = np.where(yy <= yB, HA, HA - P)
+    # Column shear (jump at point load)
+    V_col = np.where(yy <= yB, HA, HA - P)
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
         _render_member_vm(
-            x_m=yy, V_kN=Vc, M_kNm=Mc_col,
+            x_m=yy, V_kN=V_col, M_kNm=M_col,
             member_prefix="col_", key_prefix="dmfp02_col_", x_label="y (m)"
         )
 
-    # -------------------------
-    # Support forces (show both horizontal + vertical)
-    # -------------------------
     _render_support_forces("dmfp02", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HD)
-
-    # Deflection: keep your numeric method on beam moment curve
-    delta = _deflection_from_M_numeric(x, Mb, bc="ss", member_prefix="beam_")
-    _set_deflection_summary(delta, L_ref_m=L)
-
 
 def _render_dm_fp_03_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
     """DM-FP-03: Two Member Frame (Fixed/Pin) — Top UDL."""
@@ -10326,9 +10315,15 @@ def _render_ready_frame_cases():
             "inputs": [
                 ("L_mm", "Span L (mm)", 6000.0, 10.0, 1.0),
                 ("h_mm", "Column height h (mm)", 3000.0, 10.0, 1.0),
+                ("y_mm", "y (mm) — from TOP to load", 1500.0, 10.0, 1.0),
                 ("F_kN", "Side point load F (kN) (+ right)", 50.0, 1.0, None),
             ],
-            "preview": lambda v: _render_dm_fp_02_whole_frame_diagrams(L_mm=v["L_mm"], h_mm=v["h_mm"], F_kN=v["F_kN"]),
+            "preview": lambda v: _render_dm_fp_02_whole_frame_diagrams(
+                L_mm=v["L_mm"],
+                h_mm=v["h_mm"],
+                y_m=v["y_mm"] / 1000.0,   # mm → m
+                F_kN=v["F_kN"],
+            ),
             "apply": "apply_dmfp02",
         },
         "DM-FP-03": {
