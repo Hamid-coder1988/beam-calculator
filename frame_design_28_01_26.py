@@ -10073,42 +10073,73 @@ def _render_dm_fr_03_whole_frame_diagrams(L_mm: float, h_mm: float, M_kNm: float
     _render_support_forces("dmfr03", RA_kN=RA, RE_kN=0.0, HA_kN=HA, HD_kN=0.0)
 
 def _render_dm_fr_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    """DM-FR-04: Two Member Frame (Fixed/Free) — Top UDL."""
+    """
+    DM-FR-04: Two Member Frame (Fixed / Free) — Top UDL (w over entire beam).
+
+    Reference:
+      - RA = w L
+      - HA = 0
+      - Mmax at A & B = w L^2 / 2
+      - Beam behaves like a cantilever fixed at B (x=0) and free at C (x=L)
+      - Column carries constant bending moment = Mmax (no shear)
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)
+    w_in = float(w_kNm)  # kN/m (your UI: downward usually negative)
     if L <= 0 or h <= 0:
         return
 
-    # Reactions from your sheet
-    RA = w * L
+    # Reference assumes downward load.
+    # In your app: downward is often negative -> use magnitude and flip by input sign.
+    w0 = abs(w_in)
+    s_ref = 1.0 if (w_in < 0.0) else -1.0  # downward -> keep; upward -> flip
+    w = s_ref * w0
+
+    # -------------------------
+    # Support reactions (match reference)
+    # -------------------------
+    RA = w  * L   # kN
     HA = 0.0
 
-    # Beam: cantilever UDL
+    # -------------------------
+    # Beam diagrams (cantilever fixed at B, free at C)
+    # x from B (0) to C (L)
+    # V(x) = w (L - x)
+    # M(x) = w (L - x)^2 / 2
+    # -------------------------
     x = np.linspace(0.0, L, 401)
-    Vb = RA - w * x
-    Mb = RA * x - 0.5 * w * x**2
+    Vb = w * (L - x)
+    Mb = 0.5 * w * (L - x) ** 2
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfr04_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="dmfr04_beam_", x_label="x (m)"
+        )
 
-    # Column: show end moment envelope wL^2/2
-    y = np.linspace(0.0, h, 251)
+    # -------------------------
+    # Column diagrams (A -> B)
+    # Column moment is constant = Mmax = w L^2 / 2
+    # Column shear is zero (per reference)
+    # -------------------------
+    Mmax = 0.5 * w * L**2
+
+    y = np.linspace(0.0, h, 201)
     Vc = np.zeros_like(y)
-    Mc = np.full_like(y, w * L**2 / 2.0)
+    Mc = np.full_like(y, Mmax)
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfr04_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=y, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="dmfr04_col_", x_label="y (m)"
+        )
 
-    _render_support_forces("dmfr04", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
-
-    EI = _EI_col()
-    if EI > 0:
-        Dy = (w * L**3 / (8.0 * EI)) * (L + 4.0 * h)
-        _set_deflection_summary(abs(Dy), L_ref_m=L)
-
+    # -------------------------
+    # Support forces box
+    # -------------------------
+    _render_support_forces("dmfr04", RA_kN=RA, RE_kN=0.0, HA_kN=HA, HD_kN=0.0)
 
 # -----------------------------
 # Gallery UI (TOP-LEVEL FUNCTION)
