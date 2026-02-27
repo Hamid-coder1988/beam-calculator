@@ -9815,15 +9815,15 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     """
     DM-FP-04: Two Member Frame (Fixed / Pin) — Side UDL (horizontal UDL on column).
 
-    Uses STRUCT equations from your screenshot.
+    Uses STRUCT closed-form reactions + end moments (your screenshot) and then builds:
+      - Beam BMD: linear from MB at B to 0 at C (pin at C => M_C=0)
+      - Column BMD: cubic Hermite curve enforcing BOTH end moments and BOTH end shears:
+            M(0)=MA,  M(h)=MB,  V(0)=HA,  V(h)=-HC
+        This allows the reference behavior: MA>0, MB>0 but negative in the middle.
 
-    Assumptions / conventions:
-      - w_kNm is horizontal UDL on the column (kN/m). Positive = to the RIGHT (match your UI label).
-      - Right support at C is PIN => M(C) = 0 on the beam.
-      - Beam moment is triangular: M(B)=MB, M(C)=0.
-      - Column moment under uniform load is parabolic; we enforce M(0)=MA and M(h)=MB.
-
-    If your UI uses opposite sign for right/left, just flip the sign at input.
+    Conventions:
+      - w_kNm is horizontal UDL on the COLUMN (kN/m). Positive = to the RIGHT.
+      - If user inputs negative (to the left), everything flips consistently.
     """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
@@ -9834,12 +9834,13 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     beta, e = _frame_beta_e("beam_", "col_")
     denom = (3.0 * beta * e + 4.0)
     if abs(denom) < 1e-12:
+        st.error("Invalid stiffness denominator (3βe + 4 ≈ 0). Check inputs.")
         return
 
     # Keep sign: + right. (If user enters negative, everything flips consistently.)
-    w = w_in
     w0 = abs(w_in)
-    s = 1.0 if (w_in >= 0.0) else -1.0  # right -> +, left -> -
+    s = 1.0 if (w_in >= 0.0) else -1.0
+    w = s * w0
 
     # -------------------------
     # Support reactions (STRUCT)
@@ -9876,10 +9877,8 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     # Moment is linear from MB at x=0 to 0 at x=L.
     # -------------------------
     x = np.linspace(0.0, L, 401)
-    M_beam = MB * (1.0 - x / L)
-
-    # Shear = dM/dx (constant)
-    V_beam = np.full_like(x, (M_beam[1] - M_beam[0]) / (x[1] - x[0]))
+    M_beam = MB * (1.0 - x / L)  # MB at B, 0 at C
+    V_beam = np.full_like(x, (M_beam[1] - M_beam[0]) / (x[1] - x[0]))  # constant dM/dx
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
@@ -9890,19 +9889,22 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     # -------------------------
     # Column diagrams (A -> B)
-    # Column carries uniform horizontal load w (kN/m).
-    # Use parabolic moment: M(y) = MA + V0*y - (w*y^2)/2
-    # Enforce M(h)=MB => solve V0.
-    # y measured from base A upward.
+    # Enforce: M(0)=MA, M(h)=MB, V(0)=HA, V(h)=-HC using cubic Hermite.
+    # This matches reference: MA>0, MB>0 but can go negative in-between.
     # -------------------------
     yy = np.linspace(0.0, h, 401)
+    t = yy / h
 
-    # solve for V0 so that M(h)=MB
-    # MB = MA + V0*h - w*h^2/2  =>  V0 = (MB - MA)/h + w*h/2
-    V0 = (MB - MA) / h + w * h / 2.0
+    H00 = 2.0 * t**3 - 3.0 * t**2 + 1.0
+    H10 = t**3 - 2.0 * t**2 + t
+    H01 = -2.0 * t**3 + 3.0 * t**2
+    H11 = t**3 - t**2
 
-    M_col = MA + V0 * yy - 0.5 * w * yy**2
-    V_col = V0 - w * yy  # shear = dM/dy
+    V0 = HA
+    Vh = -HC
+
+    M_col = H00 * MA + H10 * (h * V0) + H01 * MB + H11 * (h * Vh)
+    V_col = np.gradient(M_col, yy)
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
@@ -9913,7 +9915,6 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     # -------------------------
     # Support forces box
-    # Using your common signature: RA/RE vertical, HA at A, HE at C
     # -------------------------
     _render_support_forces("dmfp04", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HC)
 
