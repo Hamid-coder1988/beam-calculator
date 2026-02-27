@@ -9815,15 +9815,18 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     """
     DM-FP-04: Two Member Frame (Fixed / Pin) — Side UDL (horizontal UDL on column).
 
-    Uses STRUCT closed-form reactions + end moments (your screenshot) and then builds:
-      - Beam BMD: linear from MB at B to 0 at C (pin at C => M_C=0)
-      - Column BMD: cubic Hermite curve enforcing BOTH end moments and BOTH end shears:
-            M(0)=MA,  M(h)=MB,  V(0)=HA,  V(h)=-HC
-        This allows the reference behavior: MA>0, MB>0 but negative in the middle.
+    MATCHES STRUCT DIRECTIONS:
+      - Input w (+right) is the applied side UDL on the column.
+      - Reactions H_A and H_C oppose the load -> they act to the LEFT when w is +right.
+      - Column moments: MA and MB are shown positive in the STRUCT BMD, but the curve
+        dips negative in-between (crosses zero twice). We enforce end moments + end shears
+        with a cubic Hermite moment curve:
+            M(0)=MA,  M(h)=MB,  V(0)=H_A,  V(h)=H_C   where V=dM/dy.
+      - Beam: pin at C => M(C)=0; moment linear from M(B)=MB to 0 at C.
 
-    Conventions:
-      - w_kNm is horizontal UDL on the COLUMN (kN/m). Positive = to the RIGHT.
-      - If user inputs negative (to the left), everything flips consistently.
+    NOTE:
+      This function focuses on getting the DIAGRAM SHAPES consistent with your reference.
+      (Your support-force sign convention in the UI may differ; moments are the main goal here.)
     """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
@@ -9837,48 +9840,49 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
         st.error("Invalid stiffness denominator (3βe + 4 ≈ 0). Check inputs.")
         return
 
-    # Keep sign: + right. (If user enters negative, everything flips consistently.)
+    # Use magnitude in formulas, then apply direction with s
     w0 = abs(w_in)
-    s = 1.0 if (w_in >= 0.0) else -1.0
-    w = s * w0
+    s = 1.0 if (w_in >= 0.0) else -1.0  # +right => s=+1, left => s=-1
 
     # -------------------------
-    # Support reactions (STRUCT)
+    # STRUCT reactions (magnitudes)
     # -------------------------
     # RA = RC = (w h / 4) * (β e^2)/(3βe+4)
     RA_mag = (w0 * h / 4.0) * ((beta * e**2) / denom)
     RC_mag = RA_mag
 
     # HA = (w h / 2) * (3βe + 5)/(3βe+4)
-    HA_mag = (w0 * h / 2.0) * ((3.0 * beta * e + 5.0) / denom)
-
     # HC = (3 w h / 2) * (βe + 1)/(3βe+4)
+    HA_mag = (w0 * h / 2.0) * ((3.0 * beta * e + 5.0) / denom)
     HC_mag = (3.0 * w0 * h / 2.0) * ((beta * e + 1.0) / denom)
 
+    # IMPORTANT: reaction directions oppose the applied UDL direction
+    # If load is +right, reactions are to the LEFT => negative in +right convention.
+    HA = -s * HA_mag
+    HC = -s * HC_mag
+
+    # Vertical reactions sign in your UI can vary; keep them consistent with s only
     RA = s * RA_mag
     RC = s * RC_mag
-    HA = s * HA_mag
-    HC = s * HC_mag
 
     # -------------------------
-    # End moments (STRUCT)
+    # STRUCT end moments (magnitudes)
     # -------------------------
     # MA = (w h^2 / 4) * (βe + 2)/(3βe+4)
-    MA_mag = (w0 * h**2 / 4.0) * ((beta * e + 2.0) / denom)
-
     # MB = (w h^2 / 4) * (βe)/(3βe+4)
+    MA_mag = (w0 * h**2 / 4.0) * ((beta * e + 2.0) / denom)
     MB_mag = (w0 * h**2 / 4.0) * ((beta * e) / denom)
 
+    # In the reference BMD, MA and MB are shown positive for w pushing right
     MA = s * MA_mag
     MB = s * MB_mag
 
     # -------------------------
     # Beam diagrams (B -> C), pin at C => M(C)=0
-    # Moment is linear from MB at x=0 to 0 at x=L.
     # -------------------------
     x = np.linspace(0.0, L, 401)
-    M_beam = MB * (1.0 - x / L)  # MB at B, 0 at C
-    V_beam = np.full_like(x, (M_beam[1] - M_beam[0]) / (x[1] - x[0]))  # constant dM/dx
+    M_beam = MB * (1.0 - x / L)  # linear MB -> 0
+    V_beam = np.full_like(x, (M_beam[1] - M_beam[0]) / (x[1] - x[0]))
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
@@ -9889,21 +9893,25 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
 
     # -------------------------
     # Column diagrams (A -> B)
-    # Enforce: M(0)=MA, M(h)=MB, V(0)=HA, V(h)=-HC using cubic Hermite.
-    # This matches reference: MA>0, MB>0 but can go negative in-between.
+    # Enforce BOTH end moments and BOTH end shears (V=dM/dy) using cubic Hermite.
+    # This is what allows MA>0 and MB>0 but negative in-between.
     # -------------------------
     yy = np.linspace(0.0, h, 401)
     t = yy / h
 
+    # Hermite basis functions
     H00 = 2.0 * t**3 - 3.0 * t**2 + 1.0
     H10 = t**3 - 2.0 * t**2 + t
     H01 = -2.0 * t**3 + 3.0 * t**2
     H11 = t**3 - t**2
 
-    V0 = HA
-    Vh = -HC
+    V0 = HA   # slope at base (leftward negative if w is +right)
+    Vh = HC   # slope at top (also leftward)
 
+    # Moment (cubic)
     M_col = H00 * MA + H10 * (h * V0) + H01 * MB + H11 * (h * Vh)
+
+    # Shear = dM/dy
     V_col = np.gradient(M_col, yy)
 
     with st.expander("Column diagrams", expanded=False):
@@ -9913,9 +9921,6 @@ def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
             member_prefix="col_", key_prefix="dmfp04_col_", x_label="y (m)"
         )
 
-    # -------------------------
-    # Support forces box
-    # -------------------------
     _render_support_forces("dmfp04", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HC)
 
 # ============================================================
