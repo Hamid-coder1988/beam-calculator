@@ -8251,57 +8251,112 @@ def _render_dm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
         _set_deflection_summary(abs(delta), L_ref_m=L)
         
 def _render_dm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    """DM-FF-02: Two Member Frame (Fixed/Fixed) — Top UDL."""
+    """
+    DM-FF-02: Two Member Frame (Fixed/Fixed) — Top UDL.
+
+    Matches the STRUCT reference equations and sign convention for plotting:
+      - Beam: end moments positive, midspan negative (hogging +, sagging -)
+      - Column: negative at foot (A), positive at top (B)
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)
+    w_in = float(w_kNm)  # kN/m (your UI: downward usually negative)
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
+    denom = (beta * e + 1.0)
 
-    # If you already have exact STRUCT formulas in your notes, put them here.
-    # For now: use consistent reactions to build diagrams (no layout differences).
-    RA = w * L / 2.0
-    RD = w * L / 2.0
-    HA = (w * L**2) / (8.0 * h * (beta * e + 1.0))
+    # Reference formulas assume downward loading.
+    w0 = abs(w_in)
+    s_ref = 1.0 if (w_in < 0.0) else -1.0  # downward input -> keep; upward -> flip
 
     # -------------------------
-    # Beam diagrams (first)
+    # Support reactions (STRUCT)
+    # -------------------------
+    # RA = wL/8 * (3βe + 4)/(βe + 1)
+    # RC = wL/8 * (5βe + 4)/(βe + 1)
+    RA_ref = (w0 * L / 8.0) * ((3.0 * beta * e + 4.0) / denom)
+    RC_ref = (w0 * L / 8.0) * ((5.0 * beta * e + 4.0) / denom)
+
+    # HA = HC = w L^2 /(8 h (βe + 1))
+    HA_ref = (w0 * L**2) / (8.0 * h * denom)
+
+    RA = s_ref * RA_ref
+    RC = s_ref * RC_ref
+    HA = s_ref * HA_ref
+
+    # -------------------------
+    # End moments (STRUCT magnitudes)
+    # -------------------------
+    # MA = w L^2 /(24(βe+1))
+    # MB = w L^2 /(12(βe+1))
+    # MC = w L^2 /24 * (3βe+2)/(βe+1)
+    MA_mag = (w0 * L**2) / (24.0 * denom)
+    MB_mag = (w0 * L**2) / (12.0 * denom)
+    MC_mag = (w0 * L**2 / 24.0) * ((3.0 * beta * e + 2.0) / denom)
+
+    # Beam internal (sagging +) convention: hogging end moments are NEGATIVE for downward load
+    M_B_sag = s_ref * (-MB_mag)
+    M_C_sag = s_ref * (-MC_mag)
+
+    # Column moments for plotting (as you want): A negative, B positive
+    M_A_plot = s_ref * (-MA_mag)
+    M_B_plot = s_ref * (+MB_mag)
+
+    # -------------------------
+    # Beam diagrams
     # -------------------------
     x = np.linspace(0.0, L, 801)
+
+    # Distributed load with sign consistent with reactions
+    w = s_ref * w0
+
+    # Shear: V(x) = RA - w x
     Vb = RA - w * x
-    Mb = RA * x - 0.5 * w * x**2
+
+    # Moment in sagging(+) convention:
+    # M(x) = M_B + RA x - (w x^2)/2
+    Mb_sag = M_B_sag + RA * x - 0.5 * w * x**2
+
+    # Convert to STRUCT plotting convention (hogging +):
+    Mb_plot = -Mb_sag
+
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
-            x_m=x, V_kN=Vb, M_kNm=Mb,
+            x_m=x, V_kN=Vb, M_kNm=Mb_plot,
             member_prefix="beam_", key_prefix="dmff02_beam_", x_label="x (m)"
         )
 
     # -------------------------
-    # Column diagrams (second)
+    # Column diagrams
     # -------------------------
     y = np.linspace(0.0, h, 401)
+
+    # Column shear (horizontal) constant
     Vc = np.full_like(y, HA)
-    Mc = HA * (h - y)
+
+    # Column moment: linear from A (neg) to B (pos) to match your reference shape
+    Mc_plot = M_A_plot + (M_B_plot - M_A_plot) * (y / h)
+
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
         _render_member_vm(
-            x_m=y, V_kN=Vc, M_kNm=Mc,
+            x_m=y, V_kN=Vc, M_kNm=Mc_plot,
             member_prefix="col_", key_prefix="dmff02_col_", x_label="y (m)"
         )
 
     # -------------------------
-    # Support forces (last)
+    # Support forces
     # -------------------------
-    _render_support_forces("dmff02", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
+    _render_support_forces("dmff02", RA_kN=RA, RE_kN=RC, HA_kN=HA, HD_kN=HA)
 
-    # Deflection (simple fixed-fixed UDL beam ref)
+    # Deflection (keep your simple reference)
     E = get_E_Pa()
     I = _member_I_m4("beam_")
     if E > 0 and I > 0:
-        delta = abs(w) * L**4 / (384.0 * E * I)
+        delta = (w0 * L**4) / (384.0 * E * I)
         _set_deflection_summary(delta, L_ref_m=L)
 
 
