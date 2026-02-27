@@ -9812,47 +9812,110 @@ def _render_dm_fp_03_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float
     _set_deflection_summary(delta, L_ref_m=L)
 
 def _render_dm_fp_04_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
-    """DM-FP-04: Two Member Frame (Fixed/Pin) — Side UDL."""
+    """
+    DM-FP-04: Two Member Frame (Fixed / Pin) — Side UDL (horizontal UDL on column).
+
+    Uses STRUCT equations from your screenshot.
+
+    Assumptions / conventions:
+      - w_kNm is horizontal UDL on the column (kN/m). Positive = to the RIGHT (match your UI label).
+      - Right support at C is PIN => M(C) = 0 on the beam.
+      - Beam moment is triangular: M(B)=MB, M(C)=0.
+      - Column moment under uniform load is parabolic; we enforce M(0)=MA and M(h)=MB.
+
+    If your UI uses opposite sign for right/left, just flip the sign at input.
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    w = float(w_kNm)
+    w_in = float(w_kNm)  # kN/m horizontal on column (+ right)
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
     denom = (3.0 * beta * e + 4.0)
+    if abs(denom) < 1e-12:
+        return
 
-    # From your sheet (side UDL on column)
-    RA = (w * h / 4.0) * ((beta * e**2) / denom) if denom != 0 else 0.0
-    RC = RA
-    HA = (w * h / 2.0) * ((3.0 * beta * e + 5.0) / denom) if denom != 0 else 0.5 * w * h
-    HC = (3.0 * w * h / 2.0) * ((beta * e + 1.0) / denom) if denom != 0 else 0.5 * w * h
+    # Keep sign: + right. (If user enters negative, everything flips consistently.)
+    w = w_in
+    w0 = abs(w_in)
+    s = 1.0 if (w_in >= 0.0) else -1.0  # right -> +, left -> -
 
-    # Beam: show joint-moment envelope from HA*h to HC*h
-    MB = HA * h
-    MC = HC * h
+    # -------------------------
+    # Support reactions (STRUCT)
+    # -------------------------
+    # RA = RC = (w h / 4) * (β e^2)/(3βe+4)
+    RA_mag = (w0 * h / 4.0) * ((beta * e**2) / denom)
+    RC_mag = RA_mag
+
+    # HA = (w h / 2) * (3βe + 5)/(3βe+4)
+    HA_mag = (w0 * h / 2.0) * ((3.0 * beta * e + 5.0) / denom)
+
+    # HC = (3 w h / 2) * (βe + 1)/(3βe+4)
+    HC_mag = (3.0 * w0 * h / 2.0) * ((beta * e + 1.0) / denom)
+
+    RA = s * RA_mag
+    RC = s * RC_mag
+    HA = s * HA_mag
+    HC = s * HC_mag
+
+    # -------------------------
+    # End moments (STRUCT)
+    # -------------------------
+    # MA = (w h^2 / 4) * (βe + 2)/(3βe+4)
+    MA_mag = (w0 * h**2 / 4.0) * ((beta * e + 2.0) / denom)
+
+    # MB = (w h^2 / 4) * (βe)/(3βe+4)
+    MB_mag = (w0 * h**2 / 4.0) * ((beta * e) / denom)
+
+    MA = s * MA_mag
+    MB = s * MB_mag
+
+    # -------------------------
+    # Beam diagrams (B -> C), pin at C => M(C)=0
+    # Moment is linear from MB at x=0 to 0 at x=L.
+    # -------------------------
     x = np.linspace(0.0, L, 401)
-    Vb = np.zeros_like(x)
-    Mb = MB + (MC - MB) * (x / L)
+    M_beam = MB * (1.0 - x / L)
+
+    # Shear = dM/dx (constant)
+    V_beam = np.full_like(x, (M_beam[1] - M_beam[0]) / (x[1] - x[0]))
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfp04_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=V_beam, M_kNm=M_beam,
+            member_prefix="beam_", key_prefix="dmfp04_beam_", x_label="x (m)"
+        )
 
-    # Column: side UDL -> triangular shear / parabolic moment (simple consistent envelope)
-    y = np.linspace(0.0, h, 401)
-    Vc = HA - w * y
-    Mc = HA * (h - y) - 0.5 * w * (h - y)**2
+    # -------------------------
+    # Column diagrams (A -> B)
+    # Column carries uniform horizontal load w (kN/m).
+    # Use parabolic moment: M(y) = MA + V0*y - (w*y^2)/2
+    # Enforce M(h)=MB => solve V0.
+    # y measured from base A upward.
+    # -------------------------
+    yy = np.linspace(0.0, h, 401)
+
+    # solve for V0 so that M(h)=MB
+    # MB = MA + V0*h - w*h^2/2  =>  V0 = (MB - MA)/h + w*h/2
+    V0 = (MB - MA) / h + w * h / 2.0
+
+    M_col = MA + V0 * yy - 0.5 * w * yy**2
+    V_col = V0 - w * yy  # shear = dM/dy
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfp04_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=yy, V_kN=V_col, M_kNm=M_col,
+            member_prefix="col_", key_prefix="dmfp04_col_", x_label="y (m)"
+        )
 
+    # -------------------------
+    # Support forces box
+    # Using your common signature: RA/RE vertical, HA at A, HE at C
+    # -------------------------
     _render_support_forces("dmfp04", RA_kN=RA, RE_kN=RC, HA_kN=HA, HE_kN=HC)
-
-    delta = _deflection_from_M_numeric(x, Mb, bc="ss", member_prefix="beam_")
-    _set_deflection_summary(delta, L_ref_m=L)
-
 
 # ============================================================
 # DM-FR-01..04 — Two Member Frame (Fixed / Free) preview functions
