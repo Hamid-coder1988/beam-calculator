@@ -9603,49 +9603,118 @@ def _render_dm_fp_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     _render_support_forces("dmfp01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
 
 def _render_dm_fp_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    """DM-FP-02: Two Member Frame (Fixed/Pin) — Side Point Load (we assume load at mid-height)."""
+    """
+    DM-FP-02: Two Member Frame (Fixed / Pin) — Side Point Load (P on column at distance y from top).
+
+    Target signs per your message:
+      - Beam: MC positive, MD = 0
+      - Column: MA positive, MB negative, MC positive
+
+    We use the STRUCT sheet equations (with a = L). UI has no y input -> we assume y = h/2.
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    P = float(F_kN)
+    P_in = float(F_kN)  # horizontal point load on column
     if L <= 0 or h <= 0:
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
-    y0 = 0.5 * h
     denom = (3.0 * beta * e + 4.0)
 
-    # The sheet has y-dependent expressions; we fix y=h/2 to keep UI minimal.
-    # For stable UI + consistent diagrams: build an equilibrium-compatible portal approximation.
-    # Horizontal reactions: HA + HD = P. Split by stiffness factor (denom) to keep “equation-like” behavior.
-    HA = P * 0.5 * (1.0 + (beta * e) / denom) if denom != 0 else 0.5 * P
+    # No y input in UI -> keep mid-height load as before
+    y = 0.5 * h  # distance from TOP (C) down to load point B
+    a = L        # sheet uses "a" in MA expression; for this case it's the top beam length
+
+    # Sign handling: assume sheet P is positive to the right. Keep that.
+    # If user enters negative (left), flip everything consistently.
+    P0 = abs(P_in)
+    s = 1.0 if (P_in >= 0.0) else -1.0
+    P = s * P0
+
+    # ---- helper term from sheet ----
+    # NOTE: the screenshot shows (h - y^2) but dimensionally it must be (h^2 - y^2)
+    # to keep RA in units of force. We'll use (h^2 - y^2).
+    h2_minus_y2 = (h**2 - y**2)
+
+    # -------------------------
+    # Support reactions (STRUCT)
+    # -------------------------
+    # RA = RD = [3 P y (h^2 - y^2) / (h L^2)] * [β/(3βe+4)]
+    RA = (3.0 * P * y * h2_minus_y2) / (h * L**2) * (beta / denom)
+    RD = RA
+
+    # HA = (P y / h) * ( 1 + (h-y)/h^2 * ( (3 a β e + 2(h+y)) / (3βe+4) ) )
+    HA = (P * y / h) * (1.0 + ((h - y) / (h**2)) * ((3.0 * a * beta * e + 2.0 * (h + y)) / denom))
+
+    # HD = P - HA
     HD = P - HA
 
-    # Vertical reactions (small, from frame action) — keep symmetric & bounded
-    RA = 0.0
-    RD = 0.0
+    # -------------------------
+    # Bending moments (STRUCT)
+    # -------------------------
+    # MA = [P a (h-y) / h^2] * [ (3 a β e + 2(h+y)) / (3βe+4) ]
+    MA = (P * a * (h - y) / (h**2)) * ((3.0 * a * beta * e + 2.0 * (h + y)) / denom)
 
-    # Beam envelope: linear moment between end joint moments
-    MB = HA * h
-    MD = HD * h
+    # MB = HA(h - y) - MA
+    MB = HA * (h - y) - MA
+
+    # MC (top joint / beam left end moment) = [3 P y (h-y)^2 / (h L)] * [β/(3βe+4)]
+    MC = (3.0 * P * y * (h - y)**2) / (h * L) * (beta / denom)
+
+    # -------------------------
+    # Beam diagrams (C->D)
+    # MD = 0 (pin at D), so moment is linear from MC to 0
+    # -------------------------
     x = np.linspace(0.0, L, 401)
-    Vb = np.zeros_like(x)
-    Mb = MB + (MD - MB) * (x / L)
+    Mb = MC * (1.0 - x / L)  # MC at x=0, 0 at x=L
+    Vb = np.full_like(x, (Mb[1] - Mb[0]) / (x[1] - x[0]))  # constant slope dM/dx
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfp02_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=x, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="dmfp02_beam_", x_label="x (m)"
+        )
 
-    # Column envelope: use HA as constant shear
-    y = np.linspace(0.0, h, 251)
-    Vc = np.full_like(y, HA)
-    Mc = HA * (h - y)
+    # -------------------------
+    # Column diagrams (A->C) with point B in between
+    # Build piecewise-linear moment through (A:MA), (B:MB), (C:MC)
+    # -------------------------
+    yB = h - y  # height of point B measured from base A
+
+    yy = np.linspace(0.0, h, 401)
+    Mc_col = np.zeros_like(yy)
+
+    # A->B
+    mask1 = yy <= yB
+    if np.any(mask1):
+        t1 = yy[mask1] / max(yB, 1e-12)
+        Mc_col[mask1] = MA + (MB - MA) * t1
+
+    # B->C
+    mask2 = yy > yB
+    if np.any(mask2):
+        t2 = (yy[mask2] - yB) / max((h - yB), 1e-12)
+        Mc_col[mask2] = MB + (MC - MB) * t2
+
+    # Column "shear" plot: keep it simple & consistent (piecewise constant)
+    # Below B: shear = HA
+    # Above B: shear = HA - P (jump at point load)
+    Vc = np.where(yy <= yB, HA, HA - P)
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfp02_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=yy, V_kN=Vc, M_kNm=Mc_col,
+            member_prefix="col_", key_prefix="dmfp02_col_", x_label="y (m)"
+        )
 
+    # -------------------------
+    # Support forces (show both horizontal + vertical)
+    # -------------------------
     _render_support_forces("dmfp02", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HD)
 
+    # Deflection: keep your numeric method on beam moment curve
     delta = _deflection_from_M_numeric(x, Mb, bc="ss", member_prefix="beam_")
     _set_deflection_summary(delta, L_ref_m=L)
 
