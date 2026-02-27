@@ -8140,14 +8140,15 @@ def _render_dm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     """
     DM-FF-01 — Two Member Frame (Fixed / Fixed) — Top Point Load
 
-    Reference target shapes (your STRUCT sheet):
-      - Beam BMD: starts POSITIVE at B, dips to NEGATIVE around the load, then goes toward the right end.
-      - Column BMD: NEGATIVE at foot (A) and POSITIVE at top (B) (linear variation).
+    Reference sign convention (STRUCT sheet):
+      - Beam: B and D positive, C negative  (hogging positive, sagging negative)
+      - Column: negative at foot, positive at top (as you requested)
 
-    Notes on sign:
-      Your UI uses "downward negative".
-      The STRUCT formulas assume downward as the reference direction.
-      So we compute magnitudes with P0 = abs(F_kN), then flip outputs if the user entered upward.
+    Implementation:
+      1) Compute internal moments in the usual statics convention (sagging +).
+         For a fixed-fixed beam under downward load, end moments are hogging => NEGATIVE in sagging(+).
+      2) For plotting, convert to the reference convention: My_ref = -My_sagging
+         => end moments become positive, midspan sagging becomes negative.
     """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
@@ -8156,28 +8157,21 @@ def _render_dm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
         return
 
     beta, e = _frame_beta_e("beam_", "col_")
-
-    # UI convention: downward is negative.
-    # STRUCT reference direction: downward.
-    P0 = abs(F_in)
-    s_ref = 1.0 if (F_in < 0.0) else -1.0  # downward input -> keep as reference; upward -> flip
-
-    # ---- Load position ----
-    # Your current UI has no "x", so we keep the assumption used elsewhere: load at midspan.
-    # STRUCT formulas in your reference use x = distance from RIGHT support to the load.
-    xR = 0.5 * L                # distance from right end to load
-    a = L - xR                  # distance from left end (B) to load
-
     denom = (beta * e + 1.0)
 
+    # Downward in your UI is negative; STRUCT reference assumes downward.
+    P0 = abs(F_in)
+    s_ref = 1.0 if (F_in < 0.0) else -1.0  # downward input -> keep, upward -> flip
+
+    # No x-input in your UI -> keep midspan load like before
+    xR = 0.5 * L           # distance from RIGHT end to the load (STRUCT uses x from right)
+    a = L - xR             # distance from LEFT end (B) to the load
+
     # -------------------------
-    # Support reactions (from your reference)
+    # Reactions (STRUCT equations, magnitudes)
     # -------------------------
-    # RA = P x^2 /(2 L^3 (βe+1)) * ( βe(3L-x) + 2(3L-2x) )
     RA_ref = (P0 * xR**2 / (2.0 * L**3 * denom)) * (beta * e * (3.0 * L - xR) + 2.0 * (3.0 * L - 2.0 * xR))
     RD_ref = P0 - RA_ref
-
-    # HA = HD = (3 P x^2 (L-x)) /(2 h L^2 (βe+1))
     HA_ref = (3.0 * P0 * xR**2 * (L - xR)) / (2.0 * h * L**2 * denom)
 
     RA = s_ref * RA_ref
@@ -8185,67 +8179,75 @@ def _render_dm_ff_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
     HA = s_ref * HA_ref
 
     # -------------------------
-    # End moments (sign to match your reference shapes)
-    # Column: negative at base, positive at top
+    # End moments from STRUCT magnitudes
     # -------------------------
-    # MA magnitude from reference:
-    # MA = P x^2 /(2 L^2) * (L-x)/(βe+1)
     MA_mag = (P0 * xR**2 / (2.0 * L**2)) * ((L - xR) / denom)
-
-    # MB magnitude from reference:
-    # MB = P x^2 /(L^2) * (L-x)/(βe+1)
     MB_mag = (P0 * xR**2 / (L**2)) * ((L - xR) / denom)
 
-    # Apply sign so that (downward case): MA negative, MB positive
-    M_A = s_ref * (-MA_mag)
-    M_B = s_ref * (+MB_mag)
+    # MD magnitude (STRUCT line at bottom)
+    # MD = [P x (L-x) /(2L^2)] * ( βe(2L-x)+2(L-x) )/(βe+1)
+    MD_mag = (P0 * xR * (L - xR) / (2.0 * L**2)) * ((beta * e * (2.0 * L - xR) + 2.0 * (L - xR)) / denom)
+
+    # INTERNAL (sagging +) convention:
+    # fixed-end hogging moments are NEGATIVE for downward loading.
+    # (then we will flip sign for plotting to match the reference)
+    M_B_sag = s_ref * (-MB_mag)
+    M_D_sag = s_ref * (-MD_mag)
+
+    # Column moments: you asked A negative, B positive (plot convention).
+    # We'll set them directly in "reference plot convention" later.
+    M_A_plot = s_ref * (-MA_mag)   # negative at base
+    M_B_plot = s_ref * (+MB_mag)   # positive at top (matches your request)
 
     # -------------------------
-    # Beam diagrams (piecewise with correct start moment M_B)
-    # V(x) = RA  (left of load), RA - P (right of load)
-    # M(x) = M_B + RA*x - P*(x-a) for x>=a
+    # Beam diagrams (compute in sagging(+), then flip for plotting)
     # -------------------------
     x = np.linspace(0.0, L, 801)
     step = (x >= a).astype(float)
 
-    # Use reference-direction point load magnitude, then flip consistently
-    P = s_ref * P0
+    P = s_ref * P0  # point load sign consistent with reactions
 
+    # Shear (keep as-is; only moment sign convention differs from the reference sheet)
     Vb = RA - P * step
-    Mb = M_B + RA * x - P * (x - a) * step
+
+    # Moment in sagging(+) convention:
+    Mb_sag = M_B_sag + RA * x - P * (x - a) * step
+
+    # Convert to STRUCT plot convention (hogging +):
+    Mb_plot = -Mb_sag
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
         _render_member_vm(
-            x_m=x, V_kN=Vb, M_kNm=Mb,
+            x_m=x, V_kN=Vb, M_kNm=Mb_plot,
             member_prefix="beam_", key_prefix="dmff01_beam_", x_label="x (m)"
         )
 
     # -------------------------
-    # Column diagrams (linear moment from M_A to M_B)
-    # Shear is horizontal HA (constant)
+    # Column diagrams
+    # (Linear moment from negative at base to positive at top as you requested)
     # -------------------------
     y = np.linspace(0.0, h, 401)
     Vc = np.full_like(y, HA)
-    Mc = M_A + (M_B - M_A) * (y / h)
+    Mc_plot = M_A_plot + (M_B_plot - M_A_plot) * (y / h)
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
         _render_member_vm(
-            x_m=y, V_kN=Vc, M_kNm=Mc,
+            x_m=y, V_kN=Vc, M_kNm=Mc_plot,
             member_prefix="col_", key_prefix="dmff01_col_", x_label="y (m)"
         )
 
     # -------------------------
-    # Support forces (last)
+    # Support forces
     # -------------------------
     _render_support_forces("dmff01", RA_kN=RA, RE_kN=RD, HA_kN=HA, HD_kN=HA)
 
-    # Deflection (keep your simple fixed-fixed beam reference)
+    # Optional deflection summary (leave your existing approach)
     E = get_E_Pa()
     I = _member_I_m4("beam_")
     if E > 0 and I > 0:
-        delta = (P0 * 1000.0) * L**3 / (192.0 * E * I)  # N used inside; consistent with your earlier style
+        delta = (P0 * 1000.0) * L**3 / (192.0 * E * I)
         _set_deflection_summary(abs(delta), L_ref_m=L)
         
 def _render_dm_ff_02_whole_frame_diagrams(L_mm: float, h_mm: float, w_kNm: float):
