@@ -9961,40 +9961,60 @@ def _render_dm_fr_01_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float)
 
 
 def _render_dm_fr_02_whole_frame_diagrams(L_mm: float, h_mm: float, F_kN: float):
-    """DM-FR-02: Two Member Frame (Fixed/Free) — Free End Horizontal Point Load."""
+    """
+    DM-FR-02: Two Member Frame (Fixed / Free) — Free End Horizontal Point Load
+
+    Reference behavior:
+      - Support reactions: RA = 0, HA = P
+      - Beam: V = 0, M = 0 (beam is free, only axial in beam; no bending)
+      - Column: V = P (constant), M(y) = P*(h - y) (linear), Mmax at base = P*h
+    """
     L = float(L_mm) / 1000.0
     h = float(h_mm) / 1000.0
-    P = float(F_kN)
+    P = float(F_kN)  # (+ right) per your UI label
     if L <= 0 or h <= 0:
         return
 
+    # -------------------------
+    # Reactions (match your reference text: HA = P, RA = 0)
+    # -------------------------
     RA = 0.0
     HA = P
 
-    # Beam: no vertical shear; show constant joint moment Ph as envelope
-    x = np.linspace(0.0, L, 401)
-    Vb = np.zeros_like(x)
-    Mb = np.full_like(x, P * h)
+    # -------------------------
+    # Beam diagrams: zero shear and zero bending
+    # -------------------------
+    xb = np.linspace(0.0, L, 201)
+    Vb = np.zeros_like(xb)
+    Mb = np.zeros_like(xb)
 
     with st.expander("Beam diagrams", expanded=False):
         small_title("Beam diagrams")
-        _render_member_vm(x_m=x, V_kN=Vb, M_kNm=Mb, member_prefix="beam_", key_prefix="dmfr02_beam_", x_label="x (m)")
+        _render_member_vm(
+            x_m=xb, V_kN=Vb, M_kNm=Mb,
+            member_prefix="beam_", key_prefix="dmfr02_beam_", x_label="x (m)"
+        )
 
-    # Column: triangular moment + constant shear
-    y = np.linspace(0.0, h, 401)
-    Vc = np.full_like(y, P)
-    Mc = P * (h - y)
+    # -------------------------
+    # Column diagrams: constant shear, linear moment (max at base = P*h)
+    # y from base A (0) to top B (h)
+    # -------------------------
+    yc = np.linspace(0.0, h, 201)
+    Vc = np.full_like(yc, P)
+    Mc = P * (h - yc)  # M(0)=P*h, M(h)=0
 
     with st.expander("Column diagrams", expanded=False):
         small_title("Column diagrams")
-        _render_member_vm(x_m=y, V_kN=Vc, M_kNm=Mc, member_prefix="col_", key_prefix="dmfr02_col_", x_label="y (m)")
+        _render_member_vm(
+            x_m=yc, V_kN=Vc, M_kNm=Mc,
+            member_prefix="col_", key_prefix="dmfr02_col_", x_label="y (m)"
+        )
 
-    _render_support_forces("dmfr02", RA_kN=RA, RE_kN=0.0, HA_kN=HA)
-
-    EI = _EI_col()
-    if EI > 0:
-        Dy = (P * h**2 * L) / (2.0 * EI)
-        _set_deflection_summary(abs(Dy), L_ref_m=L)
+    # -------------------------
+    # Support forces box
+    # (Your helper signature varies across cases; this one keeps it simple.)
+    # -------------------------
+    _render_support_forces("dmfr02", RA_kN=RA, RE_kN=0.0, HA_kN=HA, HD_kN=0.0)
 
 
 def _render_dm_fr_03_whole_frame_diagrams(L_mm: float, h_mm: float, M_kNm: float):
