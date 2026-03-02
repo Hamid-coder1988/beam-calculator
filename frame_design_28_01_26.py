@@ -3612,7 +3612,6 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
             # (11): show the interaction (Eq. 8.56 form)
             u_6209_11 = (uMy ** alpha_y_6209) + (uMz ** alpha_z_6209)
 
-
     # ------------------------------------------------------------
     # (12)–(14) Bending, shear and axial force — EN 1993-1-1 §6.2.10
     # ------------------------------------------------------------
@@ -3623,15 +3622,11 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
         eta_gov = max(eta_gov, float(abs(shear_ratio_z)))
 
     shear_small_6210 = True if eta_gov is None else (eta_gov <= 0.50)
+    shear_failed_6210 = (eta_gov is not None) and (float(eta_gov) >= 1.0)
 
+    # Initialize outputs ONCE (do not overwrite fallback later)
     rho_6210 = 0.0
     fy_red_6210 = fy
-    if not shear_small_6210:
-        rho_6210 = max(0.0, (2.0 * eta_gov - 1.0) ** 2)
-        rho_6210 = min(rho_6210, 1.0)
-        fy_red_6210 = max(0.0, (1.0 - rho_6210) * fy)
-
-    scale = (fy_red_6210 / fy) if (fy > 0 and not shear_small_6210) else 1.0
 
     MN_y_Rd_6210 = None
     MN_z_Rd_6210 = None
@@ -3641,66 +3636,95 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     u_6210_13 = None
     u_6210_14 = None
 
-    if (n is not None) and (A_mm2 > 0) and (Mpl_Rd_y_kNm > 0) and (Mpl_Rd_z_kNm > 0):
-        Mpl_y_use = Mpl_Rd_y_kNm * scale
-        Mpl_z_use = Mpl_Rd_z_kNm * scale
+    # ----------------------------
+    # Case 1: Shear capacity exceeded -> report §6.2.10 as governed by shear
+    # ----------------------------
+    if shear_failed_6210:
+        uV_y = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if (Vc_y_Rd_kN and Vc_y_Rd_kN > 0) else 0.0
+        uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if (Vc_z_Rd_kN and Vc_z_Rd_kN > 0) else 0.0
+        uV = (uV_y ** 2) + (uV_z ** 2)
 
-        if is_ih:
-            a = (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2
-            a = max(0.0, min(0.5, a))
+        # Fill all three as shear-governed. This will be > 1.0 whenever shear fails.
+        u_6210_12 = uV
+        u_6210_13 = uV
+        u_6210_14 = uV
 
-            denom_y = (1.0 - 0.5 * a)
-            MN_y_Rd_6210 = Mpl_y_use * (1.0 - n) / denom_y if denom_y > 0 else 0.0
-            MN_y_Rd_6210 = min(Mpl_y_use, max(0.0, MN_y_Rd_6210))
+        # Keep rho/fy_red consistent for reporting
+        rho_6210 = min(1.0, max(0.0, (2.0 * float(eta_gov) - 1.0) ** 2))
+        fy_red_6210 = max(0.0, (1.0 - rho_6210) * fy)
 
-            if n <= a:
-                MN_z_Rd_6210 = Mpl_z_use
-            else:
-                ratio = (n - a) / (1.0 - a) if (1.0 - a) > 0 else 1.0
-                MN_z_Rd_6210 = Mpl_z_use * (1.0 - ratio**2)
-                MN_z_Rd_6210 = max(0.0, MN_z_Rd_6210)
+    # ----------------------------
+    # Case 2: Shear capacity not exceeded -> run your existing full §6.2.10 method
+    # ----------------------------
+    else:
+        # Reduced yield strength only when shear is not "small" (eta > 0.5)
+        if not shear_small_6210:
+            rho_6210 = max(0.0, (2.0 * eta_gov - 1.0) ** 2)
+            rho_6210 = min(rho_6210, 1.0)
+            fy_red_6210 = max(0.0, (1.0 - rho_6210) * fy)
 
-            alpha_y_6210 = 2.0
-            alpha_z_6210 = max(1.0, 5.0 * n)
+        scale = (fy_red_6210 / fy) if (fy > 0 and not shear_small_6210) else 1.0
 
-        elif is_rhs:
-            aw = (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2
-            af = (A_mm2 - 2.0 * h_mm * tw_mm) / A_mm2
-            aw = max(0.0, min(0.5, aw))
-            af = max(0.0, min(0.5, af))
+        if (n is not None) and (A_mm2 > 0) and (Mpl_Rd_y_kNm > 0) and (Mpl_Rd_z_kNm > 0):
+            Mpl_y_use = Mpl_Rd_y_kNm * scale
+            Mpl_z_use = Mpl_Rd_z_kNm * scale
 
-            denom_y = (1.0 - 0.5 * aw)
-            denom_z = (1.0 - 0.5 * af)
+            if is_ih:
+                a = (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2
+                a = max(0.0, min(0.5, a))
 
-            MN_y_Rd_6210 = Mpl_y_use * (1.0 - n) / denom_y if denom_y > 0 else 0.0
-            MN_z_Rd_6210 = Mpl_z_use * (1.0 - n) / denom_z if denom_z > 0 else 0.0
-            MN_y_Rd_6210 = min(Mpl_y_use, max(0.0, MN_y_Rd_6210))
-            MN_z_Rd_6210 = min(Mpl_z_use, max(0.0, MN_z_Rd_6210))
+                denom_y = (1.0 - 0.5 * a)
+                MN_y_Rd_6210 = Mpl_y_use * (1.0 - n) / denom_y if denom_y > 0 else 0.0
+                MN_y_Rd_6210 = min(Mpl_y_use, max(0.0, MN_y_Rd_6210))
 
-            if n <= 0.8:
-                denom = (1.0 - 1.13 * (n**2))
-                alpha = min(6.0, 1.66 / denom) if denom > 0 else 6.0
-            else:
-                alpha = 6.0
-            alpha_y_6210 = alpha
-            alpha_z_6210 = alpha
+                if n <= a:
+                    MN_z_Rd_6210 = Mpl_z_use
+                else:
+                    ratio = (n - a) / (1.0 - a) if (1.0 - a) > 0 else 1.0
+                    MN_z_Rd_6210 = Mpl_z_use * (1.0 - ratio**2)
+                    MN_z_Rd_6210 = max(0.0, MN_z_Rd_6210)
 
-        if (MN_y_Rd_6210 is not None) and (MN_z_Rd_6210 is not None) and (MN_y_Rd_6210 > 0) and (MN_z_Rd_6210 > 0):
-            uMy = abs(My_Ed_kNm) / MN_y_Rd_6210
-            uMz = abs(Mz_Ed_kNm) / MN_z_Rd_6210
+                alpha_y_6210 = 2.0
+                alpha_z_6210 = max(1.0, 5.0 * n)
 
-            if shear_small_6210:
-                u_6210_12 = uMy
-                u_6210_13 = uMz
-                u_6210_14 = (uMy ** alpha_y_6210) + (uMz ** alpha_z_6210)
-            else:
-                uV_y = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if (Vc_y_Rd_kN and Vc_y_Rd_kN > 0) else 0.0
-                uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if (Vc_z_Rd_kN and Vc_z_Rd_kN > 0) else 0.0
-                uV = (uV_y ** 2) + (uV_z ** 2)
+            elif is_rhs:
+                aw = (A_mm2 - 2.0 * b_mm * tf_mm) / A_mm2
+                af = (A_mm2 - 2.0 * h_mm * tw_mm) / A_mm2
+                aw = max(0.0, min(0.5, aw))
+                af = max(0.0, min(0.5, af))
 
-                u_6210_12 = (uMy ** alpha_y_6210) + uV
-                u_6210_13 = (uMz ** alpha_z_6210) + uV
-                u_6210_14 = (uMy ** alpha_y_6210) + (uMz ** alpha_z_6210) + uV
+                denom_y = (1.0 - 0.5 * aw)
+                denom_z = (1.0 - 0.5 * af)
+
+                MN_y_Rd_6210 = Mpl_y_use * (1.0 - n) / denom_y if denom_y > 0 else 0.0
+                MN_z_Rd_6210 = Mpl_z_use * (1.0 - n) / denom_z if denom_z > 0 else 0.0
+                MN_y_Rd_6210 = min(Mpl_y_use, max(0.0, MN_y_Rd_6210))
+                MN_z_Rd_6210 = min(Mpl_z_use, max(0.0, MN_z_Rd_6210))
+
+                if n <= 0.8:
+                    denom = (1.0 - 1.13 * (n**2))
+                    alpha = min(6.0, 1.66 / denom) if denom > 0 else 6.0
+                else:
+                    alpha = 6.0
+                alpha_y_6210 = alpha
+                alpha_z_6210 = alpha
+
+            if (MN_y_Rd_6210 is not None) and (MN_z_Rd_6210 is not None) and (MN_y_Rd_6210 > 0) and (MN_z_Rd_6210 > 0):
+                uMy = abs(My_Ed_kNm) / MN_y_Rd_6210
+                uMz = abs(Mz_Ed_kNm) / MN_z_Rd_6210
+
+                if shear_small_6210:
+                    u_6210_12 = uMy
+                    u_6210_13 = uMz
+                    u_6210_14 = (uMy ** alpha_y_6210) + (uMz ** alpha_z_6210)
+                else:
+                    uV_y = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if (Vc_y_Rd_kN and Vc_y_Rd_kN > 0) else 0.0
+                    uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if (Vc_z_Rd_kN and Vc_z_Rd_kN > 0) else 0.0
+                    uV = (uV_y ** 2) + (uV_z ** 2)
+
+                    u_6210_12 = (uMy ** alpha_y_6210) + uV
+                    u_6210_13 = (uMz ** alpha_z_6210) + uV
+                    u_6210_14 = (uMy ** alpha_y_6210) + (uMz ** alpha_z_6210) + uV
 
     # Prepare detail values for report + Results table (now includes real u(9–14))
     cs_combo = dict(
@@ -4418,6 +4442,12 @@ def render_results(df_rows, overall_ok, governing,
 """
         card_close = "</div>"
 
+        def _clean_cell(v, na="N/A"):
+            if v is None:
+                return na
+            s = str(v).strip()
+            return na if s == "" or s.lower() == "none" else s
+
         html = card_open
         html += f"<div style='font-weight:600; margin-bottom:6px;'>{title}</div>"
 
@@ -4432,15 +4462,20 @@ def render_results(df_rows, overall_ok, governing,
 """
 
         for i, name in enumerate(names):
-            util = utils[i] if i < len(utils) else ""
-            status = statuses[i] if i < len(statuses) else ""
+            util = utils[i] if i < len(utils) else None
+            status = statuses[i] if i < len(statuses) else None
             number = start_no + i
 
-            status_upper = (status or "").strip().upper()
+            util_txt = _clean_cell(util, na="N/A")
+            status_txt = _clean_cell(status, na="N/A")
+
+            status_upper = status_txt.strip().upper()
             if status_upper == "OK":
                 bg = "#e6f7e6"
             elif status_upper == "EXCEEDS":
                 bg = "#fde6e6"
+            elif status_upper == "N/A":
+                bg = "#f3f3f3"
             else:
                 bg = "#ffffff" if (i % 2 == 0) else "#f9f9f9"
 
@@ -4456,8 +4491,8 @@ def render_results(df_rows, overall_ok, governing,
   <tr style="background-color:{bg};">
     <td style="border-top:1px solid #e0e0e0; padding:5px; text-align:center; font-weight:{fw};">{number}</td>
     <td style="border-top:1px solid #e0e0e0; padding:5px; text-align:left;   font-weight:{fw};">{name}</td>
-    <td style="border-top:1px solid #e0e0e0; padding:5px; text-align:center; font-weight:{fw};">{util}</td>
-    <td style="border-top:1px solid #e0e0e0; padding:5px; text-align:center; font-weight:{fw};">{status}</td>
+    <td style="border-top:1px solid #e0e0e0; padding:5px; text-align:center; font-weight:{fw};">{util_txt}</td>
+    <td style="border-top:1px solid #e0e0e0; padding:5px; text-align:center; font-weight:{fw};">{status_txt}</td>
   </tr>
 """
         html += "</table>" + card_close
@@ -6190,7 +6225,31 @@ def render_report_tab(key_prefix="rpt"):
                 "fy_red_6210": fy_red,
             })
         else:
-            st.warning("Cannot compute §6.2.10 utilizations because reduced resistances could not be evaluated.")
+    # Engineering note: if shear exceeds capacity, the member already fails in shear.
+    # §6.2.10 interaction is governed by shear, so we report that explicitly.
+    eta_gov = 0.0
+    if eta_vz is not None:
+        eta_gov = max(eta_gov, float(abs(eta_vz)))
+    if eta_vy is not None:
+        eta_gov = max(eta_gov, float(abs(eta_vy)))
+
+    if eta_gov >= 1.0:
+        st.info(
+            "Shear capacity is exceeded (ηv > 1.0). The cross-section already fails in shear, "
+            "so §6.2.10 interaction is governed by shear and reduced bending resistances are not decisive here."
+        )
+
+        uV_y = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if (Vc_y_Rd_kN and Vc_y_Rd_kN > 0) else 0.0
+        uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if (Vc_z_Rd_kN and Vc_z_Rd_kN > 0) else 0.0
+        uV = (uV_y ** 2) + (uV_z ** 2)
+
+        _eq_line("Shear interaction term:", r"u_V=\left(\frac{V_{y,Ed}}{V_{c,y,Rd}}\right)^2+\left(\frac{V_{z,Ed}}{V_{c,z,Rd}}\right)^2")
+        _eq_line("Value:", rf"u_V={uV:.3f}")
+
+        # Optional: store for consistency (if you keep cs_combo in scope here)
+        cs_combo.update({"u_6210_12": uV, "u_6210_13": uV, "u_6210_14": uV})
+    else:
+        st.warning("Cannot compute §6.2.10 utilizations because reduced resistances could not be evaluated.")
 
 
         # ----------------------------------------------------
