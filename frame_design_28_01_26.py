@@ -3640,19 +3640,15 @@ def compute_checks(use_props, fy, inputs, torsion_supported):
     # Case 1: Shear capacity exceeded -> report §6.2.10 as governed by shear
     # ----------------------------
     if shear_failed_6210:
-        uV_y = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if (Vc_y_Rd_kN and Vc_y_Rd_kN > 0) else 0.0
-        uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if (Vc_z_Rd_kN and Vc_z_Rd_kN > 0) else 0.0
-        uV = (uV_y ** 2) + (uV_z ** 2)
-
-        # Fill all three as shear-governed. This will be > 1.0 whenever shear fails.
-        u_6210_12 = uV
-        u_6210_13 = uV
-        u_6210_14 = uV
-
-        # Keep rho/fy_red consistent for reporting
+        # Plastic shear resistance not adequate -> §6.2.10 reduced bending resistance cannot be defined.
+        # Keep utilizations (12–14) as NA (None). Shear check itself (Vz/Vc, Vy/Vc) already governs.
+        u_6210_12 = None
+        u_6210_13 = None
+        u_6210_14 = None
+    
         rho_6210 = min(1.0, max(0.0, (2.0 * float(eta_gov) - 1.0) ** 2))
         fy_red_6210 = max(0.0, (1.0 - rho_6210) * fy)
-
+    
     # ----------------------------
     # Case 2: Shear capacity not exceeded -> run your existing full §6.2.10 method
     # ----------------------------
@@ -6000,10 +5996,10 @@ def render_report_tab(key_prefix="rpt"):
             with cM:
                 st.latex(latex_expr)
 
-        # Helper: print utilization with correct sign + badge (does NOT change any calculation)
+        # Helper: print utilization with correct sign + badge (display only)
         def _util_line(label_html: str, sym_latex: str, u_val):
             if u_val is None:
-                _eq_line(label_html, rf"{sym_latex}=\mathrm{{n/a}}")
+                _eq_line(label_html, rf"{sym_latex}=\mathrm{{NA}}")
                 return
             u_val = float(u_val)
             sign = r"\le" if u_val <= 1.0 else ">"
@@ -6023,10 +6019,13 @@ def render_report_tab(key_prefix="rpt"):
         Av_z_mm2 = float(sr_display.get("Av_z_mm2", sr_display.get("Avz_mm2", 0.0)) or 0.0)
         Av_y_mm2 = float(sr_display.get("Av_y_mm2", sr_display.get("Avy_mm2", 0.0)) or 0.0)
 
-        # Plastic axial & plastic bending resistances from DB (already used in §6.2.9 block)
-        Npl_Rd_kN    = float(sr_display.get("Npl_Rd_kN") or 0.0)
+        # Plastic axial & plastic bending resistances from DB
+        Npl_Rd_kN = float(sr_display.get("Npl_Rd_kN") or 0.0)
         Mpl_y_Rd_kNm = float(sr_display.get("Mpl_Rd_y_kNm") or 0.0)
-        Mpl_z_Rd_kNm = float(sr_display.get("Mpl_z_Rd_kNm") or 0.0)
+
+        # IMPORTANT: your codebase uses Mpl_Rd_z_kNm (not Mpl_z_Rd_kNm)
+        # Keep a fallback for safety but do not introduce new naming elsewhere.
+        Mpl_z_Rd_kNm = float(sr_display.get("Mpl_Rd_z_kNm", sr_display.get("Mpl_z_Rd_kNm", 0.0)) or 0.0)
 
         # Design actions
         NEd_kN    = float(cs_combo.get("NEd_kN") or abs(inputs.get("N_kN") or 0.0))
@@ -6079,48 +6078,44 @@ def render_report_tab(key_prefix="rpt"):
             _eq_line("Shear ratio (y):", rf"\eta_{{v,y}}=\frac{{V_{{y,Ed}}}}{{V_{{c,y,Rd}}}}=\frac{{{abs(Vy_Ed_kN):.2f}}}{{{Vc_y_Rd_kN:.2f}}}={eta_vy:.3f}")
 
         # -----------------------------------------------------------------
-        # Case: η_gov >= 1.0 -> shear capacity already exceeded (still compute Truth A and show it)
+        # Reference behavior:
+        # If plastic shear resistance is not adequate (η_gov > 1.0),
+        # reduced bending resistances cannot be defined -> report NA for (12)-(14).
         # -----------------------------------------------------------------
         if eta_gov >= 1.0:
             st.warning(
-                "Shear capacity is exceeded (ηv ≥ 1.0). The cross-section already fails in shear. "
-                "In the §6.2.10 reduction, ρ reaches 1.0 and f_y,red → 0, so reduced bending resistances collapse. "
-                "Therefore, the interaction is governed by shear and the section is **NOT OK**."
+                "The plastic shear resistance of the cross-section is not adequate (utilization factor > 1.00). "
+                "Therefore, the reduced bending moment resistance of the cross-section due to the shear force "
+                "cannot be defined. In this case, utilizations for checks **(12), (13), (14)** are reported as **NA** "
+                "to indicate shear failure governs."
             )
-
-            # Truth A: uV = (Vy/Vcy)^2 + (Vz/Vcz)^2
-            uV_y = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if (Vc_y_Rd_kN and Vc_y_Rd_kN > 0) else 0.0
-            uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if (Vc_z_Rd_kN and Vc_z_Rd_kN > 0) else 0.0
-            uV = (uV_y ** 2) + (uV_z ** 2)
 
             rho = min(1.0, max(0.0, (2.0 * eta_gov - 1.0) ** 2))
             fy_red = max(0.0, (1.0 - rho) * fy)
 
             _eq_line("Reduction parameter:", rf"\rho=\left(2\frac{{V_{{Ed}}}}{{V_{{c,Rd}}}}-1\right)^2={rho:.3f}")
             _eq_line("Reduced yield strength:", rf"f_{{y,red}}=(1-\rho)f_y={(fy_red):.1f}\,\mathrm{{MPa}}")
-            _eq_line("Shear interaction term:", r"u_V=\left(\frac{V_{y,Ed}}{V_{c,y,Rd}}\right)^2+\left(\frac{V_{z,Ed}}{V_{c,z,Rd}}\right)^2")
-            _eq_line("Value:", rf"u_V={uV:.3f}")
 
-            # Truth A: still assign u12-u14 = uV (even though it fails)
-            u12 = uV
-            u13 = uV
-            u14 = uV
+            # Store NA to match table
+            u12 = None
+            u13 = None
+            u14 = None
 
             _util_line("Utilization (12):", r"u_y", u12)
             _util_line("Utilization (13):", r"u_z", u13)
             _util_line("Utilization (14):", r"u_{y+z}", u14)
 
             cs_combo.update({
-                "u_6210_12": u12,
-                "u_6210_13": u13,
-                "u_6210_14": u14,
+                "u_6210_12": None,
+                "u_6210_13": None,
+                "u_6210_14": None,
                 "shear_small_6210": shear_small,
                 "rho_6210": rho,
                 "fy_red_6210": fy_red,
             })
 
         # -----------------------------------------------------------------
-        # Normal case (η_gov < 1.0): do the regular §6.2.10 interaction (unchanged)
+        # Normal case (η_gov < 1.0): do the regular §6.2.10 interaction
         # -----------------------------------------------------------------
         else:
             if shear_small:
@@ -6191,7 +6186,7 @@ def render_report_tab(key_prefix="rpt"):
                 else:
                     st.info("Section family not recognized for §6.2.10 (I/H or RHS). No interaction model applied here.")
 
-            # Utilizations (unchanged calculations; only display uses _util_line for correct sign)
+            # Utilizations
             if (MN_y_Rd is not None) and (MN_z_Rd is not None) and (alpha_y is not None) and (alpha_z is not None) and (MN_y_Rd > 0) and (MN_z_Rd > 0):
                 uMy = abs(My_Ed_kNm) / MN_y_Rd
                 uMz = abs(Mz_Ed_kNm) / MN_z_Rd
@@ -6229,7 +6224,6 @@ def render_report_tab(key_prefix="rpt"):
                 })
             else:
                 st.warning("Cannot compute §6.2.10 utilizations because reduced resistances could not be evaluated.")
-
 
         # ----------------------------------------------------
         # (6.3) Member stability summary (checks 15–22)
