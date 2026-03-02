@@ -4255,19 +4255,15 @@ def render_results(df_rows, overall_ok, governing,
     # -----------------------------
     # Helpers
     # -----------------------------
-    def _fmt_util(u):
-        if u is None:
-            return "n/a"
+    def _fmt_util(x):
         try:
-            return f"{float(u):.3f}"
+            return f"{float(x):.3f}"
         except Exception:
             return "n/a"
     
-    def _ok(u):
-        if u is None:
-            return "n/a"
+    def _ok(x):
         try:
-            return "OK" if float(u) <= 1.0 else "EXCEEDS"
+            return "OK" if float(x) <= 1.0 else "EXCEEDS"
         except Exception:
             return "n/a"
 
@@ -4394,15 +4390,19 @@ def render_results(df_rows, overall_ok, governing,
     cs_util[10] = _fmt_util(cs_combo.get("u_6209_11"))
     cs_status[10] = _ok(cs_combo.get("u_6209_11"))
 
-    # (12)–(14) §6.2.10 (use u values computed in compute_checks; same as Report tab)
-    cs_util[11] = _fmt_util(cs_combo.get("u_6210_12"))
-    cs_status[11] = _ok(cs_combo.get("u_6210_12"))
+    # (12)–(14) §6.2.10 — show exactly what compute_checks stored (Truth A)
+    u12 = cs_combo.get("u_6210_12", None)
+    u13 = cs_combo.get("u_6210_13", None)
+    u14 = cs_combo.get("u_6210_14", None)
 
-    cs_util[12] = _fmt_util(cs_combo.get("u_6210_13"))
-    cs_status[12] = _ok(cs_combo.get("u_6210_13"))
+    cs_util[11] = _fmt_util(u12)
+    cs_status[11] = _ok(u12)
 
-    cs_util[13] = _fmt_util(cs_combo.get("u_6210_14"))
-    cs_status[13] = _ok(cs_combo.get("u_6210_14"))
+    cs_util[12] = _fmt_util(u13)
+    cs_status[12] = _ok(u13)
+
+    cs_util[13] = _fmt_util(u14)
+    cs_status[13] = _ok(u14)
 
     # -------------------------------------------------
     # Fill member stability checks (15–20) from buck_map
@@ -6000,6 +6000,16 @@ def render_report_tab(key_prefix="rpt"):
             with cM:
                 st.latex(latex_expr)
 
+        # Helper: print utilization with correct sign + badge (does NOT change any calculation)
+        def _util_line(label_html: str, sym_latex: str, u_val):
+            if u_val is None:
+                _eq_line(label_html, rf"{sym_latex}=\mathrm{{n/a}}")
+                return
+            u_val = float(u_val)
+            sign = r"\le" if u_val <= 1.0 else ">"
+            _eq_line(label_html, rf"{sym_latex} = {u_val:.3f}\,{sign}\,1.0")
+            report_status_badge(u_val)
+
         # ---- Inputs / section resistances (from DB) ----
         family = (sr_display.get("family") or "").upper()
 
@@ -6069,9 +6079,7 @@ def render_report_tab(key_prefix="rpt"):
             _eq_line("Shear ratio (y):", rf"\eta_{{v,y}}=\frac{{V_{{y,Ed}}}}{{V_{{c,y,Rd}}}}=\frac{{{abs(Vy_Ed_kN):.2f}}}{{{Vc_y_Rd_kN:.2f}}}={eta_vy:.3f}")
 
         # -----------------------------------------------------------------
-        # Important engineering case:
-        # If η_gov >= 1.0 -> shear capacity already exceeded -> section fails in shear.
-        # Show u(12-14) as shear-governed instead of "cannot compute".
+        # Case: η_gov >= 1.0 -> shear capacity already exceeded (still compute Truth A and show it)
         # -----------------------------------------------------------------
         if eta_gov >= 1.0:
             st.warning(
@@ -6080,6 +6088,7 @@ def render_report_tab(key_prefix="rpt"):
                 "Therefore, the interaction is governed by shear and the section is **NOT OK**."
             )
 
+            # Truth A: uV = (Vy/Vcy)^2 + (Vz/Vcz)^2
             uV_y = (abs(Vy_Ed_kN) / Vc_y_Rd_kN) if (Vc_y_Rd_kN and Vc_y_Rd_kN > 0) else 0.0
             uV_z = (abs(Vz_Ed_kN) / Vc_z_Rd_kN) if (Vc_z_Rd_kN and Vc_z_Rd_kN > 0) else 0.0
             uV = (uV_y ** 2) + (uV_z ** 2)
@@ -6092,17 +6101,14 @@ def render_report_tab(key_prefix="rpt"):
             _eq_line("Shear interaction term:", r"u_V=\left(\frac{V_{y,Ed}}{V_{c,y,Rd}}\right)^2+\left(\frac{V_{z,Ed}}{V_{c,z,Rd}}\right)^2")
             _eq_line("Value:", rf"u_V={uV:.3f}")
 
-            # For reporting consistency, use uV as the utilization for (12)-(14) (shear-governed)
+            # Truth A: still assign u12-u14 = uV (even though it fails)
             u12 = uV
             u13 = uV
             u14 = uV
 
-            _eq_line("Utilization (12):", rf"u_{{y}} = {u12:.3f}\le 1.0")
-            report_status_badge(u12)
-            _eq_line("Utilization (13):", rf"u_{{z}} = {u13:.3f}\le 1.0")
-            report_status_badge(u13)
-            _eq_line("Utilization (14):", rf"u_{{y+z}} = {u14:.3f}\le 1.0")
-            report_status_badge(u14)
+            _util_line("Utilization (12):", r"u_y", u12)
+            _util_line("Utilization (13):", r"u_z", u13)
+            _util_line("Utilization (14):", r"u_{y+z}", u14)
 
             cs_combo.update({
                 "u_6210_12": u12,
@@ -6114,7 +6120,7 @@ def render_report_tab(key_prefix="rpt"):
             })
 
         # -----------------------------------------------------------------
-        # Normal case (η_gov < 1.0): do the regular §6.2.10 interaction
+        # Normal case (η_gov < 1.0): do the regular §6.2.10 interaction (unchanged)
         # -----------------------------------------------------------------
         else:
             if shear_small:
@@ -6185,7 +6191,7 @@ def render_report_tab(key_prefix="rpt"):
                 else:
                     st.info("Section family not recognized for §6.2.10 (I/H or RHS). No interaction model applied here.")
 
-            # Utilizations
+            # Utilizations (unchanged calculations; only display uses _util_line for correct sign)
             if (MN_y_Rd is not None) and (MN_z_Rd is not None) and (alpha_y is not None) and (alpha_z is not None) and (MN_y_Rd > 0) and (MN_z_Rd > 0):
                 uMy = abs(My_Ed_kNm) / MN_y_Rd
                 uMz = abs(Mz_Ed_kNm) / MN_z_Rd
@@ -6209,12 +6215,9 @@ def render_report_tab(key_prefix="rpt"):
                     u13 = (uMz ** alpha_z) + uV
                     u14 = (uMy ** alpha_y) + (uMz ** alpha_z) + uV
 
-                _eq_line("Utilization (12):", rf"u_{{y}} = {u12:.3f}\le 1.0")
-                report_status_badge(u12)
-                _eq_line("Utilization (13):", rf"u_{{z}} = {u13:.3f}\le 1.0")
-                report_status_badge(u13)
-                _eq_line("Utilization (14):", rf"u_{{y+z}} = {u14:.3f}\le 1.0")
-                report_status_badge(u14)
+                _util_line("Utilization (12):", r"u_y", u12)
+                _util_line("Utilization (13):", r"u_z", u13)
+                _util_line("Utilization (14):", r"u_{y+z}", u14)
 
                 cs_combo.update({
                     "u_6210_12": u12,
